@@ -1,6 +1,5 @@
 import { useParams } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   defaultRestaurantConfig,
@@ -10,26 +9,28 @@ import {
   type RestaurantConfig,
   type PublicMenuItem,
 } from "@/lib/restaurant-config";
-import { ShoppingBag, Menu, MessageCircle, HelpCircle } from "lucide-react";
-
-// =============================================================
-// Public Menu – "Site Camaleão"
-// In production, fetch restaurantConfig and menu items from
-// Supabase filtered by slug (restaurant_id).
-// =============================================================
+import { ShoppingBag, Menu, MessageCircle } from "lucide-react";
+import { useCart } from "@/hooks/use-cart";
+import ProductDrawer from "@/components/menu/ProductDrawer";
+import OrderSummaryDrawer from "@/components/menu/OrderSummaryDrawer";
 
 const PublicMenu = () => {
   const { slug } = useParams<{ slug: string }>();
 
   // TODO: Fetch restaurant config from Supabase by slug
-  const [restaurant, setRestaurant] = useState<RestaurantConfig>(defaultRestaurantConfig);
+  const [restaurant] = useState<RestaurantConfig>(defaultRestaurantConfig);
   const [items] = useState<PublicMenuItem[]>(mockMenuItems);
   const [activeCategory, setActiveCategory] = useState<string>("");
 
+  // Cart
+  const cart = useCart();
+  const [selectedItem, setSelectedItem] = useState<PublicMenuItem | null>(null);
+  const [productDrawerOpen, setProductDrawerOpen] = useState(false);
+  const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
+
   // Derive categories
   const categories = useMemo(() => {
-    const cats = Array.from(new Set(items.filter((i) => i.available).map((i) => i.category)));
-    return cats;
+    return Array.from(new Set(items.filter((i) => i.available).map((i) => i.category)));
   }, [items]);
 
   useEffect(() => {
@@ -38,7 +39,7 @@ const PublicMenu = () => {
     }
   }, [categories, activeCategory]);
 
-  // Apply dynamic CSS variables to this page's root
+  // Apply dynamic CSS variables
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty("--menu-primary", hexToHsl(restaurant.primaryColor));
@@ -54,20 +55,18 @@ const PublicMenu = () => {
   const filteredItems = items.filter((i) => i.available && i.category === activeCategory);
   const font = fontFamilyMap[restaurant.fontFamily];
 
+  const openProduct = (item: PublicMenuItem) => {
+    setSelectedItem(item);
+    setProductDrawerOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-background" style={{ fontFamily: font }}>
       {/* Header */}
-      <header
-        className="py-6 px-4 text-center"
-        style={{ backgroundColor: restaurant.primaryColor }}
-      >
+      <header className="py-6 px-4 text-center" style={{ backgroundColor: restaurant.primaryColor }}>
         <div className="max-w-md mx-auto">
           {restaurant.logoUrl ? (
-            <img
-              src={restaurant.logoUrl}
-              alt={restaurant.name}
-              className="h-16 w-16 rounded-full mx-auto mb-3 object-cover border-2 border-white/30"
-            />
+            <img src={restaurant.logoUrl} alt={restaurant.name} className="h-16 w-16 rounded-full mx-auto mb-3 object-cover border-2 border-white/30" />
           ) : (
             <div className="h-16 w-16 rounded-full mx-auto mb-3 bg-white/20 flex items-center justify-center text-white font-bold text-2xl">
               {restaurant.name.charAt(0)}
@@ -97,11 +96,12 @@ const PublicMenu = () => {
       </nav>
 
       {/* Menu Items */}
-      <main className="max-w-md mx-auto px-4 py-4 pb-24 space-y-3">
+      <main className="max-w-md mx-auto px-4 py-4 pb-32 space-y-3">
         {filteredItems.map((item) => (
           <div
             key={item.id}
-            className="flex gap-3 p-4 rounded-xl bg-card border border-border"
+            className="flex gap-3 p-4 rounded-xl bg-card border border-border cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => openProduct(item)}
           >
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-sm">{item.name}</h3>
@@ -114,6 +114,10 @@ const PublicMenu = () => {
               size="sm"
               className="self-end shrink-0 h-8 text-xs"
               style={{ backgroundColor: restaurant.primaryColor }}
+              onClick={(e) => {
+                e.stopPropagation();
+                openProduct(item);
+              }}
             >
               Adicionar
             </Button>
@@ -126,15 +130,45 @@ const PublicMenu = () => {
         )}
       </main>
 
-      {/* Bottom Navigation – placeholder for future pages */}
+      {/* Floating "Ver Pedido" button */}
+      {cart.totalItems > 0 && (
+        <div className="fixed bottom-16 inset-x-0 z-20 px-4 pb-2">
+          <div className="max-w-md mx-auto">
+            <Button
+              className="w-full h-12 text-sm font-semibold shadow-lg flex items-center justify-between px-5"
+              style={{ backgroundColor: restaurant.primaryColor }}
+              onClick={() => setOrderDrawerOpen(true)}
+            >
+              <span className="flex items-center gap-2">
+                <ShoppingBag className="h-4 w-4" />
+                Ver Pedido ({cart.totalItems} {cart.totalItems === 1 ? "item" : "itens"})
+              </span>
+              <span>R$ {cart.totalPrice.toFixed(2).replace(".", ",")}</span>
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Navigation */}
       <nav className="fixed bottom-0 inset-x-0 z-20 bg-background border-t border-border">
         <div className="max-w-md mx-auto flex items-center justify-around h-14">
           <button className="flex flex-col items-center gap-0.5">
             <Menu className="h-5 w-5" style={{ color: restaurant.primaryColor }} />
             <span className="text-[10px] font-medium" style={{ color: restaurant.primaryColor }}>Menu</span>
           </button>
-          <button className="flex flex-col items-center gap-0.5 opacity-40" disabled>
-            <ShoppingBag className="h-5 w-5 text-muted-foreground" />
+          <button
+            className="flex flex-col items-center gap-0.5 relative"
+            onClick={() => setOrderDrawerOpen(true)}
+          >
+            <ShoppingBag className="h-5 w-5" style={{ color: cart.totalItems > 0 ? restaurant.primaryColor : undefined }} />
+            {cart.totalItems > 0 && (
+              <span
+                className="absolute -top-1 -right-1 h-4 w-4 rounded-full text-[9px] font-bold text-white flex items-center justify-center"
+                style={{ backgroundColor: restaurant.primaryColor }}
+              >
+                {cart.totalItems}
+              </span>
+            )}
             <span className="text-[10px] text-muted-foreground">Pedidos</span>
           </button>
           <button className="flex flex-col items-center gap-0.5 opacity-40" disabled>
@@ -143,6 +177,24 @@ const PublicMenu = () => {
           </button>
         </div>
       </nav>
+
+      {/* Drawers */}
+      <ProductDrawer
+        item={selectedItem}
+        open={productDrawerOpen}
+        onClose={() => setProductDrawerOpen(false)}
+        onAdd={cart.addItem}
+        primaryColor={restaurant.primaryColor}
+      />
+      <OrderSummaryDrawer
+        open={orderDrawerOpen}
+        onClose={() => setOrderDrawerOpen(false)}
+        items={cart.items}
+        totalPrice={cart.totalPrice}
+        onUpdateQuantity={cart.updateQuantity}
+        onRemove={cart.removeItem}
+        primaryColor={restaurant.primaryColor}
+      />
     </div>
   );
 };

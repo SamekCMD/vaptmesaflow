@@ -14,6 +14,9 @@ import SettingsPage from "./pages/dashboard/SettingsPage";
 import AppearancePage from "./pages/dashboard/AppearancePage";
 import WhatsAppIntegration from "./pages/dashboard/WhatsAppIntegration";
 import PublicMenu from "./pages/menu/PublicMenu";
+import LoginPage from "./pages/auth/LoginPage";
+import SignupPage from "./pages/auth/SignupPage";
+import OnboardingPage from "./pages/onboarding/OnboardingPage";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +29,9 @@ const App = () => (
         <RestaurantProvider>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
+            <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="/dashboard" element={<DashboardLayout />}>
               <Route index element={<Overview />} />
               <Route path="menu" element={<MenuManagement />} />
@@ -34,7 +40,6 @@ const App = () => (
               <Route path="appearance" element={<AppearancePage />} />
               <Route path="whatsapp" element={<WhatsAppIntegration />} />
             </Route>
-            {/* Public menu – identifies restaurant by slug */}
             <Route path="/menu/:slug" element={<PublicMenu />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
