@@ -6,6 +6,7 @@ import {
   Monitor,
   Settings,
   MessageCircle,
+  Palette,
   Menu,
   X,
   Bell,
@@ -18,6 +19,7 @@ const navItems = [
   { title: "Visão Geral", icon: LayoutDashboard, path: "/dashboard" },
   { title: "Cardápio", icon: UtensilsCrossed, path: "/dashboard/menu" },
   { title: "Cozinha (KDS)", icon: Monitor, path: "/dashboard/kitchen" },
+  { title: "Aparência", icon: Palette, path: "/dashboard/appearance" },
   { title: "WhatsApp", icon: MessageCircle, path: "/dashboard/whatsapp" },
   { title: "Configurações", icon: Settings, path: "/dashboard/settings" },
 ];
