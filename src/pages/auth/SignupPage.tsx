@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,8 @@ const signupSchema = z.object({
 });
 
 const SignupPage = () => {
+  const navigate = useNavigate();
+  const { signUp } = useAuth();
   const [form, setForm] = useState({ fullName: "", email: "", password: "", confirmPassword: "" });
   const [showPw, setShowPw] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -41,9 +44,13 @@ const SignupPage = () => {
     }
 
     setLoading(true);
-    // TODO: Supabase auth.signUp({ email, password, options: { data: { full_name } } })
-    // Then redirect to /onboarding
-    setTimeout(() => setLoading(false), 1500);
+    const { error } = await signUp(form.email, form.password, form.fullName);
+    setLoading(false);
+    if (error) {
+      setErrors({ email: error.message });
+    } else {
+      navigate("/onboarding");
+    }
   };
 
   return (
