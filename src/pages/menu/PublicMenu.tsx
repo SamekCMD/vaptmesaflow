@@ -30,7 +30,9 @@ const PublicMenu = () => {
 
   // Derive categories
   const categories = useMemo(() => {
-    return Array.from(new Set(items.filter((i) => i.available).map((i) => i.category)));
+    return Array.from(
+      new Set(items.filter((i) => i.available).map((i) => i.category)),
+    );
   }, [items]);
 
   useEffect(() => {
@@ -43,7 +45,10 @@ const PublicMenu = () => {
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty("--menu-primary", hexToHsl(restaurant.primaryColor));
-    root.style.setProperty("--menu-secondary", hexToHsl(restaurant.secondaryColor));
+    root.style.setProperty(
+      "--menu-secondary",
+      hexToHsl(restaurant.secondaryColor),
+    );
     root.style.setProperty("--menu-font", fontFamilyMap[restaurant.fontFamily]);
     return () => {
       root.style.removeProperty("--menu-primary");
@@ -52,7 +57,9 @@ const PublicMenu = () => {
     };
   }, [restaurant]);
 
-  const filteredItems = items.filter((i) => i.available && i.category === activeCategory);
+  const filteredItems = items.filter(
+    (i) => i.available && i.category === activeCategory,
+  );
   const font = fontFamilyMap[restaurant.fontFamily];
 
   const openProduct = (item: PublicMenuItem) => {
@@ -63,10 +70,17 @@ const PublicMenu = () => {
   return (
     <div className="min-h-screen bg-background" style={{ fontFamily: font }}>
       {/* Header */}
-      <header className="py-6 px-4 text-center" style={{ backgroundColor: restaurant.primaryColor }}>
+      <header
+        className="py-6 px-4 text-center"
+        style={{ backgroundColor: restaurant.primaryColor }}
+      >
         <div className="max-w-md mx-auto">
           {restaurant.logoUrl ? (
-            <img src={restaurant.logoUrl} alt={restaurant.name} className="h-16 w-16 rounded-full mx-auto mb-3 object-cover border-2 border-white/30" />
+            <img
+              src={restaurant.logoUrl}
+              alt={restaurant.name}
+              className="h-16 w-16 rounded-full mx-auto mb-3 object-cover border-2 border-white/30"
+            />
           ) : (
             <div className="h-16 w-16 rounded-full mx-auto mb-3 bg-white/20 flex items-center justify-center text-white font-bold text-2xl">
               {restaurant.name.charAt(0)}
@@ -85,9 +99,15 @@ const PublicMenu = () => {
               key={cat}
               onClick={() => setActiveCategory(cat)}
               className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                activeCategory === cat ? "text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                activeCategory === cat
+                  ? "text-white"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
-              style={activeCategory === cat ? { backgroundColor: restaurant.primaryColor } : {}}
+              style={
+                activeCategory === cat
+                  ? { backgroundColor: restaurant.primaryColor }
+                  : {}
+              }
             >
               {cat}
             </button>
@@ -105,8 +125,13 @@ const PublicMenu = () => {
           >
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-sm">{item.name}</h3>
-              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{item.description}</p>
-              <p className="text-sm font-bold mt-2" style={{ color: restaurant.primaryColor }}>
+              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                {item.description}
+              </p>
+              <p
+                className="text-sm font-bold mt-2"
+                style={{ color: restaurant.primaryColor }}
+              >
                 R$ {item.price.toFixed(2).replace(".", ",")}
               </p>
             </div>
@@ -141,7 +166,8 @@ const PublicMenu = () => {
             >
               <span className="flex items-center gap-2">
                 <ShoppingBag className="h-4 w-4" />
-                Ver Pedido ({cart.totalItems} {cart.totalItems === 1 ? "item" : "itens"})
+                Ver Pedido ({cart.totalItems}{" "}
+                {cart.totalItems === 1 ? "item" : "itens"})
               </span>
               <span>R$ {cart.totalPrice.toFixed(2).replace(".", ",")}</span>
             </Button>
@@ -153,14 +179,42 @@ const PublicMenu = () => {
       <nav className="fixed bottom-0 inset-x-0 z-20 bg-background border-t border-border">
         <div className="max-w-md mx-auto flex items-center justify-around h-14">
           <button className="flex flex-col items-center gap-0.5">
-            <Menu className="h-5 w-5" style={{ color: restaurant.primaryColor }} />
-            <span className="text-[10px] font-medium" style={{ color: restaurant.primaryColor }}>Menu</span>
+            <Menu
+              className="h-5 w-5"
+              style={{
+                color:
+                  restaurant?.primaryColor ||
+                  defaultRestaurantConfig.primaryColor,
+              }}
+            />
+              style={{ color: restaurant.primaryColor }}
+            />
+            <span
+              className="text-[10px] font-medium"
+              style={{ color: restaurant.primaryColor }}
+            >
+              Menu
+            </span>
           </button>
           <button
             className="flex flex-col items-center gap-0.5 relative"
             onClick={() => setOrderDrawerOpen(true)}
           >
-            <ShoppingBag className="h-5 w-5" style={{ color: cart.totalItems > 0 ? restaurant.primaryColor : undefined }} />
+            <ShoppingBag
+              className="h-5 w-5"
+              style={{
+                color:
+                  cart.totalItems > 0
+                    ? restaurant?.primaryColor ||
+                      defaultRestaurantConfig.primaryColor
+                    : undefined,
+              }}
+            />
+              style={{
+                color:
+                  cart.totalItems > 0 ? restaurant.primaryColor : undefined,
+              }}
+            />
             {cart.totalItems > 0 && (
               <span
                 className="absolute -top-1 -right-1 h-4 w-4 rounded-full text-[9px] font-bold text-white flex items-center justify-center"
@@ -171,7 +225,10 @@ const PublicMenu = () => {
             )}
             <span className="text-[10px] text-muted-foreground">Pedidos</span>
           </button>
-          <button className="flex flex-col items-center gap-0.5 opacity-40" disabled>
+          <button
+            className="flex flex-col items-center gap-0.5 opacity-40"
+            disabled
+          >
             <MessageCircle className="h-5 w-5 text-muted-foreground" />
             <span className="text-[10px] text-muted-foreground">Suporte</span>
           </button>
