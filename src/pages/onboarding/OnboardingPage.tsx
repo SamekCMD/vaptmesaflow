@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ArrowLeft, ArrowRight, Check, Upload, UtensilsCrossed, Palette, Store } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Upload, UtensilsCrossed, Palette, Store, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const STEPS = [
   { title: "Boas-vindas", icon: Store },
@@ -16,7 +19,10 @@ const STEPS = [
 
 const OnboardingPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [step, setStep] = useState(0);
+  const [saving, setSaving] = useState(false);
   const progress = ((step + 1) / STEPS.length) * 100;
 
   // Step 1 state
@@ -63,10 +69,50 @@ const OnboardingPage = () => {
     return false;
   };
 
-  const handleFinish = () => {
-    // TODO: Save restaurant + first dish to Supabase
-    // Insert into `restaurants` and `menu_items` tables
-    navigate("/dashboard");
+  const handleFinish = async () => {
+    if (!user) return;
+    setSaving(true);
+
+    try {
+      // 1. Insert restaurant
+      const { data: restaurant, error: restError } = await supabase
+        .from("restaurants")
+        .insert({
+          owner_id: user.id,
+          name: restaurantName.trim(),
+          slug: slug.trim(),
+          whatsapp: whatsapp.trim() || null,
+          primary_color: primaryColor,
+          secondary_color: secondaryColor,
+        })
+        .select("id")
+        .single();
+
+      if (restError) throw restError;
+
+      // 2. Insert first menu item
+      const { error: menuError } = await supabase.from("menu_items").insert({
+        restaurant_id: restaurant.id,
+        name: dishName.trim(),
+        price: parseFloat(dishPrice),
+        description: dishDescription.trim() || null,
+        category: dishCategory.trim(),
+      });
+
+      if (menuError) throw menuError;
+
+      toast({ title: "Restaurante criado com sucesso!" });
+      navigate("/dashboard");
+    } catch (err: any) {
+      console.error("Onboarding error:", err);
+      toast({
+        title: "Erro ao salvar",
+        description: err.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -252,8 +298,9 @@ const OnboardingPage = () => {
                 Próximo <ArrowRight className="h-4 w-4 ml-1" />
               </Button>
             ) : (
-              <Button disabled={!canAdvance()} onClick={handleFinish}>
-                <Check className="h-4 w-4 mr-1" /> Finalizar
+              <Button disabled={!canAdvance() || saving} onClick={handleFinish}>
+                {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
+                Finalizar
               </Button>
             )}
           </CardFooter>
