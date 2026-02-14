@@ -1,13 +1,11 @@
+import { useEffect, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, ShoppingBag, TrendingUp, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DollarSign, ShoppingBag, TrendingUp, Clock, Loader2, Store } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-
-const metrics = [
-  { title: "Vendas Hoje", value: "R$ 4.230", change: "+12%", icon: DollarSign },
-  { title: "Pedidos Pendentes", value: "8", change: "3 urgentes", icon: ShoppingBag },
-  { title: "Ticket Médio", value: "R$ 62,50", change: "+5%", icon: TrendingUp },
-  { title: "Tempo Médio", value: "18 min", change: "-2 min", icon: Clock },
-];
+import { useNavigate } from "react-router-dom";
 
 const weekData = [
   { day: "Seg", valor: 3200 },
@@ -20,10 +18,56 @@ const weekData = [
 ];
 
 const Overview = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [restaurant, setRestaurant] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("restaurants")
+      .select("*")
+      .eq("owner_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        setRestaurant(data);
+        setLoading(false);
+      });
+  }, [user]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!restaurant) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+        <Store className="h-12 w-12 text-muted-foreground" />
+        <h2 className="text-xl font-semibold">Nenhum restaurante encontrado</h2>
+        <p className="text-muted-foreground text-sm max-w-sm">
+          Complete o processo de onboarding para configurar seu restaurante.
+        </p>
+        <Button onClick={() => navigate("/onboarding")}>Configurar Restaurante</Button>
+      </div>
+    );
+  }
+
+  const metrics = [
+    { title: "Vendas Hoje", value: "R$ 0", change: "Sem dados ainda", icon: DollarSign },
+    { title: "Pedidos Pendentes", value: "0", change: "—", icon: ShoppingBag },
+    { title: "Ticket Médio", value: "R$ 0", change: "—", icon: TrendingUp },
+    { title: "Tempo Médio", value: "— min", change: "—", icon: Clock },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Visão Geral</h1>
+        <h1 className="text-2xl font-bold">{restaurant.name}</h1>
         <p className="text-muted-foreground text-sm">Resumo do seu restaurante hoje</p>
       </div>
 
@@ -36,7 +80,7 @@ const Overview = () => {
                 <m.icon className="h-4 w-4 text-muted-foreground" />
               </div>
               <p className="text-2xl font-bold">{m.value}</p>
-              <p className="text-xs text-primary mt-1">{m.change}</p>
+              <p className="text-xs text-muted-foreground mt-1">{m.change}</p>
             </CardContent>
           </Card>
         ))}
@@ -45,6 +89,7 @@ const Overview = () => {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Faturamento da Semana</CardTitle>
+          <p className="text-xs text-muted-foreground">Dados de exemplo — pedidos reais aparecerão aqui em breve.</p>
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
