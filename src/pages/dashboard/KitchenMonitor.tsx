@@ -3,6 +3,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, ArrowRight } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { KitchenSkeleton } from "@/components/skeletons/DashboardSkeletons";
 
 interface Order {
   id: number;
@@ -26,9 +28,20 @@ const columns = [
   { key: "ready" as const, label: "Pronto", color: "bg-badge-ready" },
 ];
 
+const statusLabels: Record<string, string> = {
+  preparing: "Preparando",
+  ready: "Pronto",
+};
+
 const KitchenMonitor = () => {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [, setTick] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 800);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => setTick((t) => t + 1), 30000);
@@ -43,7 +56,15 @@ const KitchenMonitor = () => {
   const advance = (order: Order) => {
     const next = order.status === "queue" ? "preparing" : "ready";
     setOrders(orders.map((o) => (o.id === order.id ? { ...o, status: next as Order["status"] } : o)));
+    toast({
+      title: `Pedido #${order.id} atualizado`,
+      description: `Movido para "${statusLabels[next]}"`,
+    });
   };
+
+  if (loading) {
+    return <KitchenSkeleton />;
+  }
 
   return (
     <div className="space-y-6">
@@ -71,9 +92,7 @@ const KitchenMonitor = () => {
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between mb-3">
                         <span className="font-semibold text-sm">#{order.id}</span>
-                        <Badge variant="outline" className="text-xs">
-                          {order.table}
-                        </Badge>
+                        <Badge variant="outline" className="text-xs">{order.table}</Badge>
                       </div>
                       <ul className="space-y-1 mb-3">
                         {order.items.map((item, i) => (

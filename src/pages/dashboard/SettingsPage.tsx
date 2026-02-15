@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 
 import { Loader2 } from "lucide-react";
+import { SettingsFormSkeleton } from "@/components/skeletons/DashboardSkeletons";
 
 const SettingsPage = () => {
   const { user } = useAuth();
@@ -104,11 +105,7 @@ const SettingsPage = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <SettingsFormSkeleton />;
   }
 
   return (
