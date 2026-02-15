@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,29 +6,108 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { useRestaurant } from "@/contexts/RestaurantContext";
-import { fontFamilyLabels, fontFamilyMap, hexToHsl, type RestaurantConfig } from "@/lib/restaurant-config";
+import { fontFamilyLabels, fontFamilyMap, type RestaurantConfig } from "@/lib/restaurant-config";
 import { toast } from "@/hooks/use-toast";
-import { Upload, Smartphone, ExternalLink } from "lucide-react";
+import { Upload, Smartphone, ExternalLink, Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const AppearancePage = () => {
-  const { config, updateConfig } = useRestaurant();
+  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [logoPreview, setLogoPreview] = useState<string>(config.logoUrl);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [logoPreview, setLogoPreview] = useState("");
+  const [config, setConfig] = useState<RestaurantConfig>({
+    id: "",
+    name: "",
+    slug: "",
+    logoUrl: "",
+    primaryColor: "#0ea573",
+    secondaryColor: "#1e293b",
+    fontFamily: "modern",
+    activeModules: { menu: true, kds: true, metrics: true },
+  });
+
+  const updateConfig = (partial: Partial<RestaurantConfig>) => {
+    setConfig((prev) => ({ ...prev, ...partial }));
+  };
+
+  // Fetch restaurant data
+  useEffect(() => {
+    const fetch = async () => {
+      if (!user) return;
+      try {
+        const { data, error } = await supabase
+          .from("restaurants")
+          .select("*")
+          .eq("owner_id", user.id)
+          .single();
+
+        if (error) throw error;
+        if (data) {
+          setConfig({
+            id: data.id,
+            name: data.name || "",
+            slug: data.slug || "",
+            logoUrl: data.logo_url || "",
+            primaryColor: data.primary_color || "#0ea573",
+            secondaryColor: data.secondary_color || "#1e293b",
+            fontFamily: (data.font_family as RestaurantConfig["fontFamily"]) || "modern",
+            activeModules: { menu: true, kds: true, metrics: true },
+          });
+          setLogoPreview(data.logo_url || "");
+        }
+      } catch (err: any) {
+        console.error("Error fetching restaurant:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetch();
+  }, [user]);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // TODO: Upload to Supabase Storage, get public URL
     const url = URL.createObjectURL(file);
     setLogoPreview(url);
     updateConfig({ logoUrl: url });
   };
 
-  const handleSave = () => {
-    // TODO: Persist to Supabase
-    toast({ title: "Aparência salva", description: "As alterações de marca foram aplicadas." });
+  const handleSave = async () => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("restaurants")
+        .update({
+          name: config.name,
+          slug: config.slug,
+          primary_color: config.primaryColor,
+          secondary_color: config.secondaryColor,
+          font_family: config.fontFamily,
+          logo_url: config.logoUrl,
+        })
+        .eq("owner_id", user.id);
+
+      if (error) throw error;
+      toast({ title: "Aparência salva", description: "As alterações de marca foram aplicadas." });
+    } catch (err: any) {
+      toast({ title: "Erro ao salvar", description: err.message || "Tente novamente.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -87,35 +166,15 @@ const AppearancePage = () => {
                 <div>
                   <Label>Cor Primária</Label>
                   <div className="flex items-center gap-3 mt-2">
-                    <input
-                      type="color"
-                      value={config.primaryColor}
-                      onChange={(e) => updateConfig({ primaryColor: e.target.value })}
-                      className="h-10 w-10 rounded-md border border-input cursor-pointer"
-                    />
-                    <Input
-                      value={config.primaryColor}
-                      onChange={(e) => updateConfig({ primaryColor: e.target.value })}
-                      className="font-mono text-sm"
-                      maxLength={7}
-                    />
+                    <input type="color" value={config.primaryColor} onChange={(e) => updateConfig({ primaryColor: e.target.value })} className="h-10 w-10 rounded-md border border-input cursor-pointer" />
+                    <Input value={config.primaryColor} onChange={(e) => updateConfig({ primaryColor: e.target.value })} className="font-mono text-sm" maxLength={7} />
                   </div>
                 </div>
                 <div>
                   <Label>Cor Secundária</Label>
                   <div className="flex items-center gap-3 mt-2">
-                    <input
-                      type="color"
-                      value={config.secondaryColor}
-                      onChange={(e) => updateConfig({ secondaryColor: e.target.value })}
-                      className="h-10 w-10 rounded-md border border-input cursor-pointer"
-                    />
-                    <Input
-                      value={config.secondaryColor}
-                      onChange={(e) => updateConfig({ secondaryColor: e.target.value })}
-                      className="font-mono text-sm"
-                      maxLength={7}
-                    />
+                    <input type="color" value={config.secondaryColor} onChange={(e) => updateConfig({ secondaryColor: e.target.value })} className="h-10 w-10 rounded-md border border-input cursor-pointer" />
+                    <Input value={config.secondaryColor} onChange={(e) => updateConfig({ secondaryColor: e.target.value })} className="font-mono text-sm" maxLength={7} />
                   </div>
                 </div>
               </div>
@@ -128,9 +187,7 @@ const AppearancePage = () => {
             <CardContent>
               <Label>Família de Fonte</Label>
               <Select value={config.fontFamily} onValueChange={(v) => updateConfig({ fontFamily: v as RestaurantConfig["fontFamily"] })}>
-                <SelectTrigger className="mt-2">
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {(Object.keys(fontFamilyLabels) as RestaurantConfig["fontFamily"][]).map((key) => (
                     <SelectItem key={key} value={key}>{fontFamilyLabels[key]}</SelectItem>
@@ -140,24 +197,10 @@ const AppearancePage = () => {
             </CardContent>
           </Card>
 
-          {/* Modules */}
-          <Card>
-            <CardHeader><CardTitle className="text-base">Módulos Ativos</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {([["menu", "Cardápio Digital"], ["kds", "Monitor de Cozinha (KDS)"], ["metrics", "Painel de Métricas"]] as const).map(([key, label]) => (
-                <div key={key} className="flex items-center justify-between">
-                  <span className="text-sm">{label}</span>
-                  <Switch
-                    checked={config.activeModules[key]}
-                    onCheckedChange={(v) => updateConfig({ activeModules: { ...config.activeModules, [key]: v } })}
-                  />
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
           <div className="flex gap-3">
-            <Button onClick={handleSave}>Salvar Alterações</Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : "Salvar Alterações"}
+            </Button>
             <Button variant="outline" asChild>
               <a href={`/menu/${config.slug}`} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-4 w-4 mr-2" />
@@ -167,7 +210,7 @@ const AppearancePage = () => {
           </div>
         </div>
 
-        {/* Right – Live Preview Mockup */}
+        {/* Right – Live Preview */}
         <div className="hidden lg:block">
           <div className="sticky top-6">
             <div className="flex items-center gap-2 mb-3">
@@ -188,14 +231,10 @@ const LivePreview = ({ config, logoPreview }: { config: RestaurantConfig; logoPr
 
   return (
     <div className="w-full max-w-[320px] mx-auto rounded-[2rem] border-4 border-border bg-background shadow-xl overflow-hidden">
-      {/* Status bar */}
       <div className="h-6 bg-muted flex items-center justify-center">
         <div className="w-20 h-1.5 rounded-full bg-border" />
       </div>
-
-      {/* Content */}
       <div className="h-[560px] overflow-auto" style={{ fontFamily: font }}>
-        {/* Header */}
         <div className="p-4 text-center" style={{ backgroundColor: config.primaryColor }}>
           {logoPreview ? (
             <img src={logoPreview} alt="Logo" className="h-12 w-12 rounded-full object-cover mx-auto mb-2 border-2 border-white/30" />
@@ -206,22 +245,13 @@ const LivePreview = ({ config, logoPreview }: { config: RestaurantConfig; logoPr
           )}
           <p className="text-white font-semibold text-sm">{config.name || "Nome do Restaurante"}</p>
         </div>
-
-        {/* Categories */}
         <div className="flex gap-2 p-3 overflow-x-auto">
           {["Entradas", "Pratos", "Bebidas"].map((cat, i) => (
-            <Badge
-              key={cat}
-              variant={i === 0 ? "default" : "outline"}
-              className="whitespace-nowrap text-xs cursor-pointer"
-              style={i === 0 ? { backgroundColor: config.primaryColor, color: "#fff" } : {}}
-            >
+            <Badge key={cat} variant={i === 0 ? "default" : "outline"} className="whitespace-nowrap text-xs cursor-pointer" style={i === 0 ? { backgroundColor: config.primaryColor, color: "#fff" } : {}}>
               {cat}
             </Badge>
           ))}
         </div>
-
-        {/* Mock items */}
         <div className="px-3 space-y-2 pb-20">
           {[
             { name: "Bruschetta Caprese", desc: "Tomate e mozzarella", price: "R$ 24,90" },
@@ -237,11 +267,7 @@ const LivePreview = ({ config, logoPreview }: { config: RestaurantConfig; logoPr
             </div>
           ))}
         </div>
-
-        {/* Bottom nav placeholder */}
-        <div
-          className="absolute bottom-0 left-0 right-0 h-14 border-t border-border bg-background flex items-center justify-around px-4"
-        >
+        <div className="absolute bottom-0 left-0 right-0 h-14 border-t border-border bg-background flex items-center justify-around px-4">
           <div className="flex flex-col items-center">
             <div className="h-5 w-5 rounded bg-muted-foreground/30" />
             <span className="text-[10px] mt-0.5" style={{ color: config.primaryColor }}>Menu</span>

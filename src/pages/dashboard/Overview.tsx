@@ -31,11 +31,7 @@ import {
 
 
 import { useNavigate } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
-
-import { useToast } from "@/hooks/use-toast";
-
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 
 
 const Overview = () => {
@@ -110,7 +106,7 @@ const Overview = () => {
     };
 
     fetchRestaurantData();
-  }, [user, toast]);
+  }, [user]);
 
 
           
