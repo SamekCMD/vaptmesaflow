@@ -21,7 +21,7 @@ const PublicMenu = () => {
   const { theme, setTheme } = useTheme();
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
-  const tableNumber = searchParams.get("table") || "";
+  const tableNumber = searchParams.get("table") || searchParams.get("mesa") || "";
 
   const [restaurant, setRestaurant] = useState<RestaurantConfig | null>(null);
   const [items, setItems] = useState<PublicMenuItem[]>([]);
@@ -196,14 +196,14 @@ const PublicMenu = () => {
       </header>
 
       {/* Category Navigation */}
-      <nav className="sticky top-0 z-10 bg-background border-b border-border">
+      <nav className="sticky top-0 z-10 border-b border-border" style={{ backgroundColor: restaurant.secondaryColor }}>
         <div className="max-w-md mx-auto flex gap-2 px-4 py-3 overflow-x-auto scrollbar-none">
           {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
               className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                activeCategory === cat ? "text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                activeCategory === cat ? "text-white" : "text-white/60 hover:text-white/80"
               }`}
               style={activeCategory === cat ? { backgroundColor: restaurant.primaryColor } : {}}
             >
@@ -272,28 +272,28 @@ const PublicMenu = () => {
       )}
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 inset-x-0 z-20 bg-background border-t border-border">
+      <nav className="fixed bottom-0 inset-x-0 z-20 border-t border-white/10" style={{ backgroundColor: restaurant.secondaryColor }}>
         <div className="max-w-md mx-auto flex items-center justify-around h-14">
           <button
             className="flex flex-col items-center gap-0.5"
             onClick={() => setActiveTab("menu")}
           >
-            <Menu className="h-5 w-5" style={{ color: activeTab === "menu" ? restaurant.primaryColor : undefined }} />
-            <span className="text-[10px] font-medium" style={{ color: activeTab === "menu" ? restaurant.primaryColor : undefined }}>Menu</span>
+            <Menu className="h-5 w-5" style={{ color: activeTab === "menu" ? restaurant.primaryColor : "rgba(255,255,255,0.5)" }} />
+            <span className="text-[10px] font-medium" style={{ color: activeTab === "menu" ? restaurant.primaryColor : "rgba(255,255,255,0.5)" }}>Menu</span>
           </button>
           <button
             className="flex flex-col items-center gap-0.5 relative"
             onClick={() => { setActiveTab("orders"); setMyOrdersOpen(true); }}
           >
-            <ClipboardList className="h-5 w-5" style={{ color: activeTab === "orders" ? restaurant.primaryColor : undefined }} />
-            <span className="text-[10px]" style={{ color: activeTab === "orders" ? restaurant.primaryColor : undefined }}>Meus Pedidos</span>
+            <ClipboardList className="h-5 w-5" style={{ color: activeTab === "orders" ? restaurant.primaryColor : "rgba(255,255,255,0.5)" }} />
+            <span className="text-[10px]" style={{ color: activeTab === "orders" ? restaurant.primaryColor : "rgba(255,255,255,0.5)" }}>Meus Pedidos</span>
           </button>
           <button
             className="flex flex-col items-center gap-0.5"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           >
-            {theme === "dark" ? <Sun className="h-5 w-5 text-muted-foreground" /> : <Moon className="h-5 w-5 text-muted-foreground" />}
-            <span className="text-[10px] text-muted-foreground">Tema</span>
+            {theme === "dark" ? <Sun className="h-5 w-5" style={{ color: "rgba(255,255,255,0.5)" }} /> : <Moon className="h-5 w-5" style={{ color: "rgba(255,255,255,0.5)" }} />}
+            <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.5)" }}>Tema</span>
           </button>
         </div>
       </nav>
