@@ -1,66 +1,80 @@
 
 
-# Plano: Corrigir Menu Publico, Configuracoes e Aparencia
+# Plano: Skeleton Screens, Toasts, Loading States e Melhorias na Hero
 
-## Problemas Identificados
+## Resumo
 
-### 1. PublicMenu.tsx - JSX Quebrado + Dados Mock
-- **JSX quebrado**: Linhas 190-191 e 213-217 tem props `style` "soltas" fora de elementos (provavelmente de um merge ruim do GitHub). Isso causa erro de compilacao ou comportamento inesperado.
-- **Dados mock**: O componente usa `defaultRestaurantConfig` ("Bistro du Chef") e `mockMenuItems` hardcoded, ignorando completamente o parametro `slug` da URL. Por isso qualquer slug mostra o mesmo conteudo.
-
-### 2. AppearancePage.tsx - Usa RestaurantContext (memoria apenas)
-- Lê e escreve no `RestaurantContext` que e apenas estado em memoria (useState).
-- O botao "Salvar Alteracoes" mostra um toast mas nao persiste nada no Supabase.
-- Precisa buscar o restaurante do usuario logado ao montar e salvar via `supabase.from('restaurants').update(...)`.
-
-### 3. SettingsPage.tsx - Colunas inexistentes no banco
-- O codigo busca `phone`, `hours` e `description` da tabela `restaurants`, mas essas colunas **nao existem** no schema SQL criado anteriormente.
-- O schema tem `whatsapp` em vez de `phone`, e nao tem `hours` nem `description`.
-- Opcoes: adicionar as colunas faltantes OU ajustar o codigo para usar as existentes.
+Adicionar feedback visual em todo o app: skeletons durante carregamento, toasts para confirmacoes/erros, e corrigir a Hero da landing page (imagem e botao).
 
 ## Alteracoes Planejadas
 
-### 1. Adicionar colunas faltantes na tabela `restaurants`
-SQL para executar manualmente no Supabase:
-```
-ALTER TABLE public.restaurants
-  ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT '',
-  ADD COLUMN IF NOT EXISTS hours TEXT DEFAULT '',
-  ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
-```
+### 1. Hero da Landing Page (`Hero.tsx`)
+- **Remover a imagem hero-dashboard.png** e substituir por uma ilustracao CSS/SVG estilizada mostrando um mockup de dashboard (cards, grafico, etc.) feito com divs e cores do tema. Isso fica sempre alinhado com a marca.
+- **Botao "Ver Funcionalidades"**: corrigir a cor do texto para ser legivel. Trocar `text-hero-foreground` por `text-white` ou usar uma cor com contraste adequado sobre o fundo escuro.
 
-### 2. Corrigir PublicMenu.tsx
-- Remover as linhas de JSX quebrado (props soltas nas linhas 190-191 e 213-217)
-- Substituir os dados mock por fetch real do Supabase:
-  - Buscar restaurante: `supabase.from('restaurants').select('*').eq('slug', slug).single()`
-  - Buscar menu items: `supabase.from('menu_items').select('*').eq('restaurant_id', restaurant.id).eq('available', true)`
-- Adicionar estados de loading e erro (restaurante nao encontrado)
+### 2. Skeleton no Dashboard Overview (`Overview.tsx`)
+- Substituir o spinner `Loader2` por skeleton screens:
+  - 4 cards de metricas com skeleton (retangulos cinza pulsantes)
+  - 1 card de grafico com skeleton
+- Usar o componente `Skeleton` ja existente em `src/components/ui/skeleton.tsx`
 
-### 3. Conectar AppearancePage.tsx ao Supabase
-- Remover dependencia do `RestaurantContext` para dados
-- Usar `useAuth()` para obter o `user.id`
-- No `useEffect`, buscar: `supabase.from('restaurants').select('*').eq('owner_id', user.id).single()`
-- Preencher o formulario com os dados reais (name, slug, primary_color, secondary_color, font_family, logo_url)
-- No `handleSave`, fazer: `supabase.from('restaurants').update({...}).eq('owner_id', user.id)`
-- Manter o preview ao vivo funcionando com estado local
+### 3. Skeleton no Menu Publico (`PublicMenu.tsx`)
+- Substituir o spinner por skeleton do header + lista de itens:
+  - Skeleton do cabecalho (circulo + linhas)
+  - Skeleton da barra de categorias
+  - 4-6 cards de itens com skeleton
 
-### 4. SettingsPage.tsx ja funciona
-- O SettingsPage ja usa Supabase corretamente. Apos adicionar as colunas `phone`, `hours` e `description`, ele vai funcionar sem alteracoes no codigo.
+### 4. Skeleton na Gestao de Cardapio (`MenuManagement.tsx`)
+- Este componente usa dados mock locais (nao conectado ao Supabase ainda), mas vamos preparar a estrutura:
+  - Adicionar estado de loading simulado breve
+  - Skeleton da tabela (5 linhas com retangulos)
+- Adicionar toasts ao salvar/editar/deletar itens
 
-## Resumo dos Arquivos
+### 5. Skeleton nas Configuracoes (`SettingsPage.tsx`)
+- Substituir o spinner por skeleton do formulario (5 campos com labels)
 
-| Arquivo | Acao |
+### 6. Skeleton na Aparencia (`AppearancePage.tsx`)
+- Substituir qualquer spinner por skeleton do formulario de aparencia
+
+### 7. Skeleton no Monitor da Cozinha (`KitchenMonitor.tsx`)
+- Adicionar skeleton das 3 colunas com cards placeholder
+- Toast ao avancar pedido ("Pedido #101 movido para Preparando")
+
+### 8. Toasts Globais
+- **MenuManagement**: toast ao adicionar, editar e deletar item
+- **KitchenMonitor**: toast ao avancar pedido
+- **SettingsPage**: ja tem toasts (manter)
+- **AppearancePage**: ja tem toast (manter)
+- **Overview**: ja tem toast de erro (manter)
+
+## Detalhes Tecnicos
+
+### Componente auxiliar: Skeletons reutilizaveis
+Criar componentes skeleton especificos reutilizaveis dentro de cada arquivo (inline) usando o `Skeleton` base:
+- `MetricCardSkeleton` - para os 4 cards do dashboard
+- `ChartSkeleton` - para o grafico
+- `MenuItemSkeleton` - para itens do menu publico
+- `TableRowSkeleton` - para linhas da tabela de gestao
+
+### Hero - Mockup ilustrativo
+Em vez de usar uma imagem estatica, criar um componente `HeroDashboardMockup` com divs estilizadas que simulam um dashboard:
+- Fundo escuro arredondado (card)
+- Mini cards de metricas (retangulos coloridos)
+- Mini grafico (SVG simples ou barras CSS)
+- Isso garante que a ilustracao sempre combine com o tema verde do Vapt
+
+### Botao "Ver Funcionalidades"
+Mudar de `text-hero-foreground` para `text-white` e adicionar `border-white/20` para garantir legibilidade sobre o fundo escuro da hero.
+
+## Arquivos a Modificar
+
+| Arquivo | Mudanca |
 |---|---|
-| `src/pages/menu/PublicMenu.tsx` | Corrigir JSX quebrado + fetch real por slug |
-| `src/pages/dashboard/AppearancePage.tsx` | Conectar ao Supabase (ler/salvar) |
-| Supabase SQL (manual) | Adicionar colunas `phone`, `hours`, `description` |
-
-## Instrucao para o Usuario
-Antes de aprovar, execute este SQL no seu Supabase:
-```sql
-ALTER TABLE public.restaurants
-  ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT '',
-  ADD COLUMN IF NOT EXISTS hours TEXT DEFAULT '',
-  ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
-```
+| `src/components/landing/Hero.tsx` | Mockup CSS no lugar da imagem + fix botao |
+| `src/pages/dashboard/Overview.tsx` | Skeleton screens nos cards e grafico |
+| `src/pages/menu/PublicMenu.tsx` | Skeleton do menu publico |
+| `src/pages/dashboard/MenuManagement.tsx` | Toasts nas acoes + skeleton da tabela |
+| `src/pages/dashboard/KitchenMonitor.tsx` | Toast ao avancar + skeleton |
+| `src/pages/dashboard/SettingsPage.tsx` | Skeleton no formulario |
+| `src/pages/dashboard/AppearancePage.tsx` | Skeleton no formulario |
 
