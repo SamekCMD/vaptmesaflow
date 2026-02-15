@@ -9,7 +9,8 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Minus, Plus, X } from "lucide-react";
+import { Minus, Plus, X, ShoppingBag } from "lucide-react";
+import { motion } from "framer-motion";
 import type { PublicMenuItem } from "@/lib/restaurant-config";
 
 interface ProductDrawerProps {
@@ -23,12 +24,14 @@ interface ProductDrawerProps {
 const ProductDrawer = ({ item, open, onClose, onAdd, primaryColor }: ProductDrawerProps) => {
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
+  const [added, setAdded] = useState(false);
 
   const handleOpenChange = (o: boolean) => {
     if (!o) {
       onClose();
       setQuantity(1);
       setNotes("");
+      setAdded(false);
     }
   };
 
@@ -36,9 +39,13 @@ const ProductDrawer = ({ item, open, onClose, onAdd, primaryColor }: ProductDraw
 
   const handleAdd = () => {
     onAdd(item, quantity, notes);
-    onClose();
-    setQuantity(1);
-    setNotes("");
+    setAdded(true);
+    setTimeout(() => {
+      onClose();
+      setQuantity(1);
+      setNotes("");
+      setAdded(false);
+    }, 600);
   };
 
   return (
@@ -46,7 +53,7 @@ const ProductDrawer = ({ item, open, onClose, onAdd, primaryColor }: ProductDraw
       <DrawerContent className="max-w-md mx-auto">
         <DrawerHeader className="relative">
           <DrawerClose asChild>
-            <button className="absolute right-4 top-4 rounded-full p-1 bg-muted">
+            <button className="absolute right-4 top-4 rounded-full p-1 bg-muted hover:bg-muted/80 transition-colors active:scale-90">
               <X className="h-4 w-4" />
             </button>
           </DrawerClose>
@@ -67,7 +74,6 @@ const ProductDrawer = ({ item, open, onClose, onAdd, primaryColor }: ProductDraw
         </DrawerHeader>
 
         <div className="px-4 space-y-4">
-          {/* Notes */}
           <div>
             <label className="text-sm font-medium mb-1.5 block">Observações</label>
             <Textarea
@@ -79,20 +85,26 @@ const ProductDrawer = ({ item, open, onClose, onAdd, primaryColor }: ProductDraw
             />
           </div>
 
-          {/* Quantity */}
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Quantidade</span>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                className="h-8 w-8 rounded-full border border-border flex items-center justify-center"
+                className="h-8 w-8 rounded-full border border-border flex items-center justify-center transition-transform active:scale-90"
               >
                 <Minus className="h-3.5 w-3.5" />
               </button>
-              <span className="text-lg font-semibold w-6 text-center">{quantity}</span>
+              <motion.span
+                key={quantity}
+                initial={{ scale: 1.3 }}
+                animate={{ scale: 1 }}
+                className="text-lg font-semibold w-6 text-center"
+              >
+                {quantity}
+              </motion.span>
               <button
                 onClick={() => setQuantity((q) => q + 1)}
-                className="h-8 w-8 rounded-full flex items-center justify-center text-white"
+                className="h-8 w-8 rounded-full flex items-center justify-center text-white transition-transform active:scale-90"
                 style={{ backgroundColor: primaryColor }}
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -103,11 +115,23 @@ const ProductDrawer = ({ item, open, onClose, onAdd, primaryColor }: ProductDraw
 
         <DrawerFooter>
           <Button
-            className="w-full h-12 text-sm font-semibold"
-            style={{ backgroundColor: primaryColor }}
+            className="w-full h-12 text-sm font-semibold transition-transform active:scale-[0.98]"
+            style={{ backgroundColor: added ? "hsl(var(--primary))" : primaryColor }}
             onClick={handleAdd}
+            disabled={added}
           >
-            Adicionar ao Carrinho — R$ {(item.price * quantity).toFixed(2).replace(".", ",")}
+            {added ? (
+              <motion.span
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="flex items-center gap-2"
+              >
+                <ShoppingBag className="h-4 w-4" />
+                Adicionado!
+              </motion.span>
+            ) : (
+              `Adicionar ao Carrinho — R$ ${(item.price * quantity).toFixed(2).replace(".", ",")}`
+            )}
           </Button>
         </DrawerFooter>
       </DrawerContent>

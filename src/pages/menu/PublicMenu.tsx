@@ -1,5 +1,6 @@
 import { useParams } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
   fontFamilyMap,
@@ -179,29 +180,36 @@ const PublicMenu = () => {
 
       {/* Menu Items */}
       <main className="max-w-md mx-auto px-4 py-4 pb-32 space-y-3">
-        {filteredItems.map((item) => (
-          <div
-            key={item.id}
-            className="flex gap-3 p-4 rounded-xl bg-card border border-border cursor-pointer hover:shadow-md transition-shadow"
-            onClick={() => openProduct(item)}
-          >
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-sm">{item.name}</h3>
-              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{item.description}</p>
-              <p className="text-sm font-bold mt-2" style={{ color: restaurant.primaryColor }}>
-                R$ {item.price.toFixed(2).replace(".", ",")}
-              </p>
-            </div>
-            <Button
-              size="sm"
-              className="self-end shrink-0 h-8 text-xs"
-              style={{ backgroundColor: restaurant.primaryColor }}
-              onClick={(e) => { e.stopPropagation(); openProduct(item); }}
+        <AnimatePresence mode="popLayout">
+          {filteredItems.map((item, index) => (
+            <motion.div
+              key={item.id}
+              layout
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.25, delay: index * 0.05 }}
+              className="flex gap-3 p-4 rounded-xl bg-card border border-border cursor-pointer hover:shadow-md transition-all active:scale-[0.98]"
+              onClick={() => openProduct(item)}
             >
-              Adicionar
-            </Button>
-          </div>
-        ))}
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-sm">{item.name}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{item.description}</p>
+                <p className="text-sm font-bold mt-2" style={{ color: restaurant.primaryColor }}>
+                  R$ {item.price.toFixed(2).replace(".", ",")}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                className="self-end shrink-0 h-8 text-xs transition-transform active:scale-90"
+                style={{ backgroundColor: restaurant.primaryColor }}
+                onClick={(e) => { e.stopPropagation(); openProduct(item); }}
+              >
+                Adicionar
+              </Button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
         {filteredItems.length === 0 && (
           <p className="text-center text-muted-foreground text-sm py-8">
             Nenhum item disponível nesta categoria.
@@ -272,6 +280,7 @@ const PublicMenu = () => {
         totalPrice={cart.totalPrice}
         onUpdateQuantity={cart.updateQuantity}
         onRemove={cart.removeItem}
+        onClearCart={cart.clearCart}
         primaryColor={restaurant.primaryColor}
       />
     </div>
