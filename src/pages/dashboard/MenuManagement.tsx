@@ -10,39 +10,74 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { MenuTableSkeleton } from "@/components/skeletons/DashboardSkeletons";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 interface MenuItem {
-  id: number;
+  id: string;
   name: string;
   price: number;
   category: string;
   available: boolean;
 }
 
-const initialItems: MenuItem[] = [
-  { id: 1, name: "X-Burguer Especial", price: 32.9, category: "Hambúrgueres", available: true },
-  { id: 2, name: "Pizza Margherita", price: 45.0, category: "Pizzas", available: true },
-  { id: 3, name: "Salada Caesar", price: 28.0, category: "Saladas", available: true },
-  { id: 4, name: "Suco Natural", price: 12.0, category: "Bebidas", available: false },
-  { id: 5, name: "Brownie com Sorvete", price: 22.0, category: "Sobremesas", available: true },
-];
-
 const MenuManagement = () => {
-  const [items, setItems] = useState<MenuItem[]>(initialItems);
+  const { user } = useAuth();
+  const [items, setItems] = useState<MenuItem[]>([]);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState<MenuItem | null>(null);
   const [form, setForm] = useState({ name: "", price: "", category: "" });
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [restaurantId, setRestaurantId] = useState<string | null>(null);
 
-  // Simulate loading
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 800);
-    return () => clearTimeout(t);
-  }, []);
+    const fetchItems = async () => {
+      if (!user) return;
+      try {
+        // Get restaurant
+        const { data: rest } = await supabase
+          .from("restaurants")
+          .select("id")
+          .eq("owner_id", user.id)
+          .single();
+
+        if (!rest) {
+          setLoading(false);
+          return;
+        }
+        setRestaurantId(rest.id);
+
+        // Get menu items
+        const { data: menuData, error } = await supabase
+          .from("menu_items")
+          .select("*")
+          .eq("restaurant_id", rest.id)
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+
+        setItems(
+          (menuData || []).map((m: any) => ({
+            id: m.id,
+            name: m.name,
+            price: Number(m.price),
+            category: m.category || "Geral",
+            available: m.available,
+          }))
+        );
+      } catch (err: any) {
+        toast({ title: "Erro ao carregar cardápio", description: err.message, variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchItems();
+  }, [user]);
 
   const filtered = items.filter(
     (i) =>
@@ -50,18 +85,39 @@ const MenuManagement = () => {
       i.category.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleSave = () => {
-    if (!form.name || !form.price || !form.category) return;
-    if (editItem) {
-      setItems(items.map((i) => (i.id === editItem.id ? { ...i, name: form.name, price: parseFloat(form.price), category: form.category } : i)));
-      toast({ title: "Item atualizado", description: `"${form.name}" foi editado com sucesso.` });
-    } else {
-      setItems([...items, { id: Date.now(), name: form.name, price: parseFloat(form.price), category: form.category, available: true }]);
-      toast({ title: "Item adicionado", description: `"${form.name}" foi adicionado ao cardápio.` });
+  const handleSave = async () => {
+    if (!form.name || !form.price || !form.category || !restaurantId) return;
+    setSaving(true);
+
+    try {
+      if (editItem) {
+        const { error } = await supabase
+          .from("menu_items")
+          .update({ name: form.name, price: parseFloat(form.price), category: form.category })
+          .eq("id", editItem.id);
+        if (error) throw error;
+
+        setItems(items.map((i) => (i.id === editItem.id ? { ...i, name: form.name, price: parseFloat(form.price), category: form.category } : i)));
+        toast({ title: "Item atualizado", description: `"${form.name}" foi editado com sucesso.` });
+      } else {
+        const { data, error } = await supabase
+          .from("menu_items")
+          .insert({ restaurant_id: restaurantId, name: form.name, price: parseFloat(form.price), category: form.category, available: true })
+          .select()
+          .single();
+        if (error) throw error;
+
+        setItems([{ id: data.id, name: data.name, price: Number(data.price), category: data.category || "Geral", available: data.available }, ...items]);
+        toast({ title: "Item adicionado", description: `"${form.name}" foi adicionado ao cardápio.` });
+      }
+      setForm({ name: "", price: "", category: "" });
+      setEditItem(null);
+      setDialogOpen(false);
+    } catch (err: any) {
+      toast({ title: "Erro ao salvar", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
-    setForm({ name: "", price: "", category: "" });
-    setEditItem(null);
-    setDialogOpen(false);
   };
 
   const handleEdit = (item: MenuItem) => {
@@ -70,9 +126,15 @@ const MenuManagement = () => {
     setDialogOpen(true);
   };
 
-  const handleDelete = (item: MenuItem) => {
-    setItems(items.filter((i) => i.id !== item.id));
-    toast({ title: "Item removido", description: `"${item.name}" foi removido do cardápio.`, variant: "destructive" });
+  const handleDelete = async (item: MenuItem) => {
+    try {
+      const { error } = await supabase.from("menu_items").delete().eq("id", item.id);
+      if (error) throw error;
+      setItems(items.filter((i) => i.id !== item.id));
+      toast({ title: "Item removido", description: `"${item.name}" foi removido do cardápio.`, variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "Erro ao remover", description: err.message, variant: "destructive" });
+    }
   };
 
   const openNew = () => {
@@ -84,11 +146,9 @@ const MenuManagement = () => {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Gestão de Cardápio</h1>
-            <p className="text-muted-foreground text-sm">Carregando itens...</p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold">Gestão de Cardápio</h1>
+          <p className="text-muted-foreground text-sm">Carregando itens...</p>
         </div>
         <MenuTableSkeleton />
       </div>
@@ -126,7 +186,10 @@ const MenuManagement = () => {
                 <Label>Categoria</Label>
                 <Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Ex: Hambúrgueres" />
               </div>
-              <Button onClick={handleSave} className="w-full">Salvar</Button>
+              <Button onClick={handleSave} className="w-full" disabled={saving}>
+                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Salvar
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -172,6 +235,13 @@ const MenuManagement = () => {
                   </TableCell>
                 </TableRow>
               ))}
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    Nenhum item encontrado
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>

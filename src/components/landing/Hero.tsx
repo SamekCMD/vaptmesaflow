@@ -36,7 +36,7 @@ const Hero = () => {
 
             <div className="flex flex-wrap gap-4">
               <Button asChild size="lg" className="text-base px-8 h-12 rounded-lg glow">
-                <Link to="/dashboard">
+                <Link to="/signup">
                   Começar Agora
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
