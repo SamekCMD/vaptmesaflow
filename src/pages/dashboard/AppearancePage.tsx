@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { fontFamilyLabels, fontFamilyMap, type RestaurantConfig } from "@/lib/restaurant-config";
 import { toast } from "@/hooks/use-toast";
 import { Upload, Smartphone, ExternalLink, Loader2 } from "lucide-react";
+import { AppearanceFormSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -102,11 +103,7 @@ const AppearancePage = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <AppearanceFormSkeleton />;
   }
 
   return (

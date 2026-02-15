@@ -7,7 +7,8 @@ import {
   type RestaurantConfig,
   type PublicMenuItem,
 } from "@/lib/restaurant-config";
-import { ShoppingBag, Menu, MessageCircle, Loader2 } from "lucide-react";
+import { ShoppingBag, Menu, MessageCircle } from "lucide-react";
+import { PublicMenuSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useCart } from "@/hooks/use-cart";
 import ProductDrawer from "@/components/menu/ProductDrawer";
 import OrderSummaryDrawer from "@/components/menu/OrderSummaryDrawer";
@@ -117,11 +118,7 @@ const PublicMenu = () => {
   }, [restaurant]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <PublicMenuSkeleton />;
   }
 
   if (error || !restaurant) {

@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
-import heroDashboard from "@/assets/hero-dashboard.png";
+import HeroDashboardMockup from "./HeroDashboardMockup";
 
 const Hero = () => {
   return (
@@ -41,7 +41,7 @@ const Hero = () => {
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="lg" className="text-base px-8 h-12 rounded-lg border-hero-muted/30 text-hero-foreground hover:bg-hero-foreground/5">
+              <Button asChild variant="outline" size="lg" className="text-base px-8 h-12 rounded-lg border-white/20 text-white hover:bg-white/10">
                 <a href="#funcionalidades">Ver Funcionalidades</a>
               </Button>
             </div>
@@ -59,14 +59,7 @@ const Hero = () => {
             transition={{ duration: 0.8, delay: 0.2 }}
             className="hidden lg:block"
           >
-            <div className="relative">
-              <div className="absolute -inset-4 bg-primary/10 rounded-2xl blur-3xl" />
-              <img
-                src={heroDashboard}
-                alt="Dashboard Vapt - Gestão completa de restaurantes"
-                className="relative rounded-xl border border-primary/20 shadow-2xl"
-              />
-            </div>
+            <HeroDashboardMockup />
           </motion.div>
         </div>
       </div>
