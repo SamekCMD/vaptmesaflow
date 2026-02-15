@@ -7,7 +7,8 @@ import {
   type RestaurantConfig,
   type PublicMenuItem,
 } from "@/lib/restaurant-config";
-import { ShoppingBag, Menu, MessageCircle } from "lucide-react";
+import { ShoppingBag, Menu, MessageCircle, Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
 import { PublicMenuSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useCart } from "@/hooks/use-cart";
 import ProductDrawer from "@/components/menu/ProductDrawer";
@@ -15,6 +16,7 @@ import OrderSummaryDrawer from "@/components/menu/OrderSummaryDrawer";
 import { supabase } from "@/integrations/supabase/client";
 
 const PublicMenu = () => {
+  const { theme, setTheme } = useTheme();
   const { slug } = useParams<{ slug: string }>();
 
   const [restaurant, setRestaurant] = useState<RestaurantConfig | null>(null);
@@ -248,9 +250,9 @@ const PublicMenu = () => {
             )}
             <span className="text-[10px] text-muted-foreground">Pedidos</span>
           </button>
-          <button className="flex flex-col items-center gap-0.5 opacity-40" disabled>
-            <MessageCircle className="h-5 w-5 text-muted-foreground" />
-            <span className="text-[10px] text-muted-foreground">Suporte</span>
+          <button className="flex flex-col items-center gap-0.5" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+            {theme === "dark" ? <Sun className="h-5 w-5 text-muted-foreground" /> : <Moon className="h-5 w-5 text-muted-foreground" />}
+            <span className="text-[10px] text-muted-foreground">Tema</span>
           </button>
         </div>
       </nav>
