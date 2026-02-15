@@ -1,69 +1,66 @@
 
 
-# Plano: Conectar Onboarding ao Supabase e Atualizar Dashboard
+# Plano: Corrigir Menu Publico, Configuracoes e Aparencia
 
 ## Problemas Identificados
 
-1. **Onboarding nao salva nada** - O `handleFinish` apenas navega para `/dashboard` sem inserir dados no Supabase
-2. **Dashboard com dados hardcoded** - Mostra "Joao Demo" e metricas fixas em vez de dados reais do usuario logado
-3. **Sem protecao de rotas** - Qualquer pessoa acessa `/dashboard` sem estar logada
-4. **Senha/Login** - As senhas ficam na tabela `auth.users` do Supabase (gerenciada automaticamente). O login funciona normalmente com email + senha via `signInWithPassword`
+### 1. PublicMenu.tsx - JSX Quebrado + Dados Mock
+- **JSX quebrado**: Linhas 190-191 e 213-217 tem props `style` "soltas" fora de elementos (provavelmente de um merge ruim do GitHub). Isso causa erro de compilacao ou comportamento inesperado.
+- **Dados mock**: O componente usa `defaultRestaurantConfig` ("Bistro du Chef") e `mockMenuItems` hardcoded, ignorando completamente o parametro `slug` da URL. Por isso qualquer slug mostra o mesmo conteudo.
+
+### 2. AppearancePage.tsx - Usa RestaurantContext (memoria apenas)
+- Lê e escreve no `RestaurantContext` que e apenas estado em memoria (useState).
+- O botao "Salvar Alteracoes" mostra um toast mas nao persiste nada no Supabase.
+- Precisa buscar o restaurante do usuario logado ao montar e salvar via `supabase.from('restaurants').update(...)`.
+
+### 3. SettingsPage.tsx - Colunas inexistentes no banco
+- O codigo busca `phone`, `hours` e `description` da tabela `restaurants`, mas essas colunas **nao existem** no schema SQL criado anteriormente.
+- O schema tem `whatsapp` em vez de `phone`, e nao tem `hours` nem `description`.
+- Opcoes: adicionar as colunas faltantes OU ajustar o codigo para usar as existentes.
 
 ## Alteracoes Planejadas
 
-### 1. Onboarding - Salvar no Supabase (`OnboardingPage.tsx`)
-- No `handleFinish`, inserir na tabela `restaurants` (name, slug, whatsapp, primary_color, secondary_color, owner_id = user autenticado)
-- Inserir o primeiro prato na tabela `menu_items` (name, price, description, category, restaurant_id)
-- Mostrar loading e tratamento de erros
-- Importar `supabase` client e `useAuth` para obter o `user.id`
-
-### 2. Dashboard Layout - Dados reais do usuario (`DashboardLayout.tsx`)
-- Usar `useAuth()` para obter o nome do usuario logado (de `user.user_metadata.full_name`)
-- Mostrar as iniciais reais no avatar
-- Adicionar botao de logout funcional
-- Redirecionar para `/login` se nao estiver autenticado
-
-### 3. Dashboard Overview - Buscar dados do restaurante (`Overview.tsx`)
-- Buscar o restaurante do usuario logado via Supabase (`restaurants` WHERE `owner_id = auth.uid()`)
-- Se nao houver restaurante, mostrar mensagem orientando a completar o onboarding
-- Manter as metricas visuais mas indicar que sao dados de exemplo por enquanto (sem tabela de pedidos ainda)
-
-### 4. Protecao de rotas - Componente `ProtectedRoute`
-- Criar componente que verifica se o usuario esta autenticado
-- Se nao estiver, redireciona para `/login`
-- Se estiver carregando, mostra loading spinner
-- Envolver as rotas `/dashboard` e `/onboarding` com este componente
-
-### 5. Fluxo pos-cadastro
-- Signup -> auto-login (ja acontece com confirmacao de email desativada) -> Onboarding -> salva restaurante -> Dashboard
-- Login -> verificar se tem restaurante -> se nao, redirecionar para onboarding; se sim, ir para dashboard
-
-## Detalhes Tecnicos
-
-### Novo arquivo: `src/components/ProtectedRoute.tsx`
-Componente wrapper que usa `useAuth()` para checar autenticacao e redirecionar.
-
-### Alteracoes em `OnboardingPage.tsx`
+### 1. Adicionar colunas faltantes na tabela `restaurants`
+SQL para executar manualmente no Supabase:
 ```
-handleFinish:
-  1. Insert into restaurants (owner_id, name, slug, whatsapp, primary_color, secondary_color)
-  2. Get the returned restaurant.id
-  3. Insert into menu_items (restaurant_id, name, price, description, category)
-  4. Navigate to /dashboard
+ALTER TABLE public.restaurants
+  ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS hours TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
 ```
 
-### Alteracoes em `DashboardLayout.tsx`
-- Substituir "Joao Demo" / "JD" por dados reais de `useAuth().user`
-- Adicionar funcao de logout no dropdown do usuario
+### 2. Corrigir PublicMenu.tsx
+- Remover as linhas de JSX quebrado (props soltas nas linhas 190-191 e 213-217)
+- Substituir os dados mock por fetch real do Supabase:
+  - Buscar restaurante: `supabase.from('restaurants').select('*').eq('slug', slug).single()`
+  - Buscar menu items: `supabase.from('menu_items').select('*').eq('restaurant_id', restaurant.id).eq('available', true)`
+- Adicionar estados de loading e erro (restaurante nao encontrado)
 
-### Alteracoes em `Overview.tsx`
-- Query Supabase para buscar restaurante do owner logado
-- Exibir nome do restaurante no cabecalho
-- Estado vazio amigavel se nao houver restaurante
+### 3. Conectar AppearancePage.tsx ao Supabase
+- Remover dependencia do `RestaurantContext` para dados
+- Usar `useAuth()` para obter o `user.id`
+- No `useEffect`, buscar: `supabase.from('restaurants').select('*').eq('owner_id', user.id).single()`
+- Preencher o formulario com os dados reais (name, slug, primary_color, secondary_color, font_family, logo_url)
+- No `handleSave`, fazer: `supabase.from('restaurants').update({...}).eq('owner_id', user.id)`
+- Manter o preview ao vivo funcionando com estado local
 
-### Alteracoes em `App.tsx`
-- Envolver rotas protegidas com `ProtectedRoute`
+### 4. SettingsPage.tsx ja funciona
+- O SettingsPage ja usa Supabase corretamente. Apos adicionar as colunas `phone`, `hours` e `description`, ele vai funcionar sem alteracoes no codigo.
 
-### Sobre senhas
-Nao e necessario campo de senha nas tabelas publicas. O Supabase gerencia senhas internamente na tabela `auth.users` (hash bcrypt). O login funciona via `signInWithPassword(email, password)` que ja esta implementado.
+## Resumo dos Arquivos
+
+| Arquivo | Acao |
+|---|---|
+| `src/pages/menu/PublicMenu.tsx` | Corrigir JSX quebrado + fetch real por slug |
+| `src/pages/dashboard/AppearancePage.tsx` | Conectar ao Supabase (ler/salvar) |
+| Supabase SQL (manual) | Adicionar colunas `phone`, `hours`, `description` |
+
+## Instrucao para o Usuario
+Antes de aprovar, execute este SQL no seu Supabase:
+```sql
+ALTER TABLE public.restaurants
+  ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS hours TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
+```
 
