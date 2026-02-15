@@ -242,9 +242,18 @@ const LivePreview = ({ config, logoPreview }: { config: RestaurantConfig; logoPr
           )}
           <p className="text-white font-semibold text-sm">{config.name || "Nome do Restaurante"}</p>
         </div>
-        <div className="flex gap-2 p-3 overflow-x-auto">
+        <div className="flex gap-2 p-3 overflow-x-auto" style={{ borderBottom: `1px solid ${config.secondaryColor}33` }}>
           {["Entradas", "Pratos", "Bebidas"].map((cat, i) => (
-            <Badge key={cat} variant={i === 0 ? "default" : "outline"} className="whitespace-nowrap text-xs cursor-pointer" style={i === 0 ? { backgroundColor: config.primaryColor, color: "#fff" } : {}}>
+            <Badge
+              key={cat}
+              variant="outline"
+              className="whitespace-nowrap text-xs cursor-pointer border-0"
+              style={
+                i === 0
+                  ? { backgroundColor: config.primaryColor, color: "#fff" }
+                  : { backgroundColor: config.secondaryColor + "15", color: config.secondaryColor }
+              }
+            >
               {cat}
             </Badge>
           ))}
@@ -255,7 +264,7 @@ const LivePreview = ({ config, logoPreview }: { config: RestaurantConfig; logoPr
             { name: "Ceviche de Peixe", desc: "Peixe marinado com limão", price: "R$ 32,00" },
             { name: "X-Burguer Especial", desc: "Blend 180g, cheddar, bacon", price: "R$ 38,90" },
           ].map((item) => (
-            <div key={item.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+            <div key={item.name} className="flex items-center justify-between p-3 rounded-lg" style={{ border: `1px solid ${config.secondaryColor}20`, backgroundColor: "var(--card)" }}>
               <div>
                 <p className="text-sm font-medium">{item.name}</p>
                 <p className="text-xs text-muted-foreground">{item.desc}</p>
@@ -264,18 +273,18 @@ const LivePreview = ({ config, logoPreview }: { config: RestaurantConfig; logoPr
             </div>
           ))}
         </div>
-        <div className="absolute bottom-0 left-0 right-0 h-14 border-t border-border bg-background flex items-center justify-around px-4">
+        <div className="absolute bottom-0 left-0 right-0 h-14 bg-background flex items-center justify-around px-4" style={{ borderTop: `1px solid ${config.secondaryColor}33` }}>
           <div className="flex flex-col items-center">
-            <div className="h-5 w-5 rounded bg-muted-foreground/30" />
+            <div className="h-5 w-5 rounded" style={{ backgroundColor: config.primaryColor + "30" }} />
             <span className="text-[10px] mt-0.5" style={{ color: config.primaryColor }}>Menu</span>
           </div>
-          <div className="flex flex-col items-center opacity-40">
-            <div className="h-5 w-5 rounded bg-muted-foreground/20" />
-            <span className="text-[10px] mt-0.5 text-muted-foreground">Pedidos</span>
+          <div className="flex flex-col items-center">
+            <div className="h-5 w-5 rounded" style={{ backgroundColor: config.secondaryColor + "20" }} />
+            <span className="text-[10px] mt-0.5" style={{ color: config.secondaryColor + "80" }}>Pedidos</span>
           </div>
-          <div className="flex flex-col items-center opacity-40">
-            <div className="h-5 w-5 rounded bg-muted-foreground/20" />
-            <span className="text-[10px] mt-0.5 text-muted-foreground">Suporte</span>
+          <div className="flex flex-col items-center">
+            <div className="h-5 w-5 rounded" style={{ backgroundColor: config.secondaryColor + "20" }} />
+            <span className="text-[10px] mt-0.5" style={{ color: config.secondaryColor + "80" }}>Tema</span>
           </div>
         </div>
       </div>

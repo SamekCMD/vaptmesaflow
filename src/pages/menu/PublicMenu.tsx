@@ -196,16 +196,18 @@ const PublicMenu = () => {
       </header>
 
       {/* Category Navigation */}
-      <nav className="sticky top-0 z-10 border-b border-border" style={{ backgroundColor: restaurant.secondaryColor }}>
+      <nav className="sticky top-0 z-10 bg-background border-b" style={{ borderColor: restaurant.secondaryColor + "33" }}>
         <div className="max-w-md mx-auto flex gap-2 px-4 py-3 overflow-x-auto scrollbar-none">
           {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                activeCategory === cat ? "text-white" : "text-white/60 hover:text-white/80"
-              }`}
-              style={activeCategory === cat ? { backgroundColor: restaurant.primaryColor } : {}}
+              className="px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors"
+              style={
+                activeCategory === cat
+                  ? { backgroundColor: restaurant.primaryColor, color: "#fff" }
+                  : { backgroundColor: restaurant.secondaryColor + "15", color: restaurant.secondaryColor }
+              }
             >
               {cat}
             </button>
@@ -224,7 +226,8 @@ const PublicMenu = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.25, delay: index * 0.05 }}
-              className="flex gap-3 p-4 rounded-xl bg-card border border-border cursor-pointer hover:shadow-md transition-all active:scale-[0.98]"
+              className="flex gap-3 p-4 rounded-xl bg-card cursor-pointer hover:shadow-md transition-all active:scale-[0.98]"
+              style={{ border: `1px solid ${restaurant.secondaryColor}20` }}
               onClick={() => openProduct(item)}
             >
               <div className="flex-1 min-w-0">
@@ -272,28 +275,28 @@ const PublicMenu = () => {
       )}
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 inset-x-0 z-20 border-t border-white/10" style={{ backgroundColor: restaurant.secondaryColor }}>
+      <nav className="fixed bottom-0 inset-x-0 z-20 bg-background border-t" style={{ borderColor: restaurant.secondaryColor + "33" }}>
         <div className="max-w-md mx-auto flex items-center justify-around h-14">
           <button
             className="flex flex-col items-center gap-0.5"
             onClick={() => setActiveTab("menu")}
           >
-            <Menu className="h-5 w-5" style={{ color: activeTab === "menu" ? restaurant.primaryColor : "rgba(255,255,255,0.5)" }} />
-            <span className="text-[10px] font-medium" style={{ color: activeTab === "menu" ? restaurant.primaryColor : "rgba(255,255,255,0.5)" }}>Menu</span>
+            <Menu className="h-5 w-5" style={{ color: activeTab === "menu" ? restaurant.primaryColor : restaurant.secondaryColor + "80" }} />
+            <span className="text-[10px] font-medium" style={{ color: activeTab === "menu" ? restaurant.primaryColor : restaurant.secondaryColor + "80" }}>Menu</span>
           </button>
           <button
             className="flex flex-col items-center gap-0.5 relative"
             onClick={() => { setActiveTab("orders"); setMyOrdersOpen(true); }}
           >
-            <ClipboardList className="h-5 w-5" style={{ color: activeTab === "orders" ? restaurant.primaryColor : "rgba(255,255,255,0.5)" }} />
-            <span className="text-[10px]" style={{ color: activeTab === "orders" ? restaurant.primaryColor : "rgba(255,255,255,0.5)" }}>Meus Pedidos</span>
+            <ClipboardList className="h-5 w-5" style={{ color: activeTab === "orders" ? restaurant.primaryColor : restaurant.secondaryColor + "80" }} />
+            <span className="text-[10px]" style={{ color: activeTab === "orders" ? restaurant.primaryColor : restaurant.secondaryColor + "80" }}>Meus Pedidos</span>
           </button>
           <button
             className="flex flex-col items-center gap-0.5"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           >
-            {theme === "dark" ? <Sun className="h-5 w-5" style={{ color: "rgba(255,255,255,0.5)" }} /> : <Moon className="h-5 w-5" style={{ color: "rgba(255,255,255,0.5)" }} />}
-            <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.5)" }}>Tema</span>
+            {theme === "dark" ? <Sun className="h-5 w-5" style={{ color: restaurant.secondaryColor + "80" }} /> : <Moon className="h-5 w-5" style={{ color: restaurant.secondaryColor + "80" }} />}
+            <span className="text-[10px]" style={{ color: restaurant.secondaryColor + "80" }}>Tema</span>
           </button>
         </div>
       </nav>
