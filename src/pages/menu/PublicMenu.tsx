@@ -1,5 +1,5 @@
-import { useParams } from "react-router-dom";
-import { useState, useEffect, useMemo } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,17 +8,20 @@ import {
   type RestaurantConfig,
   type PublicMenuItem,
 } from "@/lib/restaurant-config";
-import { ShoppingBag, Menu, MessageCircle, Moon, Sun } from "lucide-react";
+import { ShoppingBag, Menu, ClipboardList, Moon, Sun, QrCode } from "lucide-react";
 import { useTheme } from "next-themes";
 import { PublicMenuSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useCart } from "@/hooks/use-cart";
 import ProductDrawer from "@/components/menu/ProductDrawer";
 import OrderSummaryDrawer from "@/components/menu/OrderSummaryDrawer";
+import MyOrdersDrawer from "@/components/menu/MyOrdersDrawer";
 import { supabase } from "@/integrations/supabase/client";
 
 const PublicMenu = () => {
   const { theme, setTheme } = useTheme();
   const { slug } = useParams<{ slug: string }>();
+  const [searchParams] = useSearchParams();
+  const tableNumber = searchParams.get("table") || "";
 
   const [restaurant, setRestaurant] = useState<RestaurantConfig | null>(null);
   const [items, setItems] = useState<PublicMenuItem[]>([]);
@@ -31,6 +34,8 @@ const PublicMenu = () => {
   const [selectedItem, setSelectedItem] = useState<PublicMenuItem | null>(null);
   const [productDrawerOpen, setProductDrawerOpen] = useState(false);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
+  const [myOrdersOpen, setMyOrdersOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"menu" | "orders" | "theme">("menu");
 
   // Fetch restaurant + menu items from Supabase
   useEffect(() => {
@@ -120,6 +125,21 @@ const PublicMenu = () => {
     };
   }, [restaurant]);
 
+  const handleOrderPlaced = useCallback(
+    (orderId: string) => {
+      if (!restaurant) return;
+      const key = `orders_${restaurant.id}`;
+      try {
+        const stored = JSON.parse(localStorage.getItem(key) || "[]");
+        stored.push(orderId);
+        localStorage.setItem(key, JSON.stringify(stored));
+      } catch {
+        localStorage.setItem(key, JSON.stringify([orderId]));
+      }
+    },
+    [restaurant]
+  );
+
   if (loading) {
     return <PublicMenuSkeleton />;
   }
@@ -130,6 +150,21 @@ const PublicMenu = () => {
         <div className="text-center space-y-2">
           <h1 className="text-xl font-bold">{error || "Restaurante não encontrado"}</h1>
           <p className="text-muted-foreground text-sm">Verifique o endereço e tente novamente.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // No table number — show QR code prompt
+  if (!tableNumber) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background" style={{ fontFamily: fontFamilyMap[restaurant.fontFamily] }}>
+        <div className="text-center space-y-4 px-6">
+          <QrCode className="h-16 w-16 mx-auto text-muted-foreground" />
+          <h1 className="text-xl font-bold">Leia o QR Code da mesa</h1>
+          <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+            Para fazer seu pedido, escaneie o QR Code disponível na sua mesa.
+          </p>
         </div>
       </div>
     );
@@ -156,7 +191,7 @@ const PublicMenu = () => {
             </div>
           )}
           <h1 className="text-white text-xl font-bold">{restaurant.name}</h1>
-          <p className="text-white/70 text-sm mt-1">Cardápio Digital</p>
+          <p className="text-white/70 text-sm mt-1">Mesa {tableNumber}</p>
         </div>
       </header>
 
@@ -239,26 +274,24 @@ const PublicMenu = () => {
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 inset-x-0 z-20 bg-background border-t border-border">
         <div className="max-w-md mx-auto flex items-center justify-around h-14">
-          <button className="flex flex-col items-center gap-0.5">
-            <Menu className="h-5 w-5" style={{ color: restaurant.primaryColor }} />
-            <span className="text-[10px] font-medium" style={{ color: restaurant.primaryColor }}>Menu</span>
+          <button
+            className="flex flex-col items-center gap-0.5"
+            onClick={() => setActiveTab("menu")}
+          >
+            <Menu className="h-5 w-5" style={{ color: activeTab === "menu" ? restaurant.primaryColor : undefined }} />
+            <span className="text-[10px] font-medium" style={{ color: activeTab === "menu" ? restaurant.primaryColor : undefined }}>Menu</span>
           </button>
-          <button className="flex flex-col items-center gap-0.5 relative" onClick={() => setOrderDrawerOpen(true)}>
-            <ShoppingBag
-              className="h-5 w-5"
-              style={{ color: cart.totalItems > 0 ? restaurant.primaryColor : undefined }}
-            />
-            {cart.totalItems > 0 && (
-              <span
-                className="absolute -top-1 -right-1 h-4 w-4 rounded-full text-[9px] font-bold text-white flex items-center justify-center"
-                style={{ backgroundColor: restaurant.primaryColor }}
-              >
-                {cart.totalItems}
-              </span>
-            )}
-            <span className="text-[10px] text-muted-foreground">Pedidos</span>
+          <button
+            className="flex flex-col items-center gap-0.5 relative"
+            onClick={() => { setActiveTab("orders"); setMyOrdersOpen(true); }}
+          >
+            <ClipboardList className="h-5 w-5" style={{ color: activeTab === "orders" ? restaurant.primaryColor : undefined }} />
+            <span className="text-[10px]" style={{ color: activeTab === "orders" ? restaurant.primaryColor : undefined }}>Meus Pedidos</span>
           </button>
-          <button className="flex flex-col items-center gap-0.5" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+          <button
+            className="flex flex-col items-center gap-0.5"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
             {theme === "dark" ? <Sun className="h-5 w-5 text-muted-foreground" /> : <Moon className="h-5 w-5 text-muted-foreground" />}
             <span className="text-[10px] text-muted-foreground">Tema</span>
           </button>
@@ -281,6 +314,15 @@ const PublicMenu = () => {
         onUpdateQuantity={cart.updateQuantity}
         onRemove={cart.removeItem}
         onClearCart={cart.clearCart}
+        primaryColor={restaurant.primaryColor}
+        restaurantId={restaurant.id}
+        tableNumber={tableNumber}
+        onOrderPlaced={handleOrderPlaced}
+      />
+      <MyOrdersDrawer
+        open={myOrdersOpen}
+        onClose={() => { setMyOrdersOpen(false); setActiveTab("menu"); }}
+        restaurantId={restaurant.id}
         primaryColor={restaurant.primaryColor}
       />
     </div>

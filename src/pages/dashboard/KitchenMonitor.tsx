@@ -1,64 +1,158 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, ArrowRight } from "lucide-react";
+import { Clock, ArrowRight, RefreshCw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { KitchenSkeleton } from "@/components/skeletons/DashboardSkeletons";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
-interface Order {
-  id: number;
-  table: string;
-  items: string[];
-  status: "queue" | "preparing" | "ready";
-  createdAt: Date;
+interface OrderItem {
+  id: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  notes: string;
 }
 
-const initialOrders: Order[] = [
-  { id: 101, table: "Mesa 4", items: ["X-Burguer Especial", "Suco Natural"], status: "queue", createdAt: new Date(Date.now() - 8 * 60000) },
-  { id: 102, table: "Mesa 7", items: ["Pizza Margherita"], status: "queue", createdAt: new Date(Date.now() - 5 * 60000) },
-  { id: 103, table: "Mesa 2", items: ["Salada Caesar", "Brownie com Sorvete"], status: "preparing", createdAt: new Date(Date.now() - 15 * 60000) },
-  { id: 104, table: "Mesa 1", items: ["X-Burguer Especial x2"], status: "preparing", createdAt: new Date(Date.now() - 12 * 60000) },
-  { id: 105, table: "Mesa 9", items: ["Pizza Margherita", "Suco Natural x2"], status: "ready", createdAt: new Date(Date.now() - 22 * 60000) },
-];
+interface Order {
+  id: string;
+  display_id: number;
+  table_number: string | null;
+  total_price: number;
+  status: "pending" | "preparing" | "ready";
+  created_at: string;
+  order_items: OrderItem[];
+}
 
 const columns = [
-  { key: "queue" as const, label: "Na Fila", color: "bg-badge-pending" },
-  { key: "preparing" as const, label: "Preparando", color: "bg-badge-preparing" },
-  { key: "ready" as const, label: "Pronto", color: "bg-badge-ready" },
+  { key: "pending" as const, label: "Novos", color: "bg-yellow-500" },
+  { key: "preparing" as const, label: "Preparando", color: "bg-blue-500" },
+  { key: "ready" as const, label: "Prontos", color: "bg-green-500" },
 ];
 
-const statusLabels: Record<string, string> = {
-  preparing: "Preparando",
-  ready: "Pronto",
+const nextStatus: Record<string, string> = {
+  pending: "preparing",
+  preparing: "ready",
+};
+
+const actionLabels: Record<string, string> = {
+  pending: "Aceitar",
+  preparing: "Finalizar",
 };
 
 const KitchenMonitor = () => {
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
-  const [, setTick] = useState(0);
+  const { user } = useAuth();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [, setTick] = useState(0);
 
-  useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 800);
-    return () => clearTimeout(t);
-  }, []);
-
+  // Refresh elapsed times every 30s
   useEffect(() => {
     const interval = setInterval(() => setTick((t) => t + 1), 30000);
     return () => clearInterval(interval);
   }, []);
 
-  const getElapsed = (date: Date) => {
-    const mins = Math.floor((Date.now() - date.getTime()) / 60000);
+  // Get restaurant_id for the logged-in owner
+  useEffect(() => {
+    if (!user) return;
+    const fetchRestaurant = async () => {
+      const { data } = await supabase
+        .from("restaurants")
+        .select("id")
+        .eq("owner_id", user.id)
+        .single();
+      if (data) setRestaurantId(data.id);
+    };
+    fetchRestaurant();
+  }, [user]);
+
+  // Fetch orders
+  const fetchOrders = useCallback(async () => {
+    if (!restaurantId) return;
+    const { data } = await supabase
+      .from("orders")
+      .select("*, order_items(*)")
+      .eq("restaurant_id", restaurantId)
+      .in("status", ["pending", "preparing", "ready"])
+      .order("created_at", { ascending: true });
+
+    if (data) setOrders(data as unknown as Order[]);
+    setLoading(false);
+  }, [restaurantId]);
+
+  useEffect(() => {
+    if (restaurantId) fetchOrders();
+  }, [restaurantId, fetchOrders]);
+
+  // Realtime subscription
+  useEffect(() => {
+    if (!restaurantId) return;
+
+    const channel = supabase
+      .channel("kds-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "orders", filter: `restaurant_id=eq.${restaurantId}` },
+        (payload) => {
+          // Fetch again to get order_items
+          fetchOrders();
+          toast({
+            title: "🔔 Novo pedido!",
+            description: `Pedido #${(payload.new as any).display_id} recebido.`,
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "orders", filter: `restaurant_id=eq.${restaurantId}` },
+        (payload) => {
+          const updated = payload.new as any;
+          setOrders((prev) =>
+            prev
+              .map((o) => (o.id === updated.id ? { ...o, status: updated.status } : o))
+              .filter((o) => ["pending", "preparing", "ready"].includes(o.status))
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [restaurantId, fetchOrders]);
+
+  const getElapsed = (dateStr: string) => {
+    const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
     return `${mins} min`;
   };
 
-  const advance = (order: Order) => {
-    const next = order.status === "queue" ? "preparing" : "ready";
-    setOrders(orders.map((o) => (o.id === order.id ? { ...o, status: next as Order["status"] } : o)));
+  const isOverdue = (dateStr: string) => {
+    return (Date.now() - new Date(dateStr).getTime()) > 10 * 60000;
+  };
+
+  const advance = async (order: Order) => {
+    const next = nextStatus[order.status];
+    if (!next) return;
+
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: next })
+      .eq("id", order.id);
+
+    if (error) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    setOrders((prev) =>
+      prev.map((o) => (o.id === order.id ? { ...o, status: next as Order["status"] } : o))
+    );
     toast({
-      title: `Pedido #${order.id} atualizado`,
-      description: `Movido para "${statusLabels[next]}"`,
+      title: `Pedido #${order.display_id} atualizado`,
+      description: `Movido para "${columns.find((c) => c.key === next)?.label}"`,
     });
   };
 
@@ -68,9 +162,15 @@ const KitchenMonitor = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Monitor da Cozinha</h1>
-        <p className="text-muted-foreground text-sm">Acompanhe os pedidos em tempo real</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Monitor da Cozinha</h1>
+          <p className="text-muted-foreground text-sm">Acompanhe os pedidos em tempo real</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={fetchOrders}>
+          <RefreshCw className="h-4 w-4 mr-1" />
+          Atualizar
+        </Button>
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
@@ -88,31 +188,46 @@ const KitchenMonitor = () => {
               {orders
                 .filter((o) => o.status === col.key)
                 .map((order) => (
-                  <Card key={order.id} className="border-border/50">
+                  <Card
+                    key={order.id}
+                    className={`border-border/50 transition-all ${
+                      isOverdue(order.created_at) && col.key !== "ready"
+                        ? "border-red-500 border-2 animate-pulse"
+                        : ""
+                    }`}
+                  >
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between mb-3">
-                        <span className="font-semibold text-sm">#{order.id}</span>
-                        <Badge variant="outline" className="text-xs">{order.table}</Badge>
+                        <span className="font-semibold text-sm">#{order.display_id}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {order.table_number ? `Mesa ${order.table_number}` : "S/ mesa"}
+                        </Badge>
                       </div>
                       <ul className="space-y-1 mb-3">
-                        {order.items.map((item, i) => (
-                          <li key={i} className="text-sm text-muted-foreground">• {item}</li>
+                        {order.order_items.map((item) => (
+                          <li key={item.id} className="text-sm text-muted-foreground">
+                            • {item.quantity}x {item.product_name}
+                            {item.notes ? ` (${item.notes})` : ""}
+                          </li>
                         ))}
                       </ul>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3" />
-                          {getElapsed(order.createdAt)}
+                          {getElapsed(order.created_at)}
                         </div>
                         {col.key !== "ready" && (
                           <Button size="sm" variant="ghost" className="h-7 text-xs text-primary" onClick={() => advance(order)}>
-                            Avançar <ArrowRight className="h-3 w-3 ml-1" />
+                            {actionLabels[col.key]} <ArrowRight className="h-3 w-3 ml-1" />
                           </Button>
                         )}
                       </div>
                     </CardContent>
                   </Card>
                 ))}
+              {orders.filter((o) => o.status === col.key).length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-8">Nenhum pedido</p>
+              )}
             </div>
           </div>
         ))}
