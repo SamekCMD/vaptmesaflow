@@ -23,6 +23,7 @@ interface Order {
   total_price: number;
   status: "pending" | "preparing" | "ready";
   created_at: string;
+  updated_at: string | null;
   order_items: OrderItem[];
 }
 
@@ -49,9 +50,32 @@ const KitchenMonitor = () => {
   const [loading, setLoading] = useState(true);
   const [, setTick] = useState(0);
 
-  // Refresh elapsed times every 30s
+  // Refresh elapsed times every 15s + auto-archive ready orders after 1 min
   useEffect(() => {
-    const interval = setInterval(() => setTick((t) => t + 1), 30000);
+    const interval = setInterval(() => {
+      setTick((t) => t + 1);
+
+      // Auto-archive ready orders older than 1 minute
+      setOrders((prev) => {
+        const now = Date.now();
+        const toArchive = prev.filter(
+          (o) => o.status === "ready" && o.updated_at &&
+            (now - new Date(o.updated_at).getTime()) > 60000
+        );
+
+        if (toArchive.length > 0) {
+          toArchive.forEach((o) => {
+            supabase
+              .from("orders")
+              .update({ status: "delivered" })
+              .eq("id", o.id)
+              .then(() => {});
+          });
+          return prev.filter((o) => !toArchive.find((a) => a.id === o.id));
+        }
+        return prev;
+      });
+    }, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -96,13 +120,9 @@ const KitchenMonitor = () => {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "orders", filter: `restaurant_id=eq.${restaurantId}` },
-        (payload) => {
-          // Fetch again to get order_items
+        () => {
           fetchOrders();
-          toast({
-            title: "🔔 Novo pedido!",
-            description: `Pedido #${(payload.new as any).display_id} recebido.`,
-          });
+          toast({ title: "🔔 Novo pedido!", description: "Um novo pedido foi recebido." });
         }
       )
       .on(
@@ -112,7 +132,7 @@ const KitchenMonitor = () => {
           const updated = payload.new as any;
           setOrders((prev) =>
             prev
-              .map((o) => (o.id === updated.id ? { ...o, status: updated.status } : o))
+              .map((o) => (o.id === updated.id ? { ...o, status: updated.status, updated_at: updated.updated_at } : o))
               .filter((o) => ["pending", "preparing", "ready"].includes(o.status))
           );
         }
@@ -148,7 +168,11 @@ const KitchenMonitor = () => {
     }
 
     setOrders((prev) =>
-      prev.map((o) => (o.id === order.id ? { ...o, status: next as Order["status"] } : o))
+      prev.map((o) =>
+        o.id === order.id
+          ? { ...o, status: next as Order["status"], updated_at: new Date().toISOString() }
+          : o
+      )
     );
     toast({
       title: `Pedido #${order.display_id} atualizado`,
@@ -192,7 +216,7 @@ const KitchenMonitor = () => {
                     key={order.id}
                     className={`border-border/50 transition-all ${
                       isOverdue(order.created_at) && col.key !== "ready"
-                        ? "border-red-500 border-2 animate-pulse"
+                        ? "border-destructive border-2 animate-pulse"
                         : ""
                     }`}
                   >
