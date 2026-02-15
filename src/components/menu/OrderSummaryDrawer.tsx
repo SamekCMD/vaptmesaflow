@@ -10,6 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, Trash2, X, CheckCircle2, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 import type { CartItem } from "@/hooks/use-cart";
 
 interface OrderSummaryDrawerProps {
@@ -21,6 +23,9 @@ interface OrderSummaryDrawerProps {
   onRemove: (id: number) => void;
   onClearCart: () => void;
   primaryColor: string;
+  restaurantId?: string;
+  tableNumber?: string;
+  onOrderPlaced?: (orderId: string) => void;
 }
 
 const OrderSummaryDrawer = ({
@@ -32,22 +37,72 @@ const OrderSummaryDrawer = ({
   onRemove,
   onClearCart,
   primaryColor,
+  restaurantId,
+  tableNumber,
+  onOrderPlaced,
 }: OrderSummaryDrawerProps) => {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
   const handleSendOrder = async () => {
+    if (!restaurantId) {
+      toast({ title: "Erro", description: "Restaurante não identificado.", variant: "destructive" });
+      return;
+    }
+
     setSending(true);
-    // Simulate sending order (replace with real API later)
-    await new Promise((r) => setTimeout(r, 1500));
-    setSending(false);
-    setSent(true);
-    // Auto-close after showing success
-    setTimeout(() => {
-      setSent(false);
-      onClearCart();
-      onClose();
-    }, 2500);
+
+    try {
+      // Insert order
+      const { data: orderData, error: orderError } = await supabase
+        .from("orders")
+        .insert({
+          restaurant_id: restaurantId,
+          table_number: tableNumber || null,
+          total_price: totalPrice,
+        })
+        .select("id, display_id")
+        .single();
+
+      if (orderError || !orderData) throw orderError;
+
+      // Insert order items
+      const orderItems = items.map((ci) => ({
+        order_id: orderData.id,
+        product_id: String(ci.item.id),
+        product_name: ci.item.name,
+        quantity: ci.quantity,
+        unit_price: ci.item.price,
+        notes: ci.notes || "",
+      }));
+
+      const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
+      if (itemsError) throw itemsError;
+
+      // Save order ID to localStorage
+      onOrderPlaced?.(orderData.id);
+
+      setSending(false);
+      setSent(true);
+
+      toast({
+        title: `Pedido #${orderData.display_id} enviado!`,
+        description: "Acompanhe o status em 'Meus Pedidos'.",
+      });
+
+      setTimeout(() => {
+        setSent(false);
+        onClearCart();
+        onClose();
+      }, 2500);
+    } catch (err: any) {
+      setSending(false);
+      toast({
+        title: "Erro ao enviar pedido",
+        description: err?.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleOpenChange = (o: boolean) => {
@@ -91,16 +146,11 @@ const OrderSummaryDrawer = ({
                 transition={{ delay: 0.4 }}
                 className="text-muted-foreground text-sm text-center"
               >
-                Seu pedido foi recebido com sucesso. Aguarde a preparação!
+                Acompanhe o status na aba "Meus Pedidos".
               </motion.p>
             </motion.div>
           ) : (
-            <motion.div
-              key="cart"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
+            <motion.div key="cart" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <DrawerHeader className="relative">
                 <DrawerClose asChild>
                   <button className="absolute right-4 top-4 rounded-full p-1 bg-muted hover:bg-muted/80 transition-colors active:scale-90">
@@ -108,6 +158,9 @@ const OrderSummaryDrawer = ({
                   </button>
                 </DrawerClose>
                 <DrawerTitle>Seu Pedido</DrawerTitle>
+                {tableNumber && (
+                  <p className="text-sm text-muted-foreground">Mesa {tableNumber}</p>
+                )}
               </DrawerHeader>
 
               <div className="px-4 overflow-y-auto flex-1 space-y-3">
@@ -192,11 +245,7 @@ const OrderSummaryDrawer = ({
                   onClick={handleSendOrder}
                 >
                   {sending ? (
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="flex items-center gap-2"
-                    >
+                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Enviando...
                     </motion.span>
