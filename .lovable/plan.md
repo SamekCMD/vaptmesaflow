@@ -1,165 +1,195 @@
-# Plano: Sistema de Fluxo de Pedidos em Tempo Real
 
-## Visao Geral
 
-Conectar o carrinho do cliente no menu publico com o painel de cozinha (KDS) do dashboard, usando tabelas reais no Supabase e Realtime para notificacoes instantaneas.
+# Plano: Sistema de Fluxo Hibrido de Pagamentos
 
-## 1. Banco de Dados - Migracoes SQL
+## Resumo
 
-### Criar enum e tabelas
+Permitir que cada restaurante escolha entre dois modos de operacao: **Pagamento Antecipado** (Pix via Asaas antes de enviar para cozinha) ou **Comanda Aberta** (pedido vai direto para cozinha, cliente paga depois). A API Key do Asaas sera fornecida pelo proprio dono do restaurante no Dashboard.
+
+---
+
+## 1. Banco de Dados - Migracao SQL
+
+Adicionar colunas na tabela `restaurants`:
 
 ```sql
--- Enum de status
-CREATE TYPE public.order_status AS ENUM ('pending', 'preparing', 'ready', 'delivered');
-
--- Tabela orders
-CREATE TABLE public.orders (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  display_id BIGINT NOT NULL,
-  restaurant_id UUID NOT NULL REFERENCES public.restaurants(id) ON DELETE CASCADE,
-  table_number TEXT,
-  total_price NUMERIC(10,2) NOT NULL DEFAULT 0,
-  status order_status NOT NULL DEFAULT 'pending',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- Sequencia por restaurante: display_id sera gerado via trigger
-CREATE OR REPLACE FUNCTION public.generate_display_id()
-RETURNS TRIGGER AS $$
-BEGIN
-  SELECT COALESCE(MAX(display_id), 0) + 1 INTO NEW.display_id
-  FROM public.orders
-  WHERE restaurant_id = NEW.restaurant_id;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER set_display_id
-BEFORE INSERT ON public.orders
-FOR EACH ROW EXECUTE FUNCTION public.generate_display_id();
-
--- Tabela order_items
-CREATE TABLE public.order_items (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
-  product_id UUID REFERENCES public.menu_items(id),
-  product_name TEXT NOT NULL,
-  quantity INT NOT NULL DEFAULT 1,
-  unit_price NUMERIC(10,2) NOT NULL,
-  notes TEXT DEFAULT ''
-);
-
--- RLS
-ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
-
--- Qualquer um pode inserir pedidos (cliente publico, sem auth)
-CREATE POLICY "Anyone can insert orders" ON public.orders FOR INSERT WITH CHECK (true);
--- Qualquer um pode ler pedidos do restaurante (para o cliente acompanhar)
-CREATE POLICY "Anyone can read orders" ON public.orders FOR SELECT USING (true);
--- Apenas dono autenticado pode atualizar status
-CREATE POLICY "Owner can update orders" ON public.orders FOR UPDATE TO authenticated
-  USING (restaurant_id IN (SELECT id FROM public.restaurants WHERE owner_id = auth.uid()));
-
-CREATE POLICY "Anyone can insert order_items" ON public.order_items FOR INSERT WITH CHECK (true);
-CREATE POLICY "Anyone can read order_items" ON public.order_items FOR SELECT USING (true);
-
--- Habilitar Realtime na tabela orders
-ALTER PUBLICATION supabase_realtime ADD TABLE public.orders;
+ALTER TABLE public.restaurants
+  ADD COLUMN IF NOT EXISTS payment_mode TEXT NOT NULL DEFAULT 'open_tab'
+    CHECK (payment_mode IN ('prepaid', 'open_tab')),
+  ADD COLUMN IF NOT EXISTS asaas_api_key TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS max_pending_orders INT NOT NULL DEFAULT 3;
 ```
 
-### Notas sobre seguranca
+Adicionar status `waiting_payment` ao enum de pedidos:
 
-- INSERT e SELECT sao publicos (cliente do menu nao tem auth)
-- UPDATE restrito ao owner do restaurante (autenticado)
-- O KDS filtra por `restaurant_id` do dono logado
+```sql
+ALTER TYPE public.order_status ADD VALUE IF NOT EXISTS 'waiting_payment' BEFORE 'pending';
+```
 
-## 2. Fluxo do Cliente (Menu Publico)
+Adicionar coluna `payment_id` na tabela `orders` para rastrear o pagamento Asaas:
 
-### 2.1 Capturar mesa da URL
+```sql
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS payment_id TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT '';
+```
 
-- Ler `?table=15` da URL em `PublicMenu.tsx` via `useSearchParams`
-- Armazenar em estado e exibir no header ("Mesa 15")
-- Se não houver numero da mesa, mostrar uma tela alertando ao usuário para ler o QR Code exibido na mesa.
+**Nota sobre RLS**: As politicas existentes ja protegem UPDATE de restaurants apenas pelo owner autenticado. A API Key ficara armazenada na tabela, mas so sera lida pela Edge Function (via service_role) e pelo proprio dono (via RLS de SELECT por owner_id).
 
-### 2.2 Enviar pedido real (`OrderSummaryDrawer.tsx`)
+---
 
-- Substituir o `setTimeout` fake por insert real no Supabase:
-  1. `INSERT INTO orders` com `restaurant_id`, `table_number`, `total_price`
-  2. `INSERT INTO order_items` com cada item do carrinho
-- Salvar os IDs dos pedidos no `localStorage` para rastrear "Meus Pedidos"
+## 2. Edge Function: `create-pix-payment`
 
-### 2.3 Aba "Meus Pedidos" no menu inferior
+Uma Edge Function que recebe os dados do pedido e chama a API do Asaas para gerar um Pix dinamico. O fluxo:
 
-- Nova aba no bottom nav com icone `ClipboardList`
-- Cria componente `MyOrdersDrawer.tsx`:
-  - Lista pedidos do localStorage filtrados por restaurant_id
-  - Busca status atual via Supabase
-  - Mostra: display_id, itens, status (badge colorido), horario
-- Supabase Realtime: subscribe em `orders` filtrado pelos IDs do localStorage
-  - Quando status muda para `ready`, exibir toast: "Seu pedido #X esta pronto!"
+1. Recebe `restaurant_id`, `order_id`, valor e dados do cliente
+2. Busca a `asaas_api_key` do restaurante usando service_role
+3. Chama a API do Asaas (`POST /api/v3/payments`) com:
+   - `billingType: "PIX"`
+   - `value`, `description`, `dueDate`
+4. Retorna o `QR Code (base64)`, `payload (copia-e-cola)` e `payment_id`
+5. Atualiza o pedido com `payment_id`
 
-### 2.4 Props adicionais no OrderSummaryDrawer
+**Nota**: Como o Supabase e externo, sera necessario rodar esta edge function no ambiente Supabase do usuario.
 
-- Receber `restaurantId` e `tableNumber`
-- Callback `onOrderPlaced` para salvar o order ID no localStorage
+---
 
-## 3. KDS Dashboard (KitchenMonitor.tsx)
+## 3. Edge Function: `check-payment-status`
 
-### 3.1 Conectar ao Supabase
+Uma Edge Function para polling do status do pagamento:
 
-- Remover dados mock `initialOrders`
-- Buscar pedidos reais: `supabase.from('orders').select('*, order_items(*)').eq('restaurant_id', restaurantId).in('status', ['pending','preparing','ready']).order('created_at')`
-- Obter `restaurant_id` do dono logado via query em `restaurants` por `owner_id`
+1. Recebe `restaurant_id` e `payment_id`
+2. Busca a API Key do restaurante
+3. Chama `GET /api/v3/payments/{id}` no Asaas
+4. Retorna o status (`PENDING`, `CONFIRMED`, `RECEIVED`, etc.)
+5. Se confirmado, atualiza o pedido de `waiting_payment` para `pending`
 
-### 3.2 Realtime no KDS
+---
 
-- Subscribe em `orders` filtrado por `restaurant_id`
-- Novos pedidos aparecem automaticamente na coluna "Novos"
-- Mudancas de status movem cards entre colunas
+## 4. Dashboard - Pagina de Configuracoes de Pagamento
 
-### 3.3 Acoes do Chef
+Nova secao na pagina `SettingsPage.tsx` (ou uma nova rota `/dashboard/payments`):
 
-- Botao "Aceitar" (pending -> preparing): `supabase.from('orders').update({ status: 'preparing' }).eq('id', orderId)`
-- Botao "Finalizar" (preparing -> ready): `supabase.from('orders').update({ status: 'ready' }).eq('id', orderId)`
-- Toast de confirmacao apos cada acao
+### Componentes:
+- **Switch** visual entre "Comanda Aberta" e "Pagamento Antecipado"
+- **Campo API Key do Asaas** (type="password") - visivel apenas quando modo = "prepaid"
+- **Botao "Validar Chave"** que faz um GET de teste na API do Asaas (`/api/v3/finance/balance`)
+- **Campo "Limite de pedidos pendentes"** para modo comanda aberta (default: 3)
+- Salva em `restaurants` via UPDATE protegido por RLS
 
-### 3.4 Alerta visual de pedidos antigos
+### UX:
+- Ao trocar o toggle, mostrar descricao do modo selecionado
+- Indicador visual (badge verde) quando API Key validada com sucesso
+- Alerta se tentar ativar modo prepaid sem API Key valida
 
-- Pedidos com mais de 10 minutos: borda vermelha pulsante via CSS animation (`animate-pulse border-red-500`)
+---
 
-### 3.5 Mapeamento de colunas
+## 5. Menu Publico - Logica Condicional
 
-- Renomear: "queue" -> "pending" para alinhar com o enum
-- Colunas: Novos (pending), Preparando (preparing), Prontos (ready)
+### 5.1 Buscar configuracao do restaurante
 
-## 4. Arquivos a Criar/Modificar
+Ao carregar `PublicMenu.tsx`, ja temos os dados do restaurante. Adicionar leitura de `payment_mode` e `max_pending_orders` no fetch existente.
 
+### 5.2 Modo "Comanda Aberta" (`open_tab`)
 
-| Arquivo                                      | Acao                                                                |
-| -------------------------------------------- | ------------------------------------------------------------------- |
-| Migracao SQL                                 | Criar tabelas `orders`, `order_items`, enum, trigger, RLS, realtime |
-| `src/components/menu/OrderSummaryDrawer.tsx` | Insert real no Supabase + receber restaurantId/tableNumber          |
-| `src/components/menu/MyOrdersDrawer.tsx`     | **NOVO** - aba meus pedidos com realtime                            |
-| `src/pages/menu/PublicMenu.tsx`              | Ler `?table=`, aba "Meus Pedidos", passar props ao drawer           |
-| `src/pages/dashboard/KitchenMonitor.tsx`     | Fetch real + realtime + alerta 10min                                |
-| `src/hooks/use-cart.ts`                      | Sem mudancas                                                        |
+- Pedido vai direto para cozinha com status `pending` (comportamento atual)
+- **Anti-fraude**: Antes de enviar, contar pedidos do cliente (via localStorage IDs) com status `pending` ou `preparing`. Se >= `max_pending_orders`, bloquear com mensagem: "Aguarde seus pedidos anteriores serem aceitos pela cozinha."
+- **Nova aba "Minha Comanda"**: Agrupa todos os pedidos da mesa/sessao, soma total em tempo real. Componente `TabDrawer.tsx` que reutiliza dados do `MyOrdersDrawer`
 
+### 5.3 Modo "Pagamento Antecipado" (`prepaid`)
 
-## 5. Fluxo Resumido
+1. Cliente monta carrinho normalmente
+2. Ao clicar "Enviar Pedido", o `OrderSummaryDrawer` muda o fluxo:
+   - INSERT do pedido com status `waiting_payment`
+   - Chama Edge Function `create-pix-payment`
+   - Abre modal `PixPaymentModal` com QR Code e codigo copia-e-cola
+3. Modal faz polling a cada 5s na Edge Function `check-payment-status`
+4. Quando confirmado:
+   - Modal fecha automaticamente
+   - Animacao de sucesso: "Pagamento confirmado! Pedido enviado para a cozinha!"
+   - Pedido muda para `pending` e aparece no KDS
+
+### 5.4 Pedidos `waiting_payment` no KDS
+
+- O KDS continua filtrando por `pending`, `preparing`, `ready` - pedidos aguardando pagamento **nao aparecem**
+
+---
+
+## 6. Componente: PixPaymentModal
+
+Novo componente `src/components/menu/PixPaymentModal.tsx`:
+
+- Modal (Dialog) com layout limpo
+- QR Code renderizado como imagem base64 (retornada pelo Asaas)
+- Botao "Copiar codigo Pix" com feedback visual
+- Contador regressivo de expiracao (ex: 30 minutos)
+- Indicador de "Aguardando pagamento..." com spinner
+- Auto-fechamento ao confirmar + animacao de sucesso (CheckCircle2 com Framer Motion, similar ao sucesso atual do OrderSummaryDrawer)
+
+---
+
+## 7. Validacao de Mesa (Anti-Fraude)
+
+No `OrderSummaryDrawer`, antes de inserir o pedido:
+- Verificar que `tableNumber` nao esta vazio
+- Validar que o `restaurant_id` corresponde ao slug da URL (ja garantido pelo fetch atual)
+- O `restaurant_id` e injetado server-side pela query, nao pelo cliente
+
+---
+
+## 8. Arquivos a Criar/Modificar
+
+| Arquivo | Acao |
+|---|---|
+| Migracao SQL | Adicionar colunas `payment_mode`, `asaas_api_key`, `max_pending_orders` em restaurants; `payment_id`, `payment_status` em orders; novo valor no enum |
+| `supabase/functions/create-pix-payment/index.ts` | **NOVO** - Edge Function para gerar Pix via Asaas |
+| `supabase/functions/check-payment-status/index.ts` | **NOVO** - Edge Function para verificar status do pagamento |
+| `src/pages/dashboard/SettingsPage.tsx` | Adicionar secao de Configuracoes de Pagamento com Switch e campo API Key |
+| `src/components/menu/PixPaymentModal.tsx` | **NOVO** - Modal de pagamento Pix com QR Code e polling |
+| `src/components/menu/OrderSummaryDrawer.tsx` | Logica condicional: prepaid (gera Pix) vs open_tab (envia direto) + anti-fraude |
+| `src/pages/menu/PublicMenu.tsx` | Passar `paymentMode` e `maxPendingOrders` para os drawers; aba "Minha Comanda" |
+| `src/components/menu/MyOrdersDrawer.tsx` | Adicionar visao de "Comanda" com total acumulado da mesa |
+
+---
+
+## 9. Fluxo Resumido
 
 ```text
-Cliente abre /menu/slug?table=15
-  -> Adiciona itens ao carrinho
-  -> Confirma pedido
-  -> INSERT orders + order_items no Supabase
-  -> Salva order_id no localStorage
-  -> Aba "Meus Pedidos" mostra status em tempo real
+MODO COMANDA ABERTA:
+  Cliente -> Adiciona itens -> Enviar Pedido
+    -> Verifica limite de pendentes (max 3)
+    -> INSERT orders (status=pending) -> Cozinha ve instantaneamente
+    -> Aba "Minha Comanda" mostra total acumulado da mesa
 
-Chef no Dashboard /dashboard/kitchen
-  -> Ve pedido novo aparecer (Realtime)
-  -> Clica "Aceitar" -> status = preparing
-  -> Cliente recebe notificacao em tempo real
-  -> Clica "Finalizar" -> status = ready
-  -> Cliente recebe toast "Pedido pronto!"
+MODO PAGAMENTO ANTECIPADO:
+  Cliente -> Adiciona itens -> Enviar Pedido
+    -> INSERT orders (status=waiting_payment)
+    -> Edge Function gera Pix via Asaas
+    -> Modal com QR Code + Copia e Cola
+    -> Polling a cada 5s verifica status
+    -> Pagamento confirmado -> status=pending -> Cozinha ve o pedido
+    -> Animacao de sucesso
 ```
+
+---
+
+## Secao Tecnica
+
+### Asaas API Endpoints usados:
+- `POST /api/v3/payments` - Criar cobranca Pix
+- `GET /api/v3/payments/{id}/pixQrCode` - Obter QR Code
+- `GET /api/v3/payments/{id}` - Verificar status
+- `GET /api/v3/finance/balance` - Validar API Key
+
+### Ambiente Asaas:
+- Sandbox: `https://sandbox.asaas.com`
+- Producao: `https://api.asaas.com`
+- Header: `access_token: $API_KEY`
+
+### Seguranca:
+- A API Key do Asaas **nunca** e exposta no client-side
+- Todas as chamadas ao Asaas passam pelas Edge Functions usando service_role para ler a chave
+- RLS garante que apenas o owner pode ler/editar sua propria `asaas_api_key`
+- O `restaurant_id` e derivado do slug no fetch, nao manipulavel pelo cliente
+- Pedidos `waiting_payment` ficam invisiveis no KDS ate confirmacao
+
