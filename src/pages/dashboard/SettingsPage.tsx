@@ -1,20 +1,15 @@
 import { useState, useEffect } from "react";
-
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-
 import { Input } from "@/components/ui/input";
-
 import { Label } from "@/components/ui/label";
-
 import { Textarea } from "@/components/ui/textarea";
-
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-
-import { Loader2 } from "lucide-react";
+import { Loader2, CreditCard, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { SettingsFormSkeleton } from "@/components/skeletons/DashboardSkeletons";
 
 const SettingsPage = () => {
@@ -26,8 +21,17 @@ const SettingsPage = () => {
     hours: "",
     description: "",
   });
+  const [paymentForm, setPaymentForm] = useState({
+    payment_mode: "open_tab" as "open_tab" | "prepaid",
+    asaas_api_key: "",
+    max_pending_orders: 3,
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingPayment, setSavingPayment] = useState(false);
+  const [validatingKey, setValidatingKey] = useState(false);
+  const [keyValid, setKeyValid] = useState<boolean | null>(null);
+  const [showApiKey, setShowApiKey] = useState(false);
 
   useEffect(() => {
     const fetchRestaurantData = async () => {
@@ -36,7 +40,7 @@ const SettingsPage = () => {
       try {
         const { data, error } = await supabase
           .from("restaurants")
-          .select("name, address, phone, hours, description")
+          .select("name, address, phone, hours, description, payment_mode, asaas_api_key, max_pending_orders")
           .eq("owner_id", user.id)
           .single();
 
@@ -45,19 +49,25 @@ const SettingsPage = () => {
         if (data) {
           setForm({
             name: data.name || "",
-
             address: data.address || "",
             phone: data.phone || "",
             hours: data.hours || "",
             description: data.description || "",
           });
+          setPaymentForm({
+            payment_mode: (data as any).payment_mode || "open_tab",
+            asaas_api_key: (data as any).asaas_api_key || "",
+            max_pending_orders: (data as any).max_pending_orders || 3,
+          });
+          if ((data as any).asaas_api_key) {
+            setKeyValid(true); // assume valid if already saved
+          }
         }
       } catch (error: any) {
         console.error("Error fetching restaurant data:", error);
         toast({
           title: "Erro ao carregar dados",
-          description:
-            error.message || "Não foi possível carregar as configurações",
+          description: error.message || "Não foi possível carregar as configurações",
           variant: "destructive",
         });
       } finally {
@@ -70,7 +80,6 @@ const SettingsPage = () => {
 
   const handleSave = async () => {
     if (!user) return;
-
     setSaving(true);
     try {
       const { error } = await supabase
@@ -85,22 +94,74 @@ const SettingsPage = () => {
         .eq("owner_id", user.id);
 
       if (error) throw error;
-
-      toast({
-        title: "Configurações salvas",
-        description: "As alterações foram aplicadas com sucesso.",
-      });
+      toast({ title: "Configurações salvas", description: "As alterações foram aplicadas com sucesso." });
     } catch (error: any) {
-      console.error("Error saving settings:", error);
-
-      toast({
-        title: "Erro ao salvar",
-        description:
-          error.message || "Não foi possível salvar as configurações",
-        variant: "destructive",
-      });
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleValidateKey = async () => {
+    if (!paymentForm.asaas_api_key) {
+      toast({ title: "Insira a API Key primeiro", variant: "destructive" });
+      return;
+    }
+
+    setValidatingKey(true);
+    try {
+      const baseUrl = paymentForm.asaas_api_key.startsWith("$aact_")
+        ? "https://api.asaas.com"
+        : "https://sandbox.asaas.com";
+
+      const res = await fetch(`${baseUrl}/api/v3/finance/balance`, {
+        headers: { access_token: paymentForm.asaas_api_key },
+      });
+
+      if (res.ok) {
+        setKeyValid(true);
+        toast({ title: "✅ Chave válida!", description: "Conexão com Asaas estabelecida." });
+      } else {
+        setKeyValid(false);
+        toast({ title: "❌ Chave inválida", description: "Verifique sua API Key do Asaas.", variant: "destructive" });
+      }
+    } catch {
+      setKeyValid(false);
+      toast({ title: "Erro de conexão", description: "Não foi possível validar a chave.", variant: "destructive" });
+    } finally {
+      setValidatingKey(false);
+    }
+  };
+
+  const handleSavePayment = async () => {
+    if (!user) return;
+
+    if (paymentForm.payment_mode === "prepaid" && !keyValid) {
+      toast({
+        title: "Valide a API Key primeiro",
+        description: "Para usar o modo de pagamento antecipado, valide sua chave Asaas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSavingPayment(true);
+    try {
+      const { error } = await supabase
+        .from("restaurants")
+        .update({
+          payment_mode: paymentForm.payment_mode,
+          asaas_api_key: paymentForm.asaas_api_key,
+          max_pending_orders: paymentForm.max_pending_orders,
+        } as any)
+        .eq("owner_id", user.id);
+
+      if (error) throw error;
+      toast({ title: "Configurações de pagamento salvas", description: "Modo de operação atualizado." });
+    } catch (error: any) {
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+    } finally {
+      setSavingPayment(false);
     }
   };
 
@@ -117,6 +178,7 @@ const SettingsPage = () => {
         </p>
       </div>
 
+      {/* Restaurant Info Card */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Dados do Restaurante</CardTitle>
@@ -124,51 +186,120 @@ const SettingsPage = () => {
         <CardContent className="space-y-4">
           <div>
             <Label>Nome do Restaurante</Label>
-            <Input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
+            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </div>
           <div>
             <Label>Endereço</Label>
-            <Input
-              value={form.address}
-              onChange={(e) => setForm({ ...form, address: e.target.value })}
-            />
+            <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
           </div>
           <div>
             <Label>Telefone</Label>
-            <Input
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            />
+            <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </div>
           <div>
             <Label>Horário de Funcionamento</Label>
-            <Input
-              value={form.hours}
-              onChange={(e) => setForm({ ...form, hours: e.target.value })}
-            />
+            <Input value={form.hours} onChange={(e) => setForm({ ...form, hours: e.target.value })} />
           </div>
           <div>
             <Label>Descrição</Label>
-            <Textarea
-              value={form.description}
-              onChange={(e) =>
-                setForm({ ...form, description: e.target.value })
-              }
-              rows={3}
-            />
+            <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
           </div>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Salvando...
-              </>
-            ) : (
-              "Salvar Alterações"
-            )}
+            {saving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</>) : "Salvar Alterações"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Payment Config Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-primary" />
+            <div>
+              <CardTitle className="text-base">Configurações de Pagamento</CardTitle>
+              <CardDescription>Defina o modo de operação do seu restaurante</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Payment Mode Toggle */}
+          <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-muted/30">
+            <div className="space-y-1">
+              <Label className="font-semibold">Modo de Operação</Label>
+              <p className="text-xs text-muted-foreground">
+                {paymentForm.payment_mode === "prepaid"
+                  ? "Pagamento Antecipado — Cliente paga via Pix antes do pedido ir para a cozinha. Ideal para balcão e fast-food."
+                  : "Comanda Aberta — Pedido vai direto para a cozinha, cliente paga depois. Ideal para mesas e consumo no local."}
+              </p>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <Switch
+                checked={paymentForm.payment_mode === "prepaid"}
+                onCheckedChange={(checked) =>
+                  setPaymentForm({ ...paymentForm, payment_mode: checked ? "prepaid" : "open_tab" })
+                }
+              />
+              <span className="text-xs font-medium">
+                {paymentForm.payment_mode === "prepaid" ? "Antecipado" : "Comanda"}
+              </span>
+            </div>
+          </div>
+
+          {/* Asaas API Key - visible when prepaid */}
+          {paymentForm.payment_mode === "prepaid" && (
+            <div className="space-y-3 p-4 rounded-lg border border-border">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-primary" />
+                <Label className="font-semibold">Integração Asaas</Label>
+                {keyValid === true && <Badge className="bg-green-500 text-white text-xs">Validada</Badge>}
+                {keyValid === false && <Badge variant="destructive" className="text-xs">Inválida</Badge>}
+              </div>
+
+              <div className="relative">
+                <Input
+                  type={showApiKey ? "text" : "password"}
+                  placeholder="Sua API Key do Asaas"
+                  value={paymentForm.asaas_api_key}
+                  onChange={(e) => {
+                    setPaymentForm({ ...paymentForm, asaas_api_key: e.target.value });
+                    setKeyValid(null);
+                  }}
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                >
+                  {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+
+              <Button variant="outline" size="sm" onClick={handleValidateKey} disabled={validatingKey}>
+                {validatingKey ? (<><Loader2 className="mr-2 h-3 w-3 animate-spin" />Validando...</>) : "Validar Chave"}
+              </Button>
+            </div>
+          )}
+
+          {/* Max pending orders - visible when open_tab */}
+          {paymentForm.payment_mode === "open_tab" && (
+            <div className="space-y-2">
+              <Label>Limite de Pedidos Pendentes (Anti-fraude)</Label>
+              <p className="text-xs text-muted-foreground">
+                Máximo de pedidos que um cliente pode ter pendentes antes que novos sejam bloqueados.
+              </p>
+              <Input
+                type="number"
+                min={1}
+                max={10}
+                value={paymentForm.max_pending_orders}
+                onChange={(e) => setPaymentForm({ ...paymentForm, max_pending_orders: Number(e.target.value) })}
+                className="w-24"
+              />
+            </div>
+          )}
+
+          <Button onClick={handleSavePayment} disabled={savingPayment}>
+            {savingPayment ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</>) : "Salvar Configurações de Pagamento"}
           </Button>
         </CardContent>
       </Card>

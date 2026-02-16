@@ -26,6 +26,8 @@ const PublicMenu = () => {
 
   const [restaurant, setRestaurant] = useState<RestaurantConfig | null>(null);
   const [items, setItems] = useState<PublicMenuItem[]>([]);
+  const [paymentMode, setPaymentMode] = useState<"open_tab" | "prepaid">("open_tab");
+  const [maxPendingOrders, setMaxPendingOrders] = useState(3);
   const [activeCategory, setActiveCategory] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +74,8 @@ const PublicMenu = () => {
           activeModules: { menu: true, kds: true, metrics: true },
         };
         setRestaurant(config);
+        setPaymentMode((restData as any).payment_mode || "open_tab");
+        setMaxPendingOrders((restData as any).max_pending_orders || 3);
 
         const { data: menuData } = await supabase
           .from("menu_items")
@@ -365,6 +369,8 @@ const PublicMenu = () => {
         restaurantId={restaurant.id}
         tableNumber={tableNumber}
         onOrderPlaced={handleOrderPlaced}
+        paymentMode={paymentMode}
+        maxPendingOrders={maxPendingOrders}
       />
       <MyOrdersDrawer
         open={myOrdersOpen}
