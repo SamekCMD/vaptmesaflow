@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,24 @@ import { toast } from "@/hooks/use-toast";
 import { KitchenSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+
+const playBellSound = () => {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(830, ctx.currentTime);
+    osc.frequency.setValueAtTime(1000, ctx.currentTime + 0.1);
+    osc.frequency.setValueAtTime(830, ctx.currentTime + 0.2);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.5);
+  } catch {}
+};
 
 interface OrderItem {
   id: string;
@@ -122,6 +140,7 @@ const KitchenMonitor = () => {
         { event: "INSERT", schema: "public", table: "orders", filter: `restaurant_id=eq.${restaurantId}` },
         () => {
           fetchOrders();
+          playBellSound();
           toast({ title: "🔔 Novo pedido!", description: "Um novo pedido foi recebido." });
         }
       )

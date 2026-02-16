@@ -8,7 +8,8 @@ import {
   type RestaurantConfig,
   type PublicMenuItem,
 } from "@/lib/restaurant-config";
-import { ShoppingBag, Menu, ClipboardList, Moon, Sun, QrCode } from "lucide-react";
+import { ShoppingBag, Menu, ClipboardList, Moon, Sun, QrCode, BellRing } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 import { useTheme } from "next-themes";
 import { PublicMenuSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useCart } from "@/hooks/use-cart";
@@ -36,6 +37,7 @@ const PublicMenu = () => {
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
   const [myOrdersOpen, setMyOrdersOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"menu" | "orders" | "theme">("menu");
+  const [hasReadyOrder, setHasReadyOrder] = useState(false);
 
   // Fetch restaurant + menu items from Supabase
   useEffect(() => {
@@ -122,6 +124,41 @@ const PublicMenu = () => {
       root.style.removeProperty("--menu-primary");
       root.style.removeProperty("--menu-secondary");
       root.style.removeProperty("--menu-font");
+    };
+  }, [restaurant]);
+
+  // Realtime: listen for order status changes (client-side)
+  useEffect(() => {
+    if (!restaurant) return;
+    const key = `orders_${restaurant.id}`;
+    const getIds = (): string[] => {
+      try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
+    };
+    const ids = getIds();
+    if (ids.length === 0) return;
+
+    const channel = supabase
+      .channel("client-orders-realtime")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "orders" },
+        (payload) => {
+          const updated = payload.new as any;
+          if (!getIds().includes(updated.id)) return;
+
+          if (updated.status === "ready") {
+            setHasReadyOrder(true);
+            toast({
+              title: "🎉 Pedido pronto!",
+              description: `Seu pedido #${updated.display_id} está pronto para retirada!`,
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
     };
   }, [restaurant]);
 
@@ -286,10 +323,17 @@ const PublicMenu = () => {
           </button>
           <button
             className="flex flex-col items-center gap-0.5 relative"
-            onClick={() => { setActiveTab("orders"); setMyOrdersOpen(true); }}
+            onClick={() => { setActiveTab("orders"); setMyOrdersOpen(true); setHasReadyOrder(false); }}
           >
-            <ClipboardList className="h-5 w-5" style={{ color: activeTab === "orders" ? restaurant.primaryColor : restaurant.secondaryColor + "80" }} />
-            <span className="text-[10px]" style={{ color: activeTab === "orders" ? restaurant.primaryColor : restaurant.secondaryColor + "80" }}>Meus Pedidos</span>
+            {hasReadyOrder && (
+              <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-green-500 animate-ping" />
+            )}
+            {hasReadyOrder ? (
+              <BellRing className="h-5 w-5 animate-bounce" style={{ color: restaurant.primaryColor }} />
+            ) : (
+              <ClipboardList className="h-5 w-5" style={{ color: activeTab === "orders" ? restaurant.primaryColor : restaurant.secondaryColor + "80" }} />
+            )}
+            <span className="text-[10px]" style={{ color: hasReadyOrder ? restaurant.primaryColor : (activeTab === "orders" ? restaurant.primaryColor : restaurant.secondaryColor + "80") }}>Meus Pedidos</span>
           </button>
           <button
             className="flex flex-col items-center gap-0.5"
