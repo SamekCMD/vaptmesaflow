@@ -30,6 +30,7 @@ interface MyOrdersDrawerProps {
 }
 
 const statusConfig: Record<string, { label: string; color: string }> = {
+  waiting_payment: { label: "Aguardando Pgto", color: "bg-orange-500" },
   pending: { label: "Na fila", color: "bg-yellow-500" },
   preparing: { label: "Preparando", color: "bg-blue-500" },
   ready: { label: "Pronto!", color: "bg-green-500" },
@@ -106,6 +107,13 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor }: MyOrdersD
     return `${mins} min`;
   };
 
+  // Calculate total for "Minha Comanda"
+  const comandaTotal = orders
+    .filter((o) => !["delivered", "waiting_payment"].includes(o.status))
+    .reduce((sum, o) => sum + Number(o.total_price), 0);
+
+  const activeOrders = orders.filter((o) => !["delivered"].includes(o.status));
+
   return (
     <Drawer open={open} onOpenChange={(o) => !o && onClose()}>
       <DrawerContent className="max-w-md mx-auto max-h-[85vh]">
@@ -117,6 +125,21 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor }: MyOrdersD
           </DrawerClose>
           <DrawerTitle>Meus Pedidos</DrawerTitle>
         </DrawerHeader>
+
+        {/* Comanda Total */}
+        {activeOrders.length > 0 && (
+          <div className="mx-4 mb-3 p-3 rounded-xl border border-border bg-muted/30">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold">Minha Comanda</span>
+              <span className="text-lg font-bold" style={{ color: primaryColor }}>
+                R$ {comandaTotal.toFixed(2).replace(".", ",")}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {activeOrders.length} {activeOrders.length === 1 ? "pedido" : "pedidos"} nesta mesa
+            </p>
+          </div>
+        )}
 
         <div className="px-4 pb-6 overflow-y-auto flex-1 space-y-3">
           {loading && (
