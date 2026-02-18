@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { CartItem } from "@/hooks/use-cart";
 import PixPaymentModal from "@/components/menu/PixPaymentModal";
+import { N8N_WEBHOOK_URL } from "@/lib/constants";
 
 interface OrderSummaryDrawerProps {
   open: boolean;
@@ -52,7 +53,7 @@ const OrderSummaryDrawer = ({
   // Pix payment state
   const [pixModalOpen, setPixModalOpen] = useState(false);
   const [pixData, setPixData] = useState<{
-    paymentId: string;
+    orderId: string;
     qrCodeBase64: string;
     pixPayload: string;
     expiration: string;
@@ -132,25 +133,31 @@ const OrderSummaryDrawer = ({
       onOrderPlaced?.(orderData.id);
 
       if (paymentMode === "prepaid") {
-        // Call edge function to create Pix payment
-        const { data: pixResult, error: pixError } = await supabase.functions.invoke(
-          "create-pix-payment",
-          {
-            body: {
-              restaurant_id: restaurantId,
-              order_id: orderData.id,
-              value: totalPrice,
-              customer_name: `Mesa ${tableNumber || "S/N"}`,
-            },
-          }
-        );
+        // Call n8n webhook to create Pix payment
+        const res = await fetch(N8N_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            restaurant_id: restaurantId,
+            order_id: orderData.id,
+            value: totalPrice,
+            customer_name: `Mesa ${tableNumber || "S/N"}`,
+            table_number: tableNumber,
+          }),
+        });
 
-        if (pixError || !pixResult?.payment_id) {
-          throw new Error(pixError?.message || "Erro ao gerar pagamento Pix");
+        if (!res.ok) {
+          throw new Error("Erro ao gerar pagamento Pix");
+        }
+
+        const pixResult = await res.json();
+
+        if (!pixResult?.payment_id) {
+          throw new Error("Resposta inválida do servidor de pagamento");
         }
 
         setPixData({
-          paymentId: pixResult.payment_id,
+          orderId: orderData.id,
           qrCodeBase64: pixResult.qr_code_base64,
           pixPayload: pixResult.pix_payload,
           expiration: pixResult.expiration,
@@ -368,8 +375,7 @@ const OrderSummaryDrawer = ({
             setPixModalOpen(false);
             setPixData(null);
           }}
-          paymentId={pixData.paymentId}
-          restaurantId={restaurantId || ""}
+          orderId={pixData.orderId}
           qrCodeBase64={pixData.qrCodeBase64}
           pixPayload={pixData.pixPayload}
           expiration={pixData.expiration}

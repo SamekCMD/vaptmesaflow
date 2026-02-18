@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, CreditCard, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { SettingsFormSkeleton } from "@/components/skeletons/DashboardSkeletons";
@@ -29,8 +28,6 @@ const SettingsPage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
-  const [validatingKey, setValidatingKey] = useState(false);
-  const [keyValid, setKeyValid] = useState<boolean | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
 
   useEffect(() => {
@@ -59,9 +56,6 @@ const SettingsPage = () => {
             asaas_api_key: (data as any).asaas_api_key || "",
             max_pending_orders: (data as any).max_pending_orders || 3,
           });
-          if ((data as any).asaas_api_key) {
-            setKeyValid(true); // assume valid if already saved
-          }
         }
       } catch (error: any) {
         console.error("Error fetching restaurant data:", error);
@@ -102,48 +96,8 @@ const SettingsPage = () => {
     }
   };
 
-  const handleValidateKey = async () => {
-    if (!paymentForm.asaas_api_key) {
-      toast({ title: "Insira a API Key primeiro", variant: "destructive" });
-      return;
-    }
-
-    setValidatingKey(true);
-    try {
-      const baseUrl = paymentForm.asaas_api_key.startsWith("$aact_")
-        ? "https://api.asaas.com"
-        : "https://sandbox.asaas.com";
-
-      const res = await fetch(`${baseUrl}/api/v3/finance/balance`, {
-        headers: { access_token: paymentForm.asaas_api_key },
-      });
-
-      if (res.ok) {
-        setKeyValid(true);
-        toast({ title: "✅ Chave válida!", description: "Conexão com Asaas estabelecida." });
-      } else {
-        setKeyValid(false);
-        toast({ title: "❌ Chave inválida", description: "Verifique sua API Key do Asaas.", variant: "destructive" });
-      }
-    } catch {
-      setKeyValid(false);
-      toast({ title: "Erro de conexão", description: "Não foi possível validar a chave.", variant: "destructive" });
-    } finally {
-      setValidatingKey(false);
-    }
-  };
-
   const handleSavePayment = async () => {
     if (!user) return;
-
-    if (paymentForm.payment_mode === "prepaid" && !keyValid) {
-      toast({
-        title: "Valide a API Key primeiro",
-        description: "Para usar o modo de pagamento antecipado, valide sua chave Asaas.",
-        variant: "destructive",
-      });
-      return;
-    }
 
     setSavingPayment(true);
     try {
@@ -251,8 +205,6 @@ const SettingsPage = () => {
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-primary" />
                 <Label className="font-semibold">Integração Asaas</Label>
-                {keyValid === true && <Badge className="bg-green-500 text-white text-xs">Validada</Badge>}
-                {keyValid === false && <Badge variant="destructive" className="text-xs">Inválida</Badge>}
               </div>
 
               <div className="relative">
@@ -262,7 +214,6 @@ const SettingsPage = () => {
                   value={paymentForm.asaas_api_key}
                   onChange={(e) => {
                     setPaymentForm({ ...paymentForm, asaas_api_key: e.target.value });
-                    setKeyValid(null);
                   }}
                 />
                 <button
@@ -274,9 +225,9 @@ const SettingsPage = () => {
                 </button>
               </div>
 
-              <Button variant="outline" size="sm" onClick={handleValidateKey} disabled={validatingKey}>
-                {validatingKey ? (<><Loader2 className="mr-2 h-3 w-3 animate-spin" />Validando...</>) : "Validar Chave"}
-              </Button>
+              <p className="text-xs text-muted-foreground">
+                Sua chave será validada automaticamente ao processar o primeiro pagamento.
+              </p>
             </div>
           )}
 

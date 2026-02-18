@@ -14,8 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface PixPaymentModalProps {
   open: boolean;
   onClose: () => void;
-  paymentId: string;
-  restaurantId: string;
+  orderId: string;
   qrCodeBase64: string;
   pixPayload: string;
   expiration: string;
@@ -26,8 +25,7 @@ interface PixPaymentModalProps {
 const PixPaymentModal = ({
   open,
   onClose,
-  paymentId,
-  restaurantId,
+  orderId,
   qrCodeBase64,
   pixPayload,
   primaryColor,
@@ -56,27 +54,26 @@ const PixPaymentModal = ({
     return () => clearInterval(interval);
   }, [open, expiration, confirmed]);
 
-  // Polling for payment status
+  // Polling for payment status directly from Supabase
   const checkStatus = useCallback(async () => {
-    if (!paymentId || !restaurantId || confirmed) return;
+    if (!orderId || confirmed) return;
 
     try {
-      const { data, error } = await supabase.functions.invoke(
-        "check-payment-status",
-        {
-          body: { restaurant_id: restaurantId, payment_id: paymentId },
-        }
-      );
+      const { data, error } = await supabase
+        .from("orders")
+        .select("payment_status, status")
+        .eq("id", orderId)
+        .single();
 
       if (error) throw error;
-      if (data?.is_confirmed) {
+      if (data && ["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH"].includes(data.payment_status)) {
         setConfirmed(true);
         onPaymentConfirmed();
       }
     } catch (err) {
       console.error("Error checking payment:", err);
     }
-  }, [paymentId, restaurantId, confirmed, onPaymentConfirmed]);
+  }, [orderId, confirmed, onPaymentConfirmed]);
 
   useEffect(() => {
     if (!open || confirmed) return;
