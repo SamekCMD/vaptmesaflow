@@ -199,7 +199,7 @@ const AppearancePage = () => {
               {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : "Salvar Alterações"}
             </Button>
             <Button variant="outline" asChild>
-              <a href={`/menu/${config.slug}?table=999`} target="_blank" rel="noopener noreferrer">
+              <a href={`/menu/${config.slug}`} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Ver Menu Público
               </a>

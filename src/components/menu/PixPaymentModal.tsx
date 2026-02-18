@@ -36,7 +36,7 @@ const PixPaymentModal = ({
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState("");
 
-  // Relógio de Expiração
+  // Countdown timer
   useEffect(() => {
     if (!open || confirmed) return;
     const updateTimer = () => {
@@ -54,41 +54,30 @@ const PixPaymentModal = ({
     return () => clearInterval(interval);
   }, [open, expiration, confirmed]);
 
-  // VIGILÂNCIA DO BANCO (Polling)
+  // Polling for payment status directly from Supabase
   const checkStatus = useCallback(async () => {
-    if (!orderId || confirmed || !open) return;
-
-    console.log("🔍 Vapt Vigilante: Verificando pagamento do pedido:", orderId);
+    if (!orderId || confirmed) return;
 
     try {
       const { data, error } = await supabase
         .from("orders")
-        .select("payment_status")
+        .select("payment_status, status")
         .eq("id", orderId)
         .single();
 
-      if (error) {
-        console.error("❌ Erro na vigilância:", error.message);
-        return;
-      }
-      
-      console.log("📡 Status atual no banco:", data?.payment_status);
-
-      // Se o n8n já mudou para CONFIRMED ou RECEIVED, ativa o sucesso!
+      if (error) throw error;
       if (data && ["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH"].includes(data.payment_status)) {
-        console.log("✅ PAGAMENTO DETECTADO!");
         setConfirmed(true);
         onPaymentConfirmed();
       }
     } catch (err) {
-      console.error("🚨 Erro crítico ao checar pagamento:", err);
+      console.error("Error checking payment:", err);
     }
-  }, [orderId, confirmed, open, onPaymentConfirmed]);
+  }, [orderId, confirmed, onPaymentConfirmed]);
 
-  // Inicia o vigia a cada 2 segundos (Mais rápido que os 5s anteriores)
   useEffect(() => {
     if (!open || confirmed) return;
-    const interval = setInterval(checkStatus, 2000);
+    const interval = setInterval(checkStatus, 5000);
     return () => clearInterval(interval);
   }, [open, confirmed, checkStatus]);
 
@@ -174,6 +163,7 @@ const PixPaymentModal = ({
               </DialogHeader>
 
               <div className="flex flex-col items-center gap-4 py-4">
+                {/* QR Code */}
                 {qrCodeBase64 ? (
                   <div className="bg-white p-3 rounded-xl">
                     <img
@@ -188,11 +178,13 @@ const PixPaymentModal = ({
                   </div>
                 )}
 
+                {/* Timer */}
                 <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                   <Clock className="h-4 w-4" />
                   <span>Expira em {timeLeft}</span>
                 </div>
 
+                {/* Copy button */}
                 <Button
                   variant="outline"
                   className="w-full"
@@ -211,6 +203,7 @@ const PixPaymentModal = ({
                   )}
                 </Button>
 
+                {/* Waiting indicator */}
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Aguardando pagamento...
