@@ -31,6 +31,7 @@ interface MyOrdersDrawerProps {
 
 const statusConfig: Record<string, { label: string; color: string }> = {
   waiting_payment: { label: "Aguardando Pgto", color: "bg-orange-500" },
+  paid: { label: "Pago", color: "bg-emerald-500" },
   pending: { label: "Na fila", color: "bg-yellow-500" },
   preparing: { label: "Preparando", color: "bg-blue-500" },
   ready: { label: "Pronto!", color: "bg-green-500" },
@@ -69,38 +70,12 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor }: MyOrdersD
     if (open) fetchOrders();
   }, [open]);
 
-  // Realtime subscription
+  // Polling every 5s (replaces Realtime)
   useEffect(() => {
-    const ids = getStoredOrderIds();
-    if (ids.length === 0) return;
-
-    const channel = supabase
-      .channel("my-orders-realtime")
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "orders" },
-        (payload) => {
-          const updated = payload.new as any;
-          if (!ids.includes(updated.id)) return;
-
-          setOrders((prev) =>
-            prev.map((o) => (o.id === updated.id ? { ...o, status: updated.status } : o))
-          );
-
-          if (updated.status === "ready") {
-            toast({
-              title: "🎉 Pedido pronto!",
-              description: `Seu pedido #${updated.display_id} está pronto para retirada!`,
-            });
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [restaurantId]);
+    if (!open) return;
+    const interval = setInterval(fetchOrders, 5000);
+    return () => clearInterval(interval);
+  }, [open]);
 
   const getElapsed = (dateStr: string) => {
     const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);

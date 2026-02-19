@@ -39,25 +39,29 @@ interface Order {
   display_id: number;
   table_number: string | null;
   total_price: number;
-  status: "pending" | "preparing" | "ready";
+  status: "paid" | "pending" | "preparing" | "ready";
+  payment_status: string | null;
   created_at: string;
   updated_at: string | null;
   order_items: OrderItem[];
 }
 
 const columns = [
-  { key: "pending" as const, label: "Novos", color: "bg-yellow-500" },
+  { key: "paid" as const, label: "Pagos (Novos)", color: "bg-emerald-500" },
+  { key: "pending" as const, label: "Na Fila", color: "bg-yellow-500" },
   { key: "preparing" as const, label: "Preparando", color: "bg-blue-500" },
   { key: "ready" as const, label: "Prontos", color: "bg-green-500" },
 ];
 
 const nextStatus: Record<string, string> = {
+  paid: "pending",
   pending: "preparing",
   preparing: "ready",
 };
 
 const actionLabels: Record<string, string> = {
-  pending: "Aceitar",
+  paid: "Aceitar",
+  pending: "Preparar",
   preparing: "Finalizar",
 };
 
@@ -67,6 +71,7 @@ const KitchenMonitor = () => {
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [, setTick] = useState(0);
+  const knownOrderIdsRef = useRef<Set<string>>(new Set());
 
   // Refresh elapsed times every 15s + auto-archive ready orders after 1 min
   useEffect(() => {
@@ -111,17 +116,35 @@ const KitchenMonitor = () => {
     fetchRestaurant();
   }, [user]);
 
-  // Fetch orders
+  // Fetch orders with new-order detection
   const fetchOrders = useCallback(async () => {
     if (!restaurantId) return;
     const { data } = await supabase
       .from("orders")
       .select("*, order_items(*)")
       .eq("restaurant_id", restaurantId)
-      .in("status", ["pending", "preparing", "ready"])
-      .order("created_at", { ascending: true });
+      .in("status", ["paid", "pending", "preparing", "ready"])
+      .order("created_at", { ascending: false });
 
-    if (data) setOrders(data as unknown as Order[]);
+    if (data) {
+      const fetched = data as unknown as Order[];
+
+      // Detect genuinely new orders (not seen before)
+      if (knownOrderIdsRef.current.size > 0) {
+        const newOrders = fetched.filter((o) => !knownOrderIdsRef.current.has(o.id));
+        if (newOrders.length > 0) {
+          playBellSound();
+          toast({
+            title: `🔔 ${newOrders.length} novo(s) pedido(s)!`,
+            description: "Novos pedidos foram recebidos.",
+          });
+        }
+      }
+
+      // Update known IDs
+      knownOrderIdsRef.current = new Set(fetched.map((o) => o.id));
+      setOrders(fetched);
+    }
     setLoading(false);
   }, [restaurantId]);
 
@@ -129,38 +152,11 @@ const KitchenMonitor = () => {
     if (restaurantId) fetchOrders();
   }, [restaurantId, fetchOrders]);
 
-  // Realtime subscription
+  // Polling every 5 seconds (replaces Realtime)
   useEffect(() => {
     if (!restaurantId) return;
-
-    const channel = supabase
-      .channel("kds-realtime")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "orders", filter: `restaurant_id=eq.${restaurantId}` },
-        () => {
-          fetchOrders();
-          playBellSound();
-          toast({ title: "🔔 Novo pedido!", description: "Um novo pedido foi recebido." });
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "orders", filter: `restaurant_id=eq.${restaurantId}` },
-        (payload) => {
-          const updated = payload.new as any;
-          setOrders((prev) =>
-            prev
-              .map((o) => (o.id === updated.id ? { ...o, status: updated.status, updated_at: updated.updated_at } : o))
-              .filter((o) => ["pending", "preparing", "ready"].includes(o.status))
-          );
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const interval = setInterval(fetchOrders, 5000);
+    return () => clearInterval(interval);
   }, [restaurantId, fetchOrders]);
 
   const getElapsed = (dateStr: string) => {
@@ -216,7 +212,7 @@ const KitchenMonitor = () => {
         </Button>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid md:grid-cols-4 gap-6">
         {columns.map((col) => (
           <div key={col.key}>
             <div className="flex items-center gap-2 mb-4">
