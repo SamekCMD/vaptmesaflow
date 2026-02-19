@@ -16,6 +16,7 @@ import KitchenMonitor from "./pages/dashboard/KitchenMonitor";
 import SettingsPage from "./pages/dashboard/SettingsPage";
 import AppearancePage from "./pages/dashboard/AppearancePage";
 import WhatsAppIntegration from "./pages/dashboard/WhatsAppIntegration";
+import CashierPage from "./pages/dashboard/CashierPage";
 import PublicMenu from "./pages/menu/PublicMenu";
 import LoginPage from "./pages/auth/LoginPage";
 import SignupPage from "./pages/auth/SignupPage";
@@ -44,6 +45,7 @@ const App = () => (
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="appearance" element={<AppearancePage />} />
                   <Route path="whatsapp" element={<WhatsAppIntegration />} />
+                  <Route path="cashier" element={<CashierPage />} />
                 </Route>
                 <Route path="/menu/:slug" element={<PublicMenu />} />
                 <Route path="*" element={<NotFound />} />
