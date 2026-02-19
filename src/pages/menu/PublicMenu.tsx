@@ -16,6 +16,7 @@ import { useCart } from "@/hooks/use-cart";
 import ProductDrawer from "@/components/menu/ProductDrawer";
 import OrderSummaryDrawer from "@/components/menu/OrderSummaryDrawer";
 import MyOrdersDrawer from "@/components/menu/MyOrdersDrawer";
+import FloatingActions from "@/components/menu/FloatingActions";
 import { supabase } from "@/integrations/supabase/client";
 
 const PublicMenu = () => {
@@ -40,6 +41,9 @@ const PublicMenu = () => {
   const [myOrdersOpen, setMyOrdersOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"menu" | "orders" | "theme">("menu");
   const [hasReadyOrder, setHasReadyOrder] = useState(false);
+  const [tableSessionId, setTableSessionId] = useState<string | null>(null);
+  const [hasPlacedOrder, setHasPlacedOrder] = useState(false);
+  const [restaurantIdState, setRestaurantIdState] = useState<string | null>(null);
 
   // Fetch restaurant + menu items from Supabase
   useEffect(() => {
@@ -74,8 +78,47 @@ const PublicMenu = () => {
           activeModules: { menu: true, kds: true, metrics: true },
         };
         setRestaurant(config);
+        setRestaurantIdState(restData.id);
         setPaymentMode((restData as any).payment_mode || "open_tab");
         setMaxPendingOrders((restData as any).max_pending_orders || 3);
+
+        // Check for existing table session (open_tab mode)
+        const mode = (restData as any).payment_mode || "open_tab";
+        const table = searchParams.get("table") || searchParams.get("mesa") || "";
+        if (mode === "open_tab" && table) {
+          // Try localStorage first
+          const storedSessionId = localStorage.getItem(`table_session_${restData.id}_${table}`);
+          if (storedSessionId) {
+            // Verify it's still open
+            const { data: existingSession } = await supabase
+              .from("table_sessions")
+              .select("id, status")
+              .eq("id", storedSessionId)
+              .in("status", ["open", "check_requested"])
+              .single();
+            if (existingSession) {
+              setTableSessionId(existingSession.id);
+              setHasPlacedOrder(true);
+            } else {
+              localStorage.removeItem(`table_session_${restData.id}_${table}`);
+            }
+          }
+          // If not in localStorage, check DB
+          if (!storedSessionId) {
+            const { data: dbSession } = await supabase
+              .from("table_sessions")
+              .select("id")
+              .eq("restaurant_id", restData.id)
+              .eq("table_number", table)
+              .in("status", ["open", "check_requested"])
+              .single();
+            if (dbSession) {
+              setTableSessionId(dbSession.id);
+              setHasPlacedOrder(true);
+              localStorage.setItem(`table_session_${restData.id}_${table}`, dbSession.id);
+            }
+          }
+        }
 
         const { data: menuData } = await supabase
           .from("menu_items")
@@ -167,7 +210,7 @@ const PublicMenu = () => {
   }, [restaurant]);
 
   const handleOrderPlaced = useCallback(
-    (orderId: string) => {
+    async (orderId: string) => {
       if (!restaurant) return;
       const key = `orders_${restaurant.id}`;
       try {
@@ -177,8 +220,60 @@ const PublicMenu = () => {
       } catch {
         localStorage.setItem(key, JSON.stringify([orderId]));
       }
+
+      // Create table session if open_tab and not yet created
+      if (paymentMode === "open_tab" && tableNumber && !tableSessionId) {
+        try {
+          const { data: newSession } = await supabase
+            .from("table_sessions")
+            .insert({
+              restaurant_id: restaurant.id,
+              table_number: tableNumber,
+              status: "open",
+            })
+            .select("id")
+            .single();
+
+          if (newSession) {
+            setTableSessionId(newSession.id);
+            localStorage.setItem(`table_session_${restaurant.id}_${tableNumber}`, newSession.id);
+
+            // Link the order to the session
+            await supabase
+              .from("orders")
+              .update({ table_session_id: newSession.id } as any)
+              .eq("id", orderId);
+          }
+        } catch {
+          // Session might already exist, try to find it
+          const { data: existing } = await supabase
+            .from("table_sessions")
+            .select("id")
+            .eq("restaurant_id", restaurant.id)
+            .eq("table_number", tableNumber)
+            .eq("status", "open")
+            .single();
+
+          if (existing) {
+            setTableSessionId(existing.id);
+            localStorage.setItem(`table_session_${restaurant.id}_${tableNumber}`, existing.id);
+            await supabase
+              .from("orders")
+              .update({ table_session_id: existing.id } as any)
+              .eq("id", orderId);
+          }
+        }
+      } else if (tableSessionId) {
+        // Link order to existing session
+        await supabase
+          .from("orders")
+          .update({ table_session_id: tableSessionId } as any)
+          .eq("id", orderId);
+      }
+
+      setHasPlacedOrder(true);
     },
-    [restaurant]
+    [restaurant, paymentMode, tableNumber, tableSessionId]
   );
 
   if (loading) {
@@ -371,6 +466,7 @@ const PublicMenu = () => {
         onOrderPlaced={handleOrderPlaced}
         paymentMode={paymentMode}
         maxPendingOrders={maxPendingOrders}
+        tableSessionId={tableSessionId}
       />
       <MyOrdersDrawer
         open={myOrdersOpen}
@@ -378,6 +474,14 @@ const PublicMenu = () => {
         restaurantId={restaurant.id}
         primaryColor={restaurant.primaryColor}
       />
+
+      {/* Floating Actions for open_tab mode */}
+      {paymentMode === "open_tab" && hasPlacedOrder && tableSessionId && (
+        <FloatingActions
+          sessionId={tableSessionId}
+          primaryColor={restaurant.primaryColor}
+        />
+      )}
     </div>
   );
 };

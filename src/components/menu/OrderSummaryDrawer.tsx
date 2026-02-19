@@ -30,6 +30,7 @@ interface OrderSummaryDrawerProps {
   onOrderPlaced?: (orderId: string) => void;
   paymentMode?: "open_tab" | "prepaid";
   maxPendingOrders?: number;
+  tableSessionId?: string | null;
 }
 
 const OrderSummaryDrawer = ({
@@ -46,6 +47,7 @@ const OrderSummaryDrawer = ({
   onOrderPlaced,
   paymentMode = "open_tab",
   maxPendingOrders = 3,
+  tableSessionId,
 }: OrderSummaryDrawerProps) => {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
@@ -110,6 +112,7 @@ const OrderSummaryDrawer = ({
           table_number: tableNumber || null,
           total_price: totalPrice,
           status: orderStatus,
+          ...(tableSessionId ? { table_session_id: tableSessionId } : {}),
         } as any)
         .select("id, display_id")
         .single();
@@ -357,7 +360,7 @@ const OrderSummaryDrawer = ({
                     ) : paymentMode === "prepaid" ? (
                       "Pagar com Pix"
                     ) : (
-                      "Enviar Pedido"
+                      "Confirmar Pedido"
                     )}
                   </Button>
                 </DrawerFooter>

@@ -13,6 +13,7 @@ import {
   Bell,
   ChevronDown,
   LogOut,
+  Banknote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -27,6 +28,7 @@ const navItems = [
   { title: "Visão Geral", icon: LayoutDashboard, path: "/dashboard" },
   { title: "Cardápio", icon: UtensilsCrossed, path: "/dashboard/menu" },
   { title: "Cozinha (KDS)", icon: Monitor, path: "/dashboard/kitchen" },
+  { title: "Caixa", icon: Banknote, path: "/dashboard/cashier" },
   { title: "Aparência", icon: Palette, path: "/dashboard/appearance" },
   { title: "WhatsApp", icon: MessageCircle, path: "/dashboard/whatsapp" },
   { title: "Configurações", icon: Settings, path: "/dashboard/settings" },
