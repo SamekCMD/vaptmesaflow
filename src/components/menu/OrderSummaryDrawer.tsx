@@ -28,6 +28,7 @@ interface OrderSummaryDrawerProps {
   restaurantId?: string;
   tableNumber?: string;
   onOrderPlaced?: (orderId: string) => void;
+  onSessionCreated?: (sessionId: string) => void;
   paymentMode?: "open_tab" | "prepaid";
   maxPendingOrders?: number;
   tableSessionId?: string | null;
@@ -45,6 +46,7 @@ const OrderSummaryDrawer = ({
   restaurantId,
   tableNumber,
   onOrderPlaced,
+  onSessionCreated,
   paymentMode = "open_tab",
   maxPendingOrders = 3,
   tableSessionId,
@@ -104,7 +106,42 @@ const OrderSummaryDrawer = ({
     try {
       const orderStatus = paymentMode === "prepaid" ? "waiting_payment" : "pending";
 
-      // Insert order
+      // For open_tab: create session BEFORE order if none exists
+      let effectiveSessionId = tableSessionId;
+      if (paymentMode === "open_tab" && tableNumber && !effectiveSessionId) {
+        try {
+          const { data: newSession } = await supabase
+            .from("table_sessions")
+            .insert({
+              restaurant_id: restaurantId,
+              table_number: tableNumber,
+              status: "open",
+            })
+            .select("id")
+            .single();
+
+          if (newSession) {
+            effectiveSessionId = newSession.id;
+            onSessionCreated?.(newSession.id);
+          }
+        } catch {
+          // Session might already exist, try to find it
+          const { data: existing } = await supabase
+            .from("table_sessions")
+            .select("id")
+            .eq("restaurant_id", restaurantId!)
+            .eq("table_number", tableNumber)
+            .in("status", ["open", "check_requested"])
+            .single();
+
+          if (existing) {
+            effectiveSessionId = existing.id;
+            onSessionCreated?.(existing.id);
+          }
+        }
+      }
+
+      // Insert order with session already linked
       const { data: orderData, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -112,7 +149,7 @@ const OrderSummaryDrawer = ({
           table_number: tableNumber || null,
           total_price: totalPrice,
           status: orderStatus,
-          ...(tableSessionId ? { table_session_id: tableSessionId } : {}),
+          ...(effectiveSessionId ? { table_session_id: effectiveSessionId } : {}),
         } as any)
         .select("id, display_id")
         .single();
