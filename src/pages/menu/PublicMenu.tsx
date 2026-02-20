@@ -209,8 +209,18 @@ const PublicMenu = () => {
     };
   }, [restaurant]);
 
+  const handleSessionCreated = useCallback(
+    (sessionId: string) => {
+      if (!restaurant) return;
+      setTableSessionId(sessionId);
+      setHasPlacedOrder(true);
+      localStorage.setItem(`table_session_${restaurant.id}_${tableNumber}`, sessionId);
+    },
+    [restaurant, tableNumber]
+  );
+
   const handleOrderPlaced = useCallback(
-    async (orderId: string) => {
+    (orderId: string) => {
       if (!restaurant) return;
       const key = `orders_${restaurant.id}`;
       try {
@@ -220,60 +230,9 @@ const PublicMenu = () => {
       } catch {
         localStorage.setItem(key, JSON.stringify([orderId]));
       }
-
-      // Create table session if open_tab and not yet created
-      if (paymentMode === "open_tab" && tableNumber && !tableSessionId) {
-        try {
-          const { data: newSession } = await supabase
-            .from("table_sessions")
-            .insert({
-              restaurant_id: restaurant.id,
-              table_number: tableNumber,
-              status: "open",
-            })
-            .select("id")
-            .single();
-
-          if (newSession) {
-            setTableSessionId(newSession.id);
-            localStorage.setItem(`table_session_${restaurant.id}_${tableNumber}`, newSession.id);
-
-            // Link the order to the session
-            await supabase
-              .from("orders")
-              .update({ table_session_id: newSession.id } as any)
-              .eq("id", orderId);
-          }
-        } catch {
-          // Session might already exist, try to find it
-          const { data: existing } = await supabase
-            .from("table_sessions")
-            .select("id")
-            .eq("restaurant_id", restaurant.id)
-            .eq("table_number", tableNumber)
-            .eq("status", "open")
-            .single();
-
-          if (existing) {
-            setTableSessionId(existing.id);
-            localStorage.setItem(`table_session_${restaurant.id}_${tableNumber}`, existing.id);
-            await supabase
-              .from("orders")
-              .update({ table_session_id: existing.id } as any)
-              .eq("id", orderId);
-          }
-        }
-      } else if (tableSessionId) {
-        // Link order to existing session
-        await supabase
-          .from("orders")
-          .update({ table_session_id: tableSessionId } as any)
-          .eq("id", orderId);
-      }
-
       setHasPlacedOrder(true);
     },
-    [restaurant, paymentMode, tableNumber, tableSessionId]
+    [restaurant]
   );
 
   if (loading) {
@@ -464,6 +423,7 @@ const PublicMenu = () => {
         restaurantId={restaurant.id}
         tableNumber={tableNumber}
         onOrderPlaced={handleOrderPlaced}
+        onSessionCreated={handleSessionCreated}
         paymentMode={paymentMode}
         maxPendingOrders={maxPendingOrders}
         tableSessionId={tableSessionId}
@@ -473,6 +433,8 @@ const PublicMenu = () => {
         onClose={() => { setMyOrdersOpen(false); setActiveTab("menu"); }}
         restaurantId={restaurant.id}
         primaryColor={restaurant.primaryColor}
+        tableSessionId={tableSessionId}
+        paymentMode={paymentMode}
       />
 
       {/* Floating Actions for open_tab mode */}

@@ -27,6 +27,8 @@ interface MyOrdersDrawerProps {
   onClose: () => void;
   restaurantId: string;
   primaryColor: string;
+  tableSessionId?: string | null;
+  paymentMode?: "open_tab" | "prepaid";
 }
 
 const statusConfig: Record<string, { label: string; color: string }> = {
@@ -38,7 +40,7 @@ const statusConfig: Record<string, { label: string; color: string }> = {
   delivered: { label: "Entregue", color: "bg-gray-400" },
 };
 
-const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor }: MyOrdersDrawerProps) => {
+const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor, tableSessionId, paymentMode }: MyOrdersDrawerProps) => {
   const [orders, setOrders] = useState<OrderData[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -52,17 +54,36 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor }: MyOrdersD
   };
 
   const fetchOrders = async () => {
-    const ids = getStoredOrderIds();
-    if (ids.length === 0) return;
-
     setLoading(true);
-    const { data } = await supabase
-      .from("orders")
-      .select("*, order_items(*)")
-      .in("id", ids)
-      .order("created_at", { ascending: false });
 
-    if (data) setOrders(data as unknown as OrderData[]);
+    if (paymentMode === "open_tab" && tableSessionId) {
+      // Open tab: fetch only orders from active session
+      const { data } = await supabase
+        .from("orders")
+        .select("*, order_items(*)")
+        .eq("table_session_id", tableSessionId)
+        .order("created_at", { ascending: false });
+
+      if (data) setOrders(data as unknown as OrderData[]);
+    } else {
+      // Prepaid or no session: fetch by localStorage IDs, limited to last 24h
+      const ids = getStoredOrderIds();
+      if (ids.length === 0) {
+        setOrders([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data } = await supabase
+        .from("orders")
+        .select("*, order_items(*)")
+        .in("id", ids)
+        .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .order("created_at", { ascending: false });
+
+      if (data) setOrders(data as unknown as OrderData[]);
+    }
+
     setLoading(false);
   };
 
