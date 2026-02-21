@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePlan } from "@/hooks/use-plan";
+import TrialBanner from "@/components/dashboard/TrialBanner";
 import {
   LayoutDashboard,
   UtensilsCrossed,
@@ -39,6 +41,14 @@ const DashboardLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { isActive, loading: planLoading } = usePlan();
+
+  // Redirect to pricing if trial expired and not active
+  useEffect(() => {
+    if (!planLoading && !isActive && !location.pathname.includes("/settings")) {
+      navigate("/pricing");
+    }
+  }, [planLoading, isActive, location.pathname, navigate]);
 
   const fullName = user?.user_metadata?.full_name || "Usuário";
   const initials = fullName
@@ -131,7 +141,8 @@ const DashboardLayout = () => {
         </header>
 
         {/* Content */}
-        <main className="flex-1 p-4 lg:p-6 overflow-auto">
+        <main className="flex-1 p-4 lg:p-6 overflow-auto space-y-4">
+          <TrialBanner />
           <Outlet />
         </main>
       </div>
