@@ -1,98 +1,250 @@
 
+# Plano: Pagina de Precos + Stripe Checkout via n8n + Trial + Feature Gating
 
-# Correcao de 3 Bugs no Fluxo "Pagar Depois"
+## Resumo
 
-## Problemas Identificados
-
-### Bug 1: "Pedir a Conta" retorna 401 (Unauthorized)
-A politica RLS de UPDATE na tabela `table_sessions` permite apenas usuarios com `status = 'open'`, mas nao garante acesso anonimo corretamente. O Supabase retorna 401 porque o usuario anonimo nao tem permissao efetiva de UPDATE. A politica precisa ser recriada para permitir que usuarios anonimos atualizem sessoes abertas para `check_requested`.
-
-**SQL a executar no Supabase:**
-```sql
--- Dropar politica existente que nao funciona para anon
-DROP POLICY IF EXISTS "Anon can update to check_requested" ON public.table_sessions;
-
--- Recriar com permissao explicita para anon
-CREATE POLICY "Anon can update to check_requested"
-  ON public.table_sessions FOR UPDATE
-  TO anon
-  USING (status = 'open')
-  WITH CHECK (status = 'check_requested');
-```
-
-Tambem precisamos garantir que anon pode fazer UPDATE na tabela `orders` (para vincular `table_session_id`):
-```sql
-CREATE POLICY "Anon can update order session link"
-  ON public.orders FOR UPDATE
-  TO anon
-  USING (true)
-  WITH CHECK (true);
-```
-
-### Bug 2: "Meus Pedidos" mostra pedidos antigos
-O `MyOrdersDrawer` busca pedidos por IDs armazenados no `localStorage`, que acumulam indefinidamente. Pedidos de dias atras continuam aparecendo.
-
-**Correcao:** No modo `open_tab`, filtrar pedidos apenas da sessao ativa (`table_session_id`). No modo `prepaid`, filtrar apenas pedidos das ultimas 24 horas. Passar `tableSessionId` e `paymentMode` como props para o `MyOrdersDrawer`.
-
-### Bug 3: Primeiro pedido nao aparece no Caixa
-O fluxo atual: (1) insere order SEM `table_session_id`, (2) chama `onOrderPlaced`, (3) cria session, (4) faz UPDATE para vincular. Esse UPDATE pode falhar silenciosamente por RLS.
-
-**Correcao:** Criar a `table_session` ANTES de inserir o pedido (dentro do `OrderSummaryDrawer`), para que o INSERT do pedido ja inclua o `table_session_id`. Mover a logica de criacao de sessao do `handleOrderPlaced` (PublicMenu) para o `handleSendOrder` (OrderSummaryDrawer).
+Criar uma pagina dedicada `/pricing` com os 3 planos (Starter R$97, Pro R$197, Business R$347), integrar com Stripe Checkout via webhook n8n, implementar trial de 3 dias no onboarding, e bloquear funcionalidades por plano no dashboard.
 
 ---
 
-## Arquivos a Modificar
+## 1. Banco de Dados - Migracoes SQL
+
+Adicionar colunas na tabela `restaurants`:
+
+```sql
+ALTER TABLE public.restaurants
+  ADD COLUMN IF NOT EXISTS plan_type TEXT NOT NULL DEFAULT 'starter' CHECK (plan_type IN ('starter', 'pro', 'business')),
+  ADD COLUMN IF NOT EXISTS plan_status TEXT NOT NULL DEFAULT 'trialing' CHECK (plan_status IN ('trialing', 'active', 'expired', 'cancelled')),
+  ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT,
+  ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
+```
+
+No onboarding (INSERT do restaurante), setar `trial_ends_at = now() + interval '3 days'` e `plan_status = 'trialing'`.
+
+---
+
+## 2. Arquivos a Criar
+
+| Arquivo | Descricao |
+|---|---|
+| `src/pages/PricingPage.tsx` | Pagina publica/autenticada de planos e precos com botoes de checkout |
+| `src/hooks/use-plan.ts` | Hook centralizado que expoe `planType`, `planStatus`, `trialEndsAt`, `isFeatureAllowed(feature)`, `trialRemainingLabel` |
+| `src/components/FeatureGate.tsx` | Wrapper que mostra overlay com cadeado + link para /pricing quando funcionalidade esta bloqueada |
+| `src/components/dashboard/TrialBanner.tsx` | Banner no topo do dashboard mostrando dias restantes do trial |
+
+## 3. Arquivos a Modificar
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/components/menu/MyOrdersDrawer.tsx` | Aceitar props `tableSessionId` e `paymentMode`; filtrar pedidos por sessao ou por tempo |
-| `src/components/menu/OrderSummaryDrawer.tsx` | Criar table_session antes do INSERT do pedido; expor novo sessionId via callback |
-| `src/pages/menu/PublicMenu.tsx` | Passar novas props ao MyOrdersDrawer; simplificar handleOrderPlaced; remover logica duplicada de criacao de sessao |
+| `src/App.tsx` | Adicionar rota `/pricing` |
+| `src/components/landing/Pricing.tsx` | Atualizar planos (Starter/Pro/Business) e linkar para `/pricing` |
+| `src/components/landing/Navbar.tsx` | Link "Planos" aponta para `/pricing` |
+| `src/pages/onboarding/OnboardingPage.tsx` | Setar `trial_ends_at` no INSERT |
+| `src/components/DashboardLayout.tsx` | Importar `TrialBanner` e `usePlan`; mostrar banner de trial |
+| `src/pages/dashboard/CashierPage.tsx` | Envolver com `FeatureGate` (requer Pro+) |
+| `src/pages/dashboard/WhatsAppIntegration.tsx` | Envolver com `FeatureGate` (requer Business) |
+| `src/lib/constants.ts` | Adicionar URL do webhook de checkout n8n |
 
-## Detalhes Tecnicos
+---
 
-### MyOrdersDrawer - Filtro por sessao/tempo
+## 4. Detalhes Tecnicos
+
+### 4.1 Definicao dos Planos
 
 ```typescript
-// Novas props:
-interface MyOrdersDrawerProps {
-  // ...existentes
-  tableSessionId?: string | null;
-  paymentMode?: "open_tab" | "prepaid";
-}
-
-// No fetchOrders:
-if (paymentMode === "open_tab" && tableSessionId) {
-  // Buscar apenas pedidos da sessao ativa
-  const { data } = await supabase
-    .from("orders")
-    .select("*, order_items(*)")
-    .eq("table_session_id", tableSessionId)
-    .order("created_at", { ascending: false });
-} else {
-  // Modo prepaid: buscar por IDs do localStorage, mas filtrar ultimas 24h
-  const { data } = await supabase
-    .from("orders")
-    .select("*, order_items(*)")
-    .in("id", ids)
-    .gte("created_at", new Date(Date.now() - 24*60*60*1000).toISOString())
-    .order("created_at", { ascending: false });
-}
+export const PLANS = [
+  {
+    id: "starter",
+    name: "Starter",
+    price: 97,
+    priceId: "price_XXXX", // Stripe Price ID - usuario configura
+    features: [
+      "Cardapio digital ilimitado",
+      "QR Codes para mesas",
+      "KDS - Monitor de Cozinha",
+      "Pedidos ilimitados",
+      "Suporte por e-mail",
+    ],
+    blocked: ["cashier", "open_tab", "whatsapp_bot", "multi_users"],
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    price: 197,
+    priceId: "price_YYYY",
+    features: [
+      "Tudo do Starter",
+      "Caixa e Comanda Aberta",
+      "Dashboard de metricas",
+      "Suporte prioritario",
+    ],
+    blocked: ["whatsapp_bot", "multi_users"],
+  },
+  {
+    id: "business",
+    name: "Business",
+    price: 347,
+    priceId: "price_ZZZZ",
+    features: [
+      "Tudo do Pro",
+      "WhatsApp Bot com IA",
+      "Multi-usuarios",
+      "Relatorios avancados",
+      "Gerente de conta dedicado",
+    ],
+    blocked: [],
+  },
+];
 ```
 
-### OrderSummaryDrawer - Criar sessao antes do pedido
+### 4.2 Hook `usePlan`
 
-No `handleSendOrder`, quando `paymentMode === "open_tab"` e `tableSessionId` e null:
+Busca `plan_type`, `plan_status` e `trial_ends_at` da tabela `restaurants` pelo `owner_id` do usuario autenticado. Expoe:
 
-1. Criar `table_session` primeiro
-2. Usar o ID retornado no INSERT do pedido
-3. Chamar um novo callback `onSessionCreated(sessionId)` para atualizar o estado no PublicMenu
+- `planType`: "starter" | "pro" | "business"
+- `planStatus`: "trialing" | "active" | "expired" | "cancelled"
+- `isActive`: true se `plan_status === 'active'` OU (`plan_status === 'trialing'` E `trial_ends_at > now()`)
+- `trialDaysLeft`: numero de dias restantes (ou 0)
+- `trialLabel`: string formatada "X dias restantes"
+- `canAccess(feature: string)`: retorna true se o plano atual permite a feature
 
-### PublicMenu - Simplificar handleOrderPlaced
+### 4.3 Pagina `/pricing` (PricingPage.tsx)
 
-Remover toda a logica de criacao de sessao do `handleOrderPlaced`. Adicionar um callback `onSessionCreated` que apenas salva o `tableSessionId` no state e localStorage.
+- Se usuario NAO esta logado: mostra a pagina normalmente com botao "Assinar" que redireciona para `/login?redirect=/pricing`
+- Se usuario esta logado:
+  - Mostra o plano atual com badge "Plano Atual"
+  - Botao "Assinar" dispara POST para webhook n8n com `{ restaurant_id, email, price_id }`
+  - n8n cria Stripe Checkout Session e retorna `{ url }`
+  - Frontend redireciona para `url` (Stripe Checkout)
+  - Apos pagamento, Stripe webhook no n8n atualiza `plan_type`, `plan_status = 'active'` e `stripe_*` no Supabase
 
-### SQL - Politicas RLS
+Design: 3 cards com animacao framer-motion, cores do tema, badge "Mais Popular" no Pro, check marks nas features, X vermelho nas bloqueadas.
 
-Executar as queries SQL mencionadas no Bug 1 diretamente no Supabase SQL Editor para corrigir as permissoes de UPDATE para usuarios anonimos.
+### 4.4 Fluxo de Checkout
 
+```text
+Usuario clica "Assinar Pro"
+  -> POST para N8N_CHECKOUT_WEBHOOK_URL
+     body: { restaurant_id, email, price_id, success_url, cancel_url }
+  -> n8n cria Stripe Checkout Session
+  -> retorna { url }
+  -> window.location.href = url (redireciona para Stripe)
+  -> Stripe processa pagamento
+  -> Stripe webhook -> n8n -> UPDATE restaurants SET plan_type, plan_status='active'
+  -> Usuario volta para success_url (/dashboard?checkout=success)
+```
+
+### 4.5 TrialBanner
+
+Componente que aparece no topo do dashboard quando `plan_status === 'trialing'`:
+
+- Verde: "Voce tem X dias de teste gratuito. [Assinar Plano]"
+- Amarelo: "Seu teste expira amanha! [Assinar Agora]"  
+- Vermelho: "Seu teste expirou. [Assinar para continuar]"
+
+### 4.6 FeatureGate
+
+```tsx
+<FeatureGate feature="cashier" requiredPlan="pro">
+  <CashierPage />
+</FeatureGate>
+```
+
+Quando bloqueado: renderiza overlay semi-transparente com icone de cadeado e texto "Disponivel no Plano Pro" + botao para `/pricing`.
+
+### 4.7 Bloqueio por Plano
+
+| Feature | Starter | Pro | Business |
+|---|---|---|---|
+| Cardapio digital | OK | OK | OK |
+| KDS Cozinha | OK | OK | OK |
+| Configuracoes | OK | OK | OK |
+| Caixa / Comanda Aberta | Bloqueado | OK | OK |
+| Dashboard metricas | OK | OK | OK |
+| WhatsApp Bot | Bloqueado | Bloqueado | OK |
+| Multi-usuarios | Bloqueado | Bloqueado | OK |
+
+### 4.8 Bloqueio total quando trial expira
+
+No `ProtectedRoute` ou no `DashboardLayout`, verificar:
+- Se `plan_status !== 'active'` E (`plan_status !== 'trialing'` OU `trial_ends_at < now()`):
+  - Redirecionar para `/pricing` com mensagem de que o acesso expirou
+  - Permitir apenas a pagina de `/pricing` e `/dashboard/settings`
+
+### 4.9 Onboarding - Trial automatico
+
+No `handleFinish` do `OnboardingPage.tsx`, adicionar ao INSERT:
+
+```typescript
+trial_ends_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+plan_status: 'trialing',
+plan_type: 'starter',
+```
+
+### 4.10 Constantes n8n
+
+Adicionar em `constants.ts`:
+
+```typescript
+export const N8N_CHECKOUT_WEBHOOK_URL = import.meta.env.VITE_N8N_CHECKOUT_WEBHOOK_URL 
+  || "https://samuel-n8n.br8r5p.easypanel.host/webhook/stripe-checkout-vapt";
+```
+
+---
+
+## 5. Fluxo Resumido
+
+```text
+ONBOARDING:
+  1. Usuario cria conta e restaurante
+  2. trial_ends_at = now + 3 dias, plan_status = 'trialing'
+  3. Acesso total por 3 dias
+
+DASHBOARD (durante trial):
+  1. Banner verde: "X dias de teste restantes"
+  2. Todas as funcionalidades liberadas durante o trial
+
+TRIAL EXPIRADO:
+  1. Banner vermelho + redirect para /pricing
+  2. Apenas /pricing e /settings acessiveis
+
+CHECKOUT:
+  1. /pricing -> Clica "Assinar Pro"
+  2. POST n8n -> Stripe Checkout -> Redirect
+  3. Pagamento -> n8n atualiza Supabase
+  4. plan_status = 'active', plan_type = 'pro'
+
+POS-ASSINATURA:
+  1. Features liberadas conforme plano
+  2. Features bloqueadas mostram overlay + cadeado
+```
+
+---
+
+## 6. Secao Tecnica - Resumo de Mudancas
+
+### Migracoes SQL:
+- Adicionar colunas `plan_type`, `plan_status`, `trial_ends_at`, `stripe_customer_id`, `stripe_subscription_id` em `restaurants`
+
+### Novos arquivos (4):
+- `src/pages/PricingPage.tsx`
+- `src/hooks/use-plan.ts`
+- `src/components/FeatureGate.tsx`
+- `src/components/dashboard/TrialBanner.tsx`
+
+### Arquivos modificados (8):
+- `src/App.tsx` - rota /pricing
+- `src/lib/constants.ts` - webhook URL
+- `src/components/landing/Pricing.tsx` - novos planos
+- `src/components/landing/Navbar.tsx` - link para /pricing
+- `src/pages/onboarding/OnboardingPage.tsx` - trial_ends_at no INSERT
+- `src/components/DashboardLayout.tsx` - TrialBanner + bloqueio trial expirado
+- `src/pages/dashboard/CashierPage.tsx` - FeatureGate pro
+- `src/pages/dashboard/WhatsAppIntegration.tsx` - FeatureGate business
+
+### Configuracao necessaria pelo usuario:
+- Criar 3 produtos/precos no Stripe (Starter, Pro, Business)
+- Configurar workflow no n8n para receber POST, criar Checkout Session e retornar URL
+- Configurar webhook do Stripe no n8n para atualizar `plan_status` no Supabase apos pagamento
+- Definir os `price_id` do Stripe nos planos (pode ser via env vars ou hardcoded)
