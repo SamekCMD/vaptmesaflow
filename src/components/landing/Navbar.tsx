@@ -20,7 +20,7 @@ const Navbar = () => {
         {/* Desktop */}
         <div className="hidden md:flex items-center gap-8">
           <a href="#funcionalidades" className="text-sm text-hero-muted hover:text-hero-foreground transition-colors">Funcionalidades</a>
-          <a href="#planos" className="text-sm text-hero-muted hover:text-hero-foreground transition-colors">Planos</a>
+          <Link to="/pricing" className="text-sm text-hero-muted hover:text-hero-foreground transition-colors">Planos</Link>
           <a href="#faq" className="text-sm text-hero-muted hover:text-hero-foreground transition-colors">FAQ</a>
           <button onClick={toggleTheme} className="text-hero-muted hover:text-hero-foreground transition-colors">
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -49,7 +49,7 @@ const Navbar = () => {
         <div className="md:hidden hero-gradient border-t border-hero-muted/10 py-4">
           <div className="container flex flex-col gap-4">
             <a href="#funcionalidades" className="text-sm text-hero-muted" onClick={() => setOpen(false)}>Funcionalidades</a>
-            <a href="#planos" className="text-sm text-hero-muted" onClick={() => setOpen(false)}>Planos</a>
+            <Link to="/pricing" className="text-sm text-hero-muted" onClick={() => setOpen(false)}>Planos</Link>
             <a href="#faq" className="text-sm text-hero-muted" onClick={() => setOpen(false)}>FAQ</a>
             <Link to="/login" className="text-sm text-hero-muted" onClick={() => setOpen(false)}>Entrar</Link>
             <Button asChild size="sm" className="w-fit rounded-lg">

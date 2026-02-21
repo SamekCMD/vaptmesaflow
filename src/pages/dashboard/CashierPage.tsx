@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import TableCard, { type TableSession } from "@/components/cashier/TableCard";
 import TableSessionModal from "@/components/cashier/TableSessionModal";
+import FeatureGate from "@/components/FeatureGate";
 
 const playBellSound = () => {
   try {
@@ -156,56 +157,58 @@ const CashierPage = () => {
   const tableNumbers = Array.from({ length: totalTables }, (_, i) => String(i + 1));
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Caixa</h1>
-          <p className="text-muted-foreground text-sm">Mapa de mesas em tempo real</p>
+    <FeatureGate feature="cashier" requiredPlan="pro">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Caixa</h1>
+            <p className="text-muted-foreground text-sm">Mapa de mesas em tempo real</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={fetchSessions}>
+            <RefreshCw className="h-4 w-4 mr-1" />
+            Atualizar
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchSessions}>
-          <RefreshCw className="h-4 w-4 mr-1" />
-          Atualizar
-        </Button>
-      </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-4 text-xs">
-        <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded border-2 border-border bg-card" />
-          <span className="text-muted-foreground">Livre</span>
+        {/* Legend */}
+        <div className="flex flex-wrap gap-4 text-xs">
+          <div className="flex items-center gap-1.5">
+            <div className="h-3 w-3 rounded border-2 border-border bg-card" />
+            <span className="text-muted-foreground">Livre</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="h-3 w-3 rounded border-2 border-emerald-500 bg-emerald-500/20" />
+            <span className="text-muted-foreground">Ocupada</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="h-3 w-3 rounded border-2 border-yellow-500 bg-yellow-500/20 animate-pulse" />
+            <span className="text-muted-foreground">Pediu a Conta</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded border-2 border-emerald-500 bg-emerald-500/20" />
-          <span className="text-muted-foreground">Ocupada</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded border-2 border-yellow-500 bg-yellow-500/20 animate-pulse" />
-          <span className="text-muted-foreground">Pediu a Conta</span>
-        </div>
-      </div>
 
-      {/* Table grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-        {tableNumbers.map((num) => {
-          const session = sessions.find((s) => s.table_number === num) || null;
-          return (
-            <TableCard
-              key={num}
-              tableNumber={num}
-              session={session}
-              onClick={() => handleTableClick(num)}
-            />
-          );
-        })}
-      </div>
+        {/* Table grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          {tableNumbers.map((num) => {
+            const session = sessions.find((s) => s.table_number === num) || null;
+            return (
+              <TableCard
+                key={num}
+                tableNumber={num}
+                session={session}
+                onClick={() => handleTableClick(num)}
+              />
+            );
+          })}
+        </div>
 
-      <TableSessionModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        session={selectedSession}
-        onSessionClosed={fetchSessions}
-      />
-    </div>
+        <TableSessionModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          session={selectedSession}
+          onSessionClosed={fetchSessions}
+        />
+      </div>
+    </FeatureGate>
   );
 };
 
