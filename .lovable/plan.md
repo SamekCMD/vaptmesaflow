@@ -1,39 +1,42 @@
 
 
-# Correção: "Finalizar Conta" falha com erro 409
+# Sprint: 5 Correções Críticas
 
-## Causa Raiz
+## FIX 1 — Countdown do Pix (PixPaymentModal.tsx)
+O timer calcula `remaining` em milissegundos mas pode gerar valores absurdos se `expiration` vier em formato inesperado. Corrigir para usar `Math.floor(diff/1000)` com guard `diff <= 0` e padStart em ambos minutos e segundos.
 
-O erro nos logs de rede é claro:
+**Arquivo:** `src/components/menu/PixPaymentModal.tsx` (linhas 42-50)
 
-```
-"duplicate key value violates unique constraint table_sessions_restaurant_id_table_number_status_key"
-```
+## FIX 2 — Status em português no modal do Caixa (TableSessionModal.tsx)
+Linha 147: `{order.status}` exibe o valor cru do banco. Adicionar mapeamento `statusLabel` e aplicar em `<Badge>{statusLabel[order.status] || order.status}</Badge>`.
 
-Existe uma constraint `UNIQUE(restaurant_id, table_number, status)` na tabela `table_sessions`. Quando você tenta mudar o status para `closed`, o banco rejeita porque **já existe outra sessão fechada** para a mesma mesa. Ou seja, a mesa 2 já foi fechada anteriormente, e a constraint impede que duas linhas tenham `(restaurant_id, "2", "closed")`.
+**Arquivo:** `src/components/cashier/TableSessionModal.tsx` (linha 147)
 
-## Solução
+O KDS já usa labels próprios nas colunas (linhas 49-54), não precisa de alteração.
 
-Essa constraint precisa ser **removida**. A intenção original era impedir duas sessões abertas na mesma mesa, mas uma constraint UNIQUE simples não funciona para isso — ela também bloqueia múltiplas sessões fechadas.
+## FIX 3 — Header do menu público com cor do restaurante
+Análise do código: o header na linha 279 **já usa** `restaurant.primaryColor` via inline style, e os botões/tabs também usam inline styles com `primaryColor`. O código está correto. Contudo, vou verificar se há algum CSS global ou classe que override. Não há `bg-primary` no header. A cor pode estar vindo correta do banco — se o restaurante tem cor azul configurada, aparece azul. **Nenhuma mudança necessária**, mas vou confirmar que nenhum elemento usa classe hardcoded.
 
-### SQL a executar no Supabase:
+## FIX 4 — Tempo Médio distorcido (Overview.tsx)
+O `avgPrepTime` usa `completedOrders` que são filtrados pelo período selecionado (pode ser "year"). Quando o período é longo, pedidos antigos com `updated_at` muito distante inflam o valor. Filtrar para últimas 24h apenas para esta métrica, independente do período selecionado.
 
-```sql
-ALTER TABLE public.table_sessions
-  DROP CONSTRAINT IF EXISTS table_sessions_restaurant_id_table_number_status_key;
-```
+**Arquivo:** `src/pages/dashboard/Overview.tsx` (linhas 139-146)
 
-Opcionalmente, para manter a proteção contra duas sessões abertas na mesma mesa, pode-se criar um **unique index parcial**:
+## FIX 5 — Botão "Testar Conexão" Asaas (SettingsPage.tsx)
+Adicionar estado `testingKey`/`testResult`, botão "Testar Conexão" abaixo do input da API key, e lógica de fetch para `https://api.asaas.com/v3/myAccount`. Tratar CORS com try/catch mostrando mensagem amarela.
 
-```sql
-CREATE UNIQUE INDEX IF NOT EXISTS unique_open_session_per_table
-  ON public.table_sessions (restaurant_id, table_number)
-  WHERE status IN ('open', 'check_requested');
-```
+**Arquivo:** `src/pages/dashboard/SettingsPage.tsx` (linhas 203-231)
 
-Isso permite múltiplas sessões `closed` para a mesma mesa, mas impede duas sessões ativas simultâneas.
+---
 
-### Código — nenhuma alteração necessária
+## Resumo de mudanças
 
-O código do `TableSessionModal.tsx` está correto. O problema é exclusivamente no banco de dados.
+| Arquivo | Mudança |
+|---|---|
+| `src/components/menu/PixPaymentModal.tsx` | Corrigir cálculo do timer com guard e padStart |
+| `src/components/cashier/TableSessionModal.tsx` | Adicionar statusLabel map e traduzir badge |
+| `src/pages/dashboard/Overview.tsx` | Filtrar avgPrepTime para últimas 24h |
+| `src/pages/dashboard/SettingsPage.tsx` | Adicionar botão "Testar Conexão" com fetch direto à API Asaas |
+
+**Nota sobre FIX 3:** O código do PublicMenu já aplica `restaurant.primaryColor` corretamente via inline styles em todos os elementos (header, tabs, botões, preços, nav). Não há cor hardcoded em azul no código. Se a cor aparece azul, é o valor salvo no banco. Nenhuma alteração de código necessária.
 
