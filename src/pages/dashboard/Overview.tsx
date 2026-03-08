@@ -137,8 +137,9 @@ const Overview = () => {
 
   // Average prep time: time from created_at to updated_at when status went to ready/delivered
   const avgPrepTime = useMemo(() => {
+    const last24h = Date.now() - 86400000;
     const times = completedOrders
-      .filter((o) => o.updated_at)
+      .filter((o) => o.updated_at && new Date(o.created_at).getTime() >= last24h)
       .map((o) => new Date(o.updated_at!).getTime() - new Date(o.created_at).getTime());
     if (times.length === 0) return null;
     const avg = times.reduce((a, b) => a + b, 0) / times.length;

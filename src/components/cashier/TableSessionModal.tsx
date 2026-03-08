@@ -39,6 +39,15 @@ interface TableSessionModalProps {
   onSessionClosed: () => void;
 }
 
+const statusLabel: Record<string, string> = {
+  pending: "Na Fila",
+  waiting_payment: "Aguardando Pagamento",
+  paid: "Pago",
+  preparing: "Preparando",
+  ready: "Pronto",
+  delivered: "Entregue",
+};
+
 const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSessionModalProps) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
@@ -144,7 +153,7 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
                 <div key={order.id} className="rounded-lg border border-border p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold">Pedido #{order.display_id}</span>
-                    <Badge variant="outline" className="text-xs">{order.status}</Badge>
+                    <Badge variant="outline" className="text-xs">{statusLabel[order.status] || order.status}</Badge>
                   </div>
                   <ul className="space-y-1">
                     {order.order_items.map((item) => (

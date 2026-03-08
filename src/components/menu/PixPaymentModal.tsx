@@ -40,14 +40,14 @@ const PixPaymentModal = ({
   useEffect(() => {
     if (!open || confirmed) return;
     const updateTimer = () => {
-      const remaining = new Date(expiration).getTime() - Date.now();
-      if (remaining <= 0) {
+      const diff = Math.floor((new Date(expiration).getTime() - Date.now()) / 1000);
+      if (diff <= 0) {
         setTimeLeft("Expirado");
         return;
       }
-      const mins = Math.floor(remaining / 60000);
-      const secs = Math.floor((remaining % 60000) / 1000);
-      setTimeLeft(`${mins}:${secs.toString().padStart(2, "0")}`);
+      const minutes = Math.floor(diff / 60).toString().padStart(2, "0");
+      const seconds = (diff % 60).toString().padStart(2, "0");
+      setTimeLeft(`${minutes}:${seconds}`);
     };
     updateTimer();
     const interval = setInterval(updateTimer, 1000);

@@ -29,6 +29,34 @@ const SettingsPage = () => {
   const [saving, setSaving] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [testingKey, setTestingKey] = useState(false);
+  const [testResult, setTestResult] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null);
+
+  const handleTestAsaasKey = async () => {
+    if (!paymentForm.asaas_api_key.trim()) return;
+    setTestingKey(true);
+    setTestResult(null);
+    try {
+      const response = await fetch("https://api.asaas.com/v3/myAccount", {
+        method: "GET",
+        headers: {
+          access_token: paymentForm.asaas_api_key,
+          "Content-Type": "application/json",
+        },
+      });
+      if (response.ok) {
+        setTestResult({ type: "success", message: "✓ Chave válida e conectada" });
+      } else if (response.status === 401) {
+        setTestResult({ type: "error", message: "✗ Chave inválida. Verifique e tente novamente." });
+      } else {
+        setTestResult({ type: "warning", message: "⚠ Não foi possível validar. Salve e teste com um pedido real." });
+      }
+    } catch {
+      setTestResult({ type: "warning", message: "⚠ Não foi possível validar. Salve e teste com um pedido real." });
+    } finally {
+      setTestingKey(false);
+    }
+  };
 
   useEffect(() => {
     const fetchRestaurantData = async () => {
@@ -223,6 +251,27 @@ const SettingsPage = () => {
                 >
                   {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={testingKey || !paymentForm.asaas_api_key.trim()}
+                  onClick={handleTestAsaasKey}
+                >
+                  {testingKey ? (<><Loader2 className="mr-2 h-3 w-3 animate-spin" />Testando...</>) : "Testar Conexão"}
+                </Button>
+                {testResult && (
+                  <span className={`text-xs font-medium ${
+                    testResult.type === "success" ? "text-green-600" :
+                    testResult.type === "error" ? "text-red-600" :
+                    "text-yellow-600"
+                  }`}>
+                    {testResult.message}
+                  </span>
+                )}
               </div>
 
               <p className="text-xs text-muted-foreground">
