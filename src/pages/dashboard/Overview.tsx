@@ -23,8 +23,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
+import { useSubscription } from "@/hooks/useSubscription";
 
 type Period = "day" | "week" | "month" | "year";
 
@@ -66,10 +67,24 @@ interface OrderWithItems {
 const Overview = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { refetch: refetchSub } = useSubscription();
   const [restaurant, setRestaurant] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [period, setPeriod] = useState<Period>("week");
+
+  // Post-payment detection
+  useEffect(() => {
+    if (searchParams.get("subscribed") === "true") {
+      toast({
+        title: "🎉 Assinatura confirmada!",
+        description: "Bem-vindo ao seu novo plano. Aproveite todos os recursos!",
+      });
+      refetchSub();
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams, refetchSub]);
 
   useEffect(() => {
     const fetchData = async () => {

@@ -2,16 +2,22 @@ import { type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { usePlan, PLAN_LABELS, type PlanType } from "@/hooks/use-plan";
+import { useSubscription } from "@/hooks/useSubscription";
 
 interface FeatureGateProps {
-  feature: "cashier" | "open_tab" | "whatsapp_bot" | "multi_users";
-  requiredPlan: PlanType;
+  feature: string;
+  requiredPlan: string;
   children: ReactNode;
 }
 
+const PLAN_LABELS: Record<string, string> = {
+  starter: "Starter",
+  pro: "Pro",
+  business: "Business",
+};
+
 const FeatureGate = ({ feature, requiredPlan, children }: FeatureGateProps) => {
-  const { canAccess, loading } = usePlan();
+  const { canAccess, loading } = useSubscription();
 
   if (loading) return <>{children}</>;
 
@@ -25,11 +31,11 @@ const FeatureGate = ({ feature, requiredPlan, children }: FeatureGateProps) => {
             </div>
             <h2 className="text-xl font-bold">Funcionalidade Bloqueada</h2>
             <p className="text-muted-foreground max-w-sm">
-              Disponível no Plano <span className="font-semibold text-primary">{PLAN_LABELS[requiredPlan]}</span>.
+              Disponível no Plano <span className="font-semibold text-primary">{PLAN_LABELS[requiredPlan] || requiredPlan}</span>.
               Faça upgrade para desbloquear.
             </p>
             <Button asChild>
-              <Link to="/pricing">Ver Planos</Link>
+              <Link to="/dashboard/subscription">Ver Planos</Link>
             </Button>
           </div>
         </div>

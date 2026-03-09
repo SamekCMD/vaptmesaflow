@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePlan } from "@/hooks/use-plan";
+import { useSubscription } from "@/hooks/useSubscription";
 import TrialBanner from "@/components/dashboard/TrialBanner";
 import {
   LayoutDashboard,
@@ -16,9 +16,11 @@ import {
   ChevronDown,
   LogOut,
   Banknote,
+  CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,20 +35,27 @@ const navItems = [
   { title: "Caixa", icon: Banknote, path: "/dashboard/cashier" },
   { title: "Aparência", icon: Palette, path: "/dashboard/appearance" },
   { title: "WhatsApp", icon: MessageCircle, path: "/dashboard/whatsapp" },
+  { title: "Assinatura", icon: CreditCard, path: "/dashboard/subscription" },
   { title: "Configurações", icon: Settings, path: "/dashboard/settings" },
 ];
+
+const planBadgeStyles: Record<string, string> = {
+  trial: "bg-muted text-muted-foreground border-border",
+  starter: "bg-secondary text-secondary-foreground border-border",
+  pro: "bg-green-500/10 text-green-500 border-green-500/30",
+  business: "bg-yellow-500/10 text-yellow-500 border-yellow-500/30",
+};
 
 const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { isActive, loading: planLoading } = usePlan();
+  const { isActive, loading: planLoading, planType, isTrialing, trialDaysLeft } = useSubscription();
 
-  // Redirect to pricing if trial expired and not active
   useEffect(() => {
-    if (!planLoading && !isActive && !location.pathname.includes("/settings")) {
-      navigate("/pricing");
+    if (!planLoading && !isActive && !location.pathname.includes("/settings") && !location.pathname.includes("/subscription")) {
+      navigate("/dashboard/subscription");
     }
   }, [planLoading, isActive, location.pathname, navigate]);
 
@@ -63,11 +72,19 @@ const DashboardLayout = () => {
     navigate("/login");
   };
 
+  const badgeLabel = isTrialing
+    ? `Trial · ${trialDaysLeft}d`
+    : planType === "trial"
+    ? "Trial"
+    : planType.charAt(0).toUpperCase() + planType.slice(1);
+
+  const badgeStyle = planBadgeStyles[planType] || planBadgeStyles.trial;
+
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 bg-card border-r border-border transform transition-transform lg:translate-x-0 lg:static ${
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-card border-r border-border transform transition-transform lg:translate-x-0 lg:static flex flex-col ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -78,7 +95,7 @@ const DashboardLayout = () => {
           </button>
         </div>
 
-        <nav className="p-4 space-y-1">
+        <nav className="p-4 space-y-1 flex-1">
           {navItems.map((item) => {
             const active = location.pathname === item.path;
             return (
@@ -98,6 +115,18 @@ const DashboardLayout = () => {
             );
           })}
         </nav>
+
+        {/* Plan badge */}
+        <div className="p-4 border-t border-border">
+          <Link to="/dashboard/subscription">
+            <Badge
+              variant="outline"
+              className={`w-full justify-center py-1.5 text-xs cursor-pointer hover:opacity-80 transition-opacity ${badgeStyle}`}
+            >
+              {badgeLabel}
+            </Badge>
+          </Link>
+        </div>
       </aside>
 
       {/* Overlay */}
