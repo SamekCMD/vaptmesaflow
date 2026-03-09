@@ -487,6 +487,19 @@ const MenuManagement = () => {
                   <Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Ex: Hambúrgueres" />
                 </div>
 
+                {/* Prep Time */}
+                <div>
+                  <Label>Tempo de preparo (minutos)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={120}
+                    value={prepTimeMinutes}
+                    onChange={(e) => setPrepTimeMinutes(e.target.value)}
+                    placeholder="Ex: 15"
+                  />
+                </div>
+
                 {/* Badge */}
                 <div>
                   <Label>Badge</Label>
