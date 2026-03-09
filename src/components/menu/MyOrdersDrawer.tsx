@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { X, Clock, Package } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
 
 interface OrderData {
   id: string;
@@ -57,7 +56,7 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor, tableSessio
     setLoading(true);
 
     if (paymentMode === "open_tab" && tableSessionId) {
-      // Open tab: fetch only orders from active session
+      // Fetch ALL orders from this session (including delivered)
       const { data } = await supabase
         .from("orders")
         .select("*, order_items(*)")
@@ -66,7 +65,6 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor, tableSessio
 
       if (data) setOrders(data as unknown as OrderData[]);
     } else {
-      // Prepaid or no session: fetch by localStorage IDs, limited to last 24h
       const ids = getStoredOrderIds();
       if (ids.length === 0) {
         setOrders([]);
@@ -91,7 +89,6 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor, tableSessio
     if (open) fetchOrders();
   }, [open]);
 
-  // Polling every 5s (replaces Realtime)
   useEffect(() => {
     if (!open) return;
     const interval = setInterval(fetchOrders, 5000);
@@ -103,12 +100,52 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor, tableSessio
     return `${mins} min`;
   };
 
-  // Calculate total for "Minha Comanda"
-  const comandaTotal = orders
-    .filter((o) => !["delivered", "waiting_payment"].includes(o.status))
-    .reduce((sum, o) => sum + Number(o.total_price), 0);
-
+  // Separate active vs delivered orders
   const activeOrders = orders.filter((o) => !["delivered"].includes(o.status));
+  const deliveredOrders = orders.filter((o) => o.status === "delivered");
+
+  // Session total (all orders)
+  const sessionTotal = orders.reduce((sum, o) => sum + Number(o.total_price), 0);
+
+  // Active comanda total
+  const comandaTotal = activeOrders.reduce((sum, o) => sum + Number(o.total_price), 0);
+
+  const renderOrderCard = (order: OrderData, i: number) => {
+    const sc = statusConfig[order.status] || statusConfig.pending;
+    return (
+      <motion.div
+        key={order.id}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: i * 0.05 }}
+        className="p-4 rounded-xl bg-card border border-border space-y-2"
+      >
+        <div className="flex items-center justify-between">
+          <span className="font-bold text-sm">Pedido #{order.display_id}</span>
+          <Badge className={`${sc.color} text-white text-xs`}>{sc.label}</Badge>
+        </div>
+
+        <ul className="space-y-0.5">
+          {order.order_items.map((item, j) => (
+            <li key={j} className="text-sm text-muted-foreground flex justify-between">
+              <span>• {item.quantity}x {item.product_name}{item.notes ? ` (${item.notes})` : ""}</span>
+              <span className="text-xs">R$ {(item.quantity * Number(item.unit_price)).toFixed(2).replace(".", ",")}</span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {getElapsed(order.created_at)}
+          </div>
+          <span className="font-semibold" style={{ color: primaryColor }}>
+            R$ {Number(order.total_price).toFixed(2).replace(".", ",")}
+          </span>
+        </div>
+      </motion.div>
+    );
+  };
 
   return (
     <Drawer open={open} onOpenChange={(o) => !o && onClose()}>
@@ -123,16 +160,16 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor, tableSessio
         </DrawerHeader>
 
         {/* Comanda Total */}
-        {activeOrders.length > 0 && (
+        {orders.length > 0 && (
           <div className="mx-4 mb-3 p-3 rounded-xl border border-border bg-muted/30">
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold">Minha Comanda</span>
               <span className="text-lg font-bold" style={{ color: primaryColor }}>
-                R$ {comandaTotal.toFixed(2).replace(".", ",")}
+                R$ {sessionTotal.toFixed(2).replace(".", ",")}
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {activeOrders.length} {activeOrders.length === 1 ? "pedido" : "pedidos"} nesta mesa
+              {orders.length} {orders.length === 1 ? "pedido" : "pedidos"} nesta sessão
             </p>
           </div>
         )}
@@ -149,44 +186,29 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor, tableSessio
             </div>
           )}
 
-          <AnimatePresence>
-            {orders.map((order, i) => {
-              const sc = statusConfig[order.status] || statusConfig.pending;
-              return (
-                <motion.div
-                  key={order.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="p-4 rounded-xl bg-card border border-border space-y-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm">Pedido #{order.display_id}</span>
-                    <Badge className={`${sc.color} text-white text-xs`}>{sc.label}</Badge>
-                  </div>
+          {/* Active orders */}
+          {activeOrders.length > 0 && (
+            <>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Em andamento ({activeOrders.length})
+              </p>
+              <AnimatePresence>
+                {activeOrders.map((order, i) => renderOrderCard(order, i))}
+              </AnimatePresence>
+            </>
+          )}
 
-                  <ul className="space-y-0.5">
-                    {order.order_items.map((item, j) => (
-                      <li key={j} className="text-sm text-muted-foreground">
-                        • {item.quantity}x {item.product_name}
-                        {item.notes ? ` (${item.notes})` : ""}
-                      </li>
-                    ))}
-                  </ul>
-
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {getElapsed(order.created_at)}
-                    </div>
-                    <span className="font-semibold" style={{ color: primaryColor }}>
-                      R$ {Number(order.total_price).toFixed(2).replace(".", ",")}
-                    </span>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
+          {/* Delivered orders */}
+          {deliveredOrders.length > 0 && (
+            <>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mt-4">
+                Entregues ({deliveredOrders.length})
+              </p>
+              <AnimatePresence>
+                {deliveredOrders.map((order, i) => renderOrderCard(order, i))}
+              </AnimatePresence>
+            </>
+          )}
         </div>
       </DrawerContent>
     </Drawer>

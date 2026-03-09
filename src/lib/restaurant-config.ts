@@ -97,6 +97,7 @@ export interface PublicMenuItem {
   availableUntil?: string | null;
   badge?: string | null;
   isChefSuggestion?: boolean;
+  prepTimeMinutes?: number | null;
   variations?: MenuItemVariation[];
 }
 

@@ -95,6 +95,7 @@ const MenuManagement = () => {
   const [isChefSuggestion, setIsChefSuggestion] = useState(false);
   const [variations, setVariations] = useState<Variation[]>([]);
   const [newOptionInputs, setNewOptionInputs] = useState<Record<number, string>>({});
+  const [prepTimeMinutes, setPrepTimeMinutes] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {

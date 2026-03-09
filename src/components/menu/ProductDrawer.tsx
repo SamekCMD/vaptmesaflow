@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Minus, Plus, X, ShoppingBag, AlertCircle } from "lucide-react";
+import { Minus, Plus, X, ShoppingBag, AlertCircle, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import type { PublicMenuItem, MenuItemVariation } from "@/lib/restaurant-config";
 
@@ -39,7 +39,6 @@ const ProductDrawer = ({ item, open, onClose, onAdd, primaryColor }: ProductDraw
     }
   };
 
-  // Reset selections when item changes
   useEffect(() => {
     if (item) {
       setSelectedVariations({});
@@ -62,7 +61,6 @@ const ProductDrawer = ({ item, open, onClose, onAdd, primaryColor }: ProductDraw
       return;
     }
 
-    // Build variation notes
     const variationNotes = Object.entries(selectedVariations)
       .map(([name, option]) => `${name}: ${option}`)
       .join(" | ");
@@ -89,26 +87,39 @@ const ProductDrawer = ({ item, open, onClose, onAdd, primaryColor }: ProductDraw
   return (
     <Drawer open={open} onOpenChange={handleOpenChange}>
       <DrawerContent className="max-w-md mx-auto">
-        <DrawerHeader className="relative">
-          <DrawerClose asChild>
-            <button className="absolute right-4 top-4 rounded-full p-1 bg-muted hover:bg-muted/80 transition-colors active:scale-90">
-              <X className="h-4 w-4" />
-            </button>
-          </DrawerClose>
-
-          {item.imageUrl && (
+        {/* Hero image 16:9 */}
+        {item.imageUrl ? (
+          <div className="w-full aspect-video overflow-hidden rounded-t-xl">
             <img
               src={item.imageUrl}
               alt={item.name}
-              className="w-full h-48 object-cover rounded-lg mb-3"
+              className="w-full h-full object-cover"
             />
-          )}
+          </div>
+        ) : null}
+
+        <DrawerHeader className="relative">
+          <DrawerClose asChild>
+            <button className="absolute right-4 top-4 rounded-full p-1 bg-muted hover:bg-muted/80 transition-colors active:scale-90 z-10">
+              <X className="h-4 w-4" />
+            </button>
+          </DrawerClose>
 
           <DrawerTitle className="text-lg">{item.name}</DrawerTitle>
           <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
           <p className="text-lg font-bold mt-2" style={{ color: primaryColor }}>
             R$ {item.price.toFixed(2).replace(".", ",")}
           </p>
+
+          {/* Prep time estimate */}
+          {item.prepTimeMinutes && (
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">
+                Tempo estimado: ~{item.prepTimeMinutes} min
+              </span>
+            </div>
+          )}
         </DrawerHeader>
 
         <div className="px-4 space-y-4">
