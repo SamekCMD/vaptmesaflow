@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, CreditCard, ShieldCheck, Eye, EyeOff } from "lucide-react";
+import { Loader2, CreditCard, ShieldCheck, Eye, EyeOff, CheckCircle2, XCircle } from "lucide-react";
 import { SettingsFormSkeleton } from "@/components/skeletons/DashboardSkeletons";
 
 const SettingsPage = () => {
@@ -23,7 +23,8 @@ const SettingsPage = () => {
   });
   const [paymentForm, setPaymentForm] = useState({
     payment_mode: "open_tab" as "open_tab" | "prepaid",
-    asaas_api_key: "",
+    has_asaas_key: false,
+    new_asaas_api_key: "",
     max_pending_orders: 3,
   });
   const [loading, setLoading] = useState(true);
@@ -34,23 +35,30 @@ const SettingsPage = () => {
   const [testResult, setTestResult] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null);
 
   const handleTestAsaasKey = async () => {
-    if (!paymentForm.asaas_api_key.trim()) return;
+    const keyToTest = paymentForm.new_asaas_api_key.trim();
+    if (!keyToTest) return;
     setTestingKey(true);
     setTestResult(null);
     try {
-      const response = await fetch("https://api.asaas.com/v3/myAccount", {
-        method: "GET",
-        headers: {
-          access_token: paymentForm.asaas_api_key,
-          "Content-Type": "application/json",
-        },
+      const { data: restData } = await supabase
+        .from("restaurants")
+        .select("id")
+        .eq("owner_id", user!.id)
+        .single();
+
+      if (!restData) throw new Error("Restaurante não encontrado");
+
+      const res = await supabase.functions.invoke("manage-asaas-key", {
+        body: { action: "test", restaurant_id: restData.id, asaas_api_key: keyToTest },
       });
-      if (response.ok) {
+
+      if (res.error) throw res.error;
+      const result = res.data;
+
+      if (result.valid) {
         setTestResult({ type: "success", message: "✓ Chave válida e conectada" });
-      } else if (response.status === 401) {
-        setTestResult({ type: "error", message: "✗ Chave inválida. Verifique e tente novamente." });
       } else {
-        setTestResult({ type: "warning", message: "⚠ Não foi possível validar. Salve e teste com um pedido real." });
+        setTestResult({ type: "error", message: "✗ Chave inválida. Verifique e tente novamente." });
       }
     } catch {
       setTestResult({ type: "warning", message: "⚠ Não foi possível validar. Salve e teste com um pedido real." });
@@ -66,7 +74,7 @@ const SettingsPage = () => {
       try {
         const { data, error } = await supabase
           .from("restaurants")
-          .select("name, address, phone, hours, description, payment_mode, asaas_api_key, max_pending_orders, max_tables")
+          .select("name, address, phone, hours, description, payment_mode, max_pending_orders, max_tables")
           .eq("owner_id", user.id)
           .single();
 
@@ -81,9 +89,30 @@ const SettingsPage = () => {
             description: data.description || "",
             max_tables: (data as any).max_tables || 20,
           });
+
+          // Check if key exists via edge function
+          const { data: restId } = await supabase
+            .from("restaurants")
+            .select("id")
+            .eq("owner_id", user.id)
+            .single();
+
+          let hasKey = false;
+          if (restId) {
+            try {
+              const res = await supabase.functions.invoke("manage-asaas-key", {
+                body: { action: "check", restaurant_id: restId.id },
+              });
+              hasKey = res.data?.has_key || false;
+            } catch {
+              // ignore
+            }
+          }
+
           setPaymentForm({
             payment_mode: (data as any).payment_mode || "open_tab",
-            asaas_api_key: (data as any).asaas_api_key || "",
+            has_asaas_key: hasKey,
+            new_asaas_api_key: "",
             max_pending_orders: (data as any).max_pending_orders || 3,
           });
         }
@@ -132,16 +161,38 @@ const SettingsPage = () => {
 
     setSavingPayment(true);
     try {
+      // Save payment mode and max_pending_orders
       const { error } = await supabase
         .from("restaurants")
         .update({
           payment_mode: paymentForm.payment_mode,
-          asaas_api_key: paymentForm.asaas_api_key,
           max_pending_orders: paymentForm.max_pending_orders,
         } as any)
         .eq("owner_id", user.id);
 
       if (error) throw error;
+
+      // If a new API key was provided, save it via edge function
+      if (paymentForm.new_asaas_api_key.trim()) {
+        const { data: restData } = await supabase
+          .from("restaurants")
+          .select("id")
+          .eq("owner_id", user.id)
+          .single();
+
+        if (restData) {
+          const res = await supabase.functions.invoke("manage-asaas-key", {
+            body: {
+              action: "save",
+              restaurant_id: restData.id,
+              asaas_api_key: paymentForm.new_asaas_api_key,
+            },
+          });
+          if (res.error) throw res.error;
+          setPaymentForm(prev => ({ ...prev, has_asaas_key: true, new_asaas_api_key: "" }));
+        }
+      }
+
       toast({ title: "Configurações de pagamento salvas", description: "Modo de operação atualizado." });
     } catch (error: any) {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
@@ -252,13 +303,29 @@ const SettingsPage = () => {
                 <Label className="font-semibold">Integração Asaas</Label>
               </div>
 
+              {/* Show current key status */}
+              <div className="flex items-center gap-2 text-sm">
+                {paymentForm.has_asaas_key ? (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <span className="text-green-700 font-medium">Chave API configurada</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-4 w-4 text-destructive" />
+                    <span className="text-destructive font-medium">Nenhuma chave configurada</span>
+                  </>
+                )}
+              </div>
+
               <div className="relative">
                 <Input
                   type={showApiKey ? "text" : "password"}
-                  placeholder="Sua API Key do Asaas"
-                  value={paymentForm.asaas_api_key}
+                  placeholder={paymentForm.has_asaas_key ? "Inserir nova chave para substituir" : "Sua API Key do Asaas"}
+                  value={paymentForm.new_asaas_api_key}
                   onChange={(e) => {
-                    setPaymentForm({ ...paymentForm, asaas_api_key: e.target.value });
+                    setPaymentForm({ ...paymentForm, new_asaas_api_key: e.target.value });
+                    setTestResult(null);
                   }}
                 />
                 <button
@@ -275,7 +342,7 @@ const SettingsPage = () => {
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={testingKey || !paymentForm.asaas_api_key.trim()}
+                  disabled={testingKey || !paymentForm.new_asaas_api_key.trim()}
                   onClick={handleTestAsaasKey}
                 >
                   {testingKey ? (<><Loader2 className="mr-2 h-3 w-3 animate-spin" />Testando...</>) : "Testar Conexão"}
@@ -292,7 +359,7 @@ const SettingsPage = () => {
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Sua chave será validada automaticamente ao processar o primeiro pagamento.
+                Sua chave é armazenada de forma segura no servidor e nunca é exposta no navegador.
               </p>
             </div>
           )}

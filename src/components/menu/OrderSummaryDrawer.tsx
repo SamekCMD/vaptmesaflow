@@ -14,7 +14,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { CartItem } from "@/hooks/use-cart";
 import PixPaymentModal from "@/components/menu/PixPaymentModal";
-import { N8N_WEBHOOK_URL } from "@/lib/constants";
 
 interface OrderSummaryDrawerProps {
   open: boolean;
@@ -173,24 +172,20 @@ const OrderSummaryDrawer = ({
       onOrderPlaced?.(orderData.id);
 
       if (paymentMode === "prepaid") {
-        // Call n8n webhook to create Pix payment
-        const res = await fetch(N8N_WEBHOOK_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        // Call edge function to create Pix payment (validates order server-side)
+        const res = await supabase.functions.invoke("create-pix-payment", {
+          body: {
             restaurant_id: restaurantId,
             order_id: orderData.id,
-            value: totalPrice,
-            customer_name: `Mesa ${tableNumber || "S/N"}`,
             table_number: tableNumber,
-          }),
+          },
         });
 
-        if (!res.ok) {
+        if (res.error) {
           throw new Error("Erro ao gerar pagamento Pix");
         }
 
-        const pixResult = await res.json();
+        const pixResult = res.data;
 
         if (!pixResult?.payment_id) {
           throw new Error("Resposta inválida do servidor de pagamento");
