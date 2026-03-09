@@ -1,250 +1,176 @@
 
-# Plano: Pagina de Precos + Stripe Checkout via n8n + Trial + Feature Gating
 
-## Resumo
+# Sprint: Cardápio Avançado — Imagens, Variações, Horários, Badges, Chef
 
-Criar uma pagina dedicada `/pricing` com os 3 planos (Starter R$97, Pro R$197, Business R$347), integrar com Stripe Checkout via webhook n8n, implementar trial de 3 dias no onboarding, e bloquear funcionalidades por plano no dashboard.
+## Escopo
+
+5 features que estendem o gerenciamento de cardápio (admin) e o cardápio público. Envolve migrações de banco, storage, e mudanças em vários componentes.
 
 ---
 
-## 1. Banco de Dados - Migracoes SQL
+## Migrações SQL
 
-Adicionar colunas na tabela `restaurants`:
-
+### Migration 1: Novos campos em `menu_items`
 ```sql
-ALTER TABLE public.restaurants
-  ADD COLUMN IF NOT EXISTS plan_type TEXT NOT NULL DEFAULT 'starter' CHECK (plan_type IN ('starter', 'pro', 'business')),
-  ADD COLUMN IF NOT EXISTS plan_status TEXT NOT NULL DEFAULT 'trialing' CHECK (plan_status IN ('trialing', 'active', 'expired', 'cancelled')),
-  ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ,
-  ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT,
-  ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
+ALTER TABLE menu_items
+  ADD COLUMN IF NOT EXISTS available_from time DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS available_until time DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS badge varchar DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS is_chef_suggestion boolean DEFAULT false;
 ```
 
-No onboarding (INSERT do restaurante), setar `trial_ends_at = now() + interval '3 days'` e `plan_status = 'trialing'`.
+### Migration 2: Tabela `menu_item_variations`
+```sql
+CREATE TABLE menu_item_variations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  menu_item_id uuid REFERENCES menu_items(id) ON DELETE CASCADE NOT NULL,
+  name varchar NOT NULL,
+  options jsonb NOT NULL DEFAULT '[]',
+  required boolean DEFAULT true,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE menu_item_variations ENABLE ROW LEVEL SECURITY;
+-- RLS: authenticated can manage via restaurant ownership; anon can read
+CREATE POLICY "Authenticated users manage variations" ON menu_item_variations
+  FOR ALL TO authenticated USING (
+    EXISTS (SELECT 1 FROM menu_items mi JOIN restaurants r ON mi.restaurant_id = r.id WHERE mi.id = menu_item_id AND r.owner_id = auth.uid())
+  );
+CREATE POLICY "Anyone can read variations" ON menu_item_variations
+  FOR SELECT TO anon USING (true);
+```
+
+### Migration 3: Storage bucket `menu-images`
+```sql
+INSERT INTO storage.buckets (id, name, public) VALUES ('menu-images', 'menu-images', true)
+ON CONFLICT (id) DO NOTHING;
+-- RLS para upload/delete por donos autenticados e leitura pública
+CREATE POLICY "Auth users upload menu images" ON storage.objects
+  FOR INSERT TO authenticated WITH CHECK (bucket_id = 'menu-images');
+CREATE POLICY "Auth users delete menu images" ON storage.objects
+  FOR DELETE TO authenticated USING (bucket_id = 'menu-images');
+CREATE POLICY "Public read menu images" ON storage.objects
+  FOR SELECT TO anon USING (bucket_id = 'menu-images');
+```
 
 ---
 
-## 2. Arquivos a Criar
+## Arquivos a Criar/Modificar
 
-| Arquivo | Descricao |
-|---|---|
-| `src/pages/PricingPage.tsx` | Pagina publica/autenticada de planos e precos com botoes de checkout |
-| `src/hooks/use-plan.ts` | Hook centralizado que expoe `planType`, `planStatus`, `trialEndsAt`, `isFeatureAllowed(feature)`, `trialRemainingLabel` |
-| `src/components/FeatureGate.tsx` | Wrapper que mostra overlay com cadeado + link para /pricing quando funcionalidade esta bloqueada |
-| `src/components/dashboard/TrialBanner.tsx` | Banner no topo do dashboard mostrando dias restantes do trial |
+### 1. `src/pages/dashboard/MenuManagement.tsx` — Reescrita significativa
 
-## 3. Arquivos a Modificar
+**Interface `MenuItem` estendida:**
+```ts
+interface MenuItem {
+  id: string; name: string; price: number; category: string; available: boolean;
+  image_url: string | null;
+  available_from: string | null; available_until: string | null;
+  badge: string | null;
+  is_chef_suggestion: boolean;
+  variations: Variation[];
+}
+```
 
-| Arquivo | Mudanca |
-|---|---|
-| `src/App.tsx` | Adicionar rota `/pricing` |
-| `src/components/landing/Pricing.tsx` | Atualizar planos (Starter/Pro/Business) e linkar para `/pricing` |
-| `src/components/landing/Navbar.tsx` | Link "Planos" aponta para `/pricing` |
-| `src/pages/onboarding/OnboardingPage.tsx` | Setar `trial_ends_at` no INSERT |
-| `src/components/DashboardLayout.tsx` | Importar `TrialBanner` e `usePlan`; mostrar banner de trial |
-| `src/pages/dashboard/CashierPage.tsx` | Envolver com `FeatureGate` (requer Pro+) |
-| `src/pages/dashboard/WhatsAppIntegration.tsx` | Envolver com `FeatureGate` (requer Business) |
-| `src/lib/constants.ts` | Adicionar URL do webhook de checkout n8n |
+**Form state estendido:** adicionar `image_url`, `imageFile`, `imagePreview`, `availableFrom`, `availableUntil`, `badge`, `isChefSuggestion`, `variations[]`
+
+**3.1 — Upload de imagem:**
+- Input `type="file"` accept=".jpg,.png,.webp" max 5MB
+- Preview via `URL.createObjectURL`
+- Função `resizeImage(file, maxSize=1200)` usa canvas para redimensionar
+- Upload para `menu-images/{restaurant_id}/{item_id}.jpg` no Supabase Storage
+- Salvar URL pública em `image_url`
+- Botão "Remover imagem" que deleta do storage e seta `image_url = null`
+- Thumbnail 40x40 rounded na tabela de listagem
+
+**3.2 — Variações:**
+- Seção "Variações" no modal de edição
+- Botão "Adicionar Variação" cria entry com `name: "", options: [], required: true`
+- Cada variação: input nome, input para adicionar opções (Enter para adicionar chip), toggle obrigatório, botão remover
+- Ao salvar item: delete existing + insert new variations via `menu_item_variations`
+- Fetch variations junto com items via query separada
+
+**3.3 — Horário:**
+- Toggle "Restringir horário" no modal
+- Inputs `type="time"` para `available_from` e `available_until`
+- Salvos no update/insert do menu_item
+
+**3.4 — Badge:**
+- Select dropdown: Nenhum / Destaque / Promoção / Novo
+- Salvo como `null | 'destaque' | 'promocao' | 'novo'`
+
+**3.5 — Sugestão do Chef:**
+- Toggle "Sugestão do Chef"
+- Ao ativar: UPDATE todos os outros items para `is_chef_suggestion = false`, depois setar o atual para `true`
+
+### 2. `src/lib/restaurant-config.ts` — Estender `PublicMenuItem`
+
+```ts
+export interface PublicMenuItem {
+  id: number; name: string; description: string; price: number;
+  category: string; imageUrl?: string; available: boolean;
+  // novos campos:
+  availableFrom?: string | null;
+  availableUntil?: string | null;
+  badge?: string | null;
+  isChefSuggestion?: boolean;
+  variations?: { id: string; name: string; options: string[]; required: boolean }[];
+}
+```
+
+### 3. `src/pages/menu/PublicMenu.tsx` — Mudanças no cardápio público
+
+**Fetch:** incluir novos campos no map dos items + fetch `menu_item_variations` para os item IDs
+
+**3.3 — Filtro por horário:**
+- Função `isWithinTimeRange(from, until)` compara hora atual
+- Items fora do horário: badge "Fora do horário", botão desabilitado com texto "Disponível HH–HH"
+
+**3.4 — Badges visuais nos cards:**
+- `destaque`: badge dourado ⭐
+- `promocao`: badge vermelho 🏷️
+- `novo`: badge verde ✨
+- Posição: canto superior esquerdo do card
+
+**3.5 — Seção Chef no topo:**
+- Se existir item com `isChefSuggestion`, renderizar antes das categorias
+- Card grande com foto, nome, descrição, preço, botão "Pedir Agora"
+- Background: `primaryColor` com 10% opacidade
+
+### 4. `src/components/menu/ProductDrawer.tsx` — Variações
+
+- Receber `variations` do item
+- Para cada variação: renderizar grupo de radio buttons estilizados
+- State `selectedVariations: Record<string, string>` (variation name → option)
+- Variações obrigatórias: validar antes de permitir adicionar
+- Ao adicionar: concatenar variações no `notes`: `"Ponto: Ao Ponto | Tamanho: Para 2"`
+- Botão desabilitado + mensagem se variação obrigatória não selecionada
+
+### 5. `src/hooks/use-cart.ts` — Ajuste menor
+
+- O `notes` já é string, as variações serão concatenadas nele pelo ProductDrawer, sem mudança necessária no hook
 
 ---
 
-## 4. Detalhes Tecnicos
-
-### 4.1 Definicao dos Planos
-
-```typescript
-export const PLANS = [
-  {
-    id: "starter",
-    name: "Starter",
-    price: 97,
-    priceId: "price_XXXX", // Stripe Price ID - usuario configura
-    features: [
-      "Cardapio digital ilimitado",
-      "QR Codes para mesas",
-      "KDS - Monitor de Cozinha",
-      "Pedidos ilimitados",
-      "Suporte por e-mail",
-    ],
-    blocked: ["cashier", "open_tab", "whatsapp_bot", "multi_users"],
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: 197,
-    priceId: "price_YYYY",
-    features: [
-      "Tudo do Starter",
-      "Caixa e Comanda Aberta",
-      "Dashboard de metricas",
-      "Suporte prioritario",
-    ],
-    blocked: ["whatsapp_bot", "multi_users"],
-  },
-  {
-    id: "business",
-    name: "Business",
-    price: 347,
-    priceId: "price_ZZZZ",
-    features: [
-      "Tudo do Pro",
-      "WhatsApp Bot com IA",
-      "Multi-usuarios",
-      "Relatorios avancados",
-      "Gerente de conta dedicado",
-    ],
-    blocked: [],
-  },
-];
-```
-
-### 4.2 Hook `usePlan`
-
-Busca `plan_type`, `plan_status` e `trial_ends_at` da tabela `restaurants` pelo `owner_id` do usuario autenticado. Expoe:
-
-- `planType`: "starter" | "pro" | "business"
-- `planStatus`: "trialing" | "active" | "expired" | "cancelled"
-- `isActive`: true se `plan_status === 'active'` OU (`plan_status === 'trialing'` E `trial_ends_at > now()`)
-- `trialDaysLeft`: numero de dias restantes (ou 0)
-- `trialLabel`: string formatada "X dias restantes"
-- `canAccess(feature: string)`: retorna true se o plano atual permite a feature
-
-### 4.3 Pagina `/pricing` (PricingPage.tsx)
-
-- Se usuario NAO esta logado: mostra a pagina normalmente com botao "Assinar" que redireciona para `/login?redirect=/pricing`
-- Se usuario esta logado:
-  - Mostra o plano atual com badge "Plano Atual"
-  - Botao "Assinar" dispara POST para webhook n8n com `{ restaurant_id, email, price_id }`
-  - n8n cria Stripe Checkout Session e retorna `{ url }`
-  - Frontend redireciona para `url` (Stripe Checkout)
-  - Apos pagamento, Stripe webhook no n8n atualiza `plan_type`, `plan_status = 'active'` e `stripe_*` no Supabase
-
-Design: 3 cards com animacao framer-motion, cores do tema, badge "Mais Popular" no Pro, check marks nas features, X vermelho nas bloqueadas.
-
-### 4.4 Fluxo de Checkout
+## Fluxo de Dados
 
 ```text
-Usuario clica "Assinar Pro"
-  -> POST para N8N_CHECKOUT_WEBHOOK_URL
-     body: { restaurant_id, email, price_id, success_url, cancel_url }
-  -> n8n cria Stripe Checkout Session
-  -> retorna { url }
-  -> window.location.href = url (redireciona para Stripe)
-  -> Stripe processa pagamento
-  -> Stripe webhook -> n8n -> UPDATE restaurants SET plan_type, plan_status='active'
-  -> Usuario volta para success_url (/dashboard?checkout=success)
+Admin edita item → Upload imagem → Storage → URL salva em menu_items.image_url
+                 → Variações → menu_item_variations (delete+insert)
+                 → Campos badge, horário, chef → menu_items UPDATE
+
+Público carrega → menu_items + menu_item_variations JOIN
+               → Filtra horário client-side
+               → Renderiza badges, chef section, variações no drawer
 ```
 
-### 4.5 TrialBanner
+## Resumo de Arquivos
 
-Componente que aparece no topo do dashboard quando `plan_status === 'trialing'`:
+| Arquivo | Ação |
+|---|---|
+| Migration: add columns to menu_items | criar |
+| Migration: menu_item_variations table | criar |
+| Migration: menu-images bucket + policies | criar |
+| `src/lib/restaurant-config.ts` | modificar (estender PublicMenuItem) |
+| `src/pages/dashboard/MenuManagement.tsx` | modificar (imagem, variações, horário, badge, chef) |
+| `src/pages/menu/PublicMenu.tsx` | modificar (badges, horário, chef section) |
+| `src/components/menu/ProductDrawer.tsx` | modificar (variações com radio buttons) |
 
-- Verde: "Voce tem X dias de teste gratuito. [Assinar Plano]"
-- Amarelo: "Seu teste expira amanha! [Assinar Agora]"  
-- Vermelho: "Seu teste expirou. [Assinar para continuar]"
-
-### 4.6 FeatureGate
-
-```tsx
-<FeatureGate feature="cashier" requiredPlan="pro">
-  <CashierPage />
-</FeatureGate>
-```
-
-Quando bloqueado: renderiza overlay semi-transparente com icone de cadeado e texto "Disponivel no Plano Pro" + botao para `/pricing`.
-
-### 4.7 Bloqueio por Plano
-
-| Feature | Starter | Pro | Business |
-|---|---|---|---|
-| Cardapio digital | OK | OK | OK |
-| KDS Cozinha | OK | OK | OK |
-| Configuracoes | OK | OK | OK |
-| Caixa / Comanda Aberta | Bloqueado | OK | OK |
-| Dashboard metricas | OK | OK | OK |
-| WhatsApp Bot | Bloqueado | Bloqueado | OK |
-| Multi-usuarios | Bloqueado | Bloqueado | OK |
-
-### 4.8 Bloqueio total quando trial expira
-
-No `ProtectedRoute` ou no `DashboardLayout`, verificar:
-- Se `plan_status !== 'active'` E (`plan_status !== 'trialing'` OU `trial_ends_at < now()`):
-  - Redirecionar para `/pricing` com mensagem de que o acesso expirou
-  - Permitir apenas a pagina de `/pricing` e `/dashboard/settings`
-
-### 4.9 Onboarding - Trial automatico
-
-No `handleFinish` do `OnboardingPage.tsx`, adicionar ao INSERT:
-
-```typescript
-trial_ends_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-plan_status: 'trialing',
-plan_type: 'starter',
-```
-
-### 4.10 Constantes n8n
-
-Adicionar em `constants.ts`:
-
-```typescript
-export const N8N_CHECKOUT_WEBHOOK_URL = import.meta.env.VITE_N8N_CHECKOUT_WEBHOOK_URL 
-  || "https://samuel-n8n.br8r5p.easypanel.host/webhook/stripe-checkout-vapt";
-```
-
----
-
-## 5. Fluxo Resumido
-
-```text
-ONBOARDING:
-  1. Usuario cria conta e restaurante
-  2. trial_ends_at = now + 3 dias, plan_status = 'trialing'
-  3. Acesso total por 3 dias
-
-DASHBOARD (durante trial):
-  1. Banner verde: "X dias de teste restantes"
-  2. Todas as funcionalidades liberadas durante o trial
-
-TRIAL EXPIRADO:
-  1. Banner vermelho + redirect para /pricing
-  2. Apenas /pricing e /settings acessiveis
-
-CHECKOUT:
-  1. /pricing -> Clica "Assinar Pro"
-  2. POST n8n -> Stripe Checkout -> Redirect
-  3. Pagamento -> n8n atualiza Supabase
-  4. plan_status = 'active', plan_type = 'pro'
-
-POS-ASSINATURA:
-  1. Features liberadas conforme plano
-  2. Features bloqueadas mostram overlay + cadeado
-```
-
----
-
-## 6. Secao Tecnica - Resumo de Mudancas
-
-### Migracoes SQL:
-- Adicionar colunas `plan_type`, `plan_status`, `trial_ends_at`, `stripe_customer_id`, `stripe_subscription_id` em `restaurants`
-
-### Novos arquivos (4):
-- `src/pages/PricingPage.tsx`
-- `src/hooks/use-plan.ts`
-- `src/components/FeatureGate.tsx`
-- `src/components/dashboard/TrialBanner.tsx`
-
-### Arquivos modificados (8):
-- `src/App.tsx` - rota /pricing
-- `src/lib/constants.ts` - webhook URL
-- `src/components/landing/Pricing.tsx` - novos planos
-- `src/components/landing/Navbar.tsx` - link para /pricing
-- `src/pages/onboarding/OnboardingPage.tsx` - trial_ends_at no INSERT
-- `src/components/DashboardLayout.tsx` - TrialBanner + bloqueio trial expirado
-- `src/pages/dashboard/CashierPage.tsx` - FeatureGate pro
-- `src/pages/dashboard/WhatsAppIntegration.tsx` - FeatureGate business
-
-### Configuracao necessaria pelo usuario:
-- Criar 3 produtos/precos no Stripe (Starter, Pro, Business)
-- Configurar workflow no n8n para receber POST, criar Checkout Session e retornar URL
-- Configurar webhook do Stripe no n8n para atualizar `plan_status` no Supabase apos pagamento
-- Definir os `price_id` do Stripe nos planos (pode ser via env vars ou hardcoded)
