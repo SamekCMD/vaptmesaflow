@@ -22,6 +22,7 @@ import LoginPage from "./pages/auth/LoginPage";
 import SignupPage from "./pages/auth/SignupPage";
 import OnboardingPage from "./pages/onboarding/OnboardingPage";
 import PricingPage from "./pages/PricingPage";
+import SubscriptionPage from "./pages/dashboard/SubscriptionPage";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ const App = () => (
                   <Route path="appearance" element={<AppearancePage />} />
                   <Route path="whatsapp" element={<WhatsAppIntegration />} />
                   <Route path="cashier" element={<CashierPage />} />
+                  <Route path="subscription" element={<SubscriptionPage />} />
                 </Route>
                 <Route path="/menu/:slug" element={<PublicMenu />} />
                 <Route path="*" element={<NotFound />} />
