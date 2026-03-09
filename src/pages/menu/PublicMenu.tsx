@@ -89,7 +89,7 @@ const PublicMenu = () => {
       try {
         const { data: restData, error: restError } = await supabase
           .from("restaurants")
-          .select("*")
+          .select("id, name, slug, logo_url, primary_color, secondary_color, font_family, payment_mode, max_pending_orders")
           .eq("slug", slug)
           .single();
 
