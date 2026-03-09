@@ -39,6 +39,7 @@ interface MenuItem {
   available_until: string | null;
   badge: string | null;
   is_chef_suggestion: boolean;
+  prep_time_minutes: number | null;
   variations: Variation[];
 }
 
@@ -152,6 +153,7 @@ const MenuManagement = () => {
             available_until: m.available_until || null,
             badge: m.badge || null,
             is_chef_suggestion: m.is_chef_suggestion || false,
+            prep_time_minutes: m.prep_time_minutes || null,
             variations: variationsMap[m.id] || [],
           }))
         );
@@ -183,6 +185,7 @@ const MenuManagement = () => {
     setIsChefSuggestion(false);
     setVariations([]);
     setNewOptionInputs({});
+    setPrepTimeMinutes("");
   };
 
   const handleSave = async () => {
@@ -198,6 +201,7 @@ const MenuManagement = () => {
         available_until: timeRestricted && availableUntil ? availableUntil : null,
         badge: badge === "none" ? null : badge,
         is_chef_suggestion: isChefSuggestion,
+        prep_time_minutes: prepTimeMinutes ? parseInt(prepTimeMinutes) : null,
       };
 
       // If chef suggestion is on, unset others first
@@ -285,6 +289,7 @@ const MenuManagement = () => {
         available_until: updateData.available_until,
         badge: updateData.badge,
         is_chef_suggestion: isChefSuggestion,
+        prep_time_minutes: prepTimeMinutes ? parseInt(prepTimeMinutes) : null,
         variations: itemVariations,
       };
 
