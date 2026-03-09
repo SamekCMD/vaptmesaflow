@@ -44,7 +44,7 @@ export const PLANS: PlanDefinition[] = [
     id: "business",
     name: "Business",
     price: 347,
-    priceId: import.meta.env.VITE_STRIPE_PRICE_BUSINESS || "price_business",
+    priceId: STRIPE_PRICE_BUSINESS,
     features: [
       "Tudo do Pro",
       "WhatsApp Bot com IA",

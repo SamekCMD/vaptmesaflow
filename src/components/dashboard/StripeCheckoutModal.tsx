@@ -13,9 +13,9 @@ import { Loader2, Lock, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import type { PlanDefinition } from "@/lib/plans";
+import { STRIPE_PUBLISHABLE_KEY, N8N_CHECKOUT_WEBHOOK_URL } from "@/lib/constants";
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
-const N8N_STRIPE_WEBHOOK = import.meta.env.VITE_N8N_STRIPE_WEBHOOK;
+const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
 
 interface CheckoutFormProps {
   planName: string;
