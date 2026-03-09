@@ -78,6 +78,13 @@ export function hexToHsl(hex: string): string {
 // Mock menu items – In production, fetched from Supabase
 // filtered by restaurant_id
 // =============================================================
+export interface MenuItemVariation {
+  id: string;
+  name: string;
+  options: string[];
+  required: boolean;
+}
+
 export interface PublicMenuItem {
   id: number;
   name: string;
@@ -86,6 +93,11 @@ export interface PublicMenuItem {
   category: string;
   imageUrl?: string;
   available: boolean;
+  availableFrom?: string | null;
+  availableUntil?: string | null;
+  badge?: string | null;
+  isChefSuggestion?: boolean;
+  variations?: MenuItemVariation[];
 }
 
 export const mockMenuItems: PublicMenuItem[] = [

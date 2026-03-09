@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Drawer,
   DrawerContent,
@@ -9,9 +9,9 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Minus, Plus, X, ShoppingBag } from "lucide-react";
+import { Minus, Plus, X, ShoppingBag, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
-import type { PublicMenuItem } from "@/lib/restaurant-config";
+import type { PublicMenuItem, MenuItemVariation } from "@/lib/restaurant-config";
 
 interface ProductDrawerProps {
   item: PublicMenuItem | null;
@@ -25,6 +25,8 @@ const ProductDrawer = ({ item, open, onClose, onAdd, primaryColor }: ProductDraw
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
   const [added, setAdded] = useState(false);
+  const [selectedVariations, setSelectedVariations] = useState<Record<string, string>>({});
+  const [showError, setShowError] = useState(false);
 
   const handleOpenChange = (o: boolean) => {
     if (!o) {
@@ -32,20 +34,56 @@ const ProductDrawer = ({ item, open, onClose, onAdd, primaryColor }: ProductDraw
       setQuantity(1);
       setNotes("");
       setAdded(false);
+      setSelectedVariations({});
+      setShowError(false);
     }
   };
 
+  // Reset selections when item changes
+  useEffect(() => {
+    if (item) {
+      setSelectedVariations({});
+      setShowError(false);
+      setQuantity(1);
+      setNotes("");
+      setAdded(false);
+    }
+  }, [item?.id]);
+
   if (!item) return null;
 
+  const variations: MenuItemVariation[] = item.variations || [];
+  const requiredVariations = variations.filter(v => v.required);
+  const missingRequired = requiredVariations.filter(v => !selectedVariations[v.name]);
+
   const handleAdd = () => {
-    onAdd(item, quantity, notes);
+    if (missingRequired.length > 0) {
+      setShowError(true);
+      return;
+    }
+
+    // Build variation notes
+    const variationNotes = Object.entries(selectedVariations)
+      .map(([name, option]) => `${name}: ${option}`)
+      .join(" | ");
+
+    const finalNotes = [variationNotes, notes].filter(Boolean).join(" | ");
+
+    onAdd(item, quantity, finalNotes);
     setAdded(true);
     setTimeout(() => {
       onClose();
       setQuantity(1);
       setNotes("");
       setAdded(false);
+      setSelectedVariations({});
+      setShowError(false);
     }, 600);
+  };
+
+  const selectVariation = (varName: string, option: string) => {
+    setSelectedVariations(prev => ({ ...prev, [varName]: option }));
+    setShowError(false);
   };
 
   return (
@@ -74,6 +112,48 @@ const ProductDrawer = ({ item, open, onClose, onAdd, primaryColor }: ProductDraw
         </DrawerHeader>
 
         <div className="px-4 space-y-4">
+          {/* Variations */}
+          {variations.map((v) => (
+            <div key={v.id || v.name}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="text-sm font-medium">{v.name}</span>
+                {v.required && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">
+                    Obrigatório
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {v.options.map((opt) => {
+                  const isSelected = selectedVariations[v.name] === opt;
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => selectVariation(v.name, opt)}
+                      className="px-3 py-1.5 rounded-full text-sm border transition-all active:scale-95"
+                      style={isSelected ? {
+                        backgroundColor: primaryColor,
+                        borderColor: primaryColor,
+                        color: "#fff",
+                      } : {
+                        borderColor: "hsl(var(--border))",
+                        color: "hsl(var(--foreground))",
+                      }}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+              {showError && v.required && !selectedVariations[v.name] && (
+                <p className="text-xs text-destructive mt-1 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" /> Selecione uma opção
+                </p>
+              )}
+            </div>
+          ))}
+
           <div>
             <label className="text-sm font-medium mb-1.5 block">Observações</label>
             <Textarea
