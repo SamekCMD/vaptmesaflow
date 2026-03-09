@@ -172,7 +172,7 @@ const OrderSummaryDrawer = ({
       onOrderPlaced?.(orderData.id);
 
       if (paymentMode === "prepaid") {
-        const N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
+        const { N8N_WEBHOOK_URL } = await import('@/lib/constants');
         if (!N8N_WEBHOOK_URL) {
           throw new Error("Webhook de pagamento não configurado");
         }
