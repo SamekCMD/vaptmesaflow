@@ -33,6 +33,7 @@ const CashierPage = () => {
   const [sessions, setSessions] = useState<TableSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<TableSession | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [tick, setTick] = useState(0);
   const knownCheckRequestedRef = useRef<Set<string>>(new Set());
   const knownOrderCountRef = useRef<Map<string, number>>(new Map());
 
@@ -42,21 +43,26 @@ const CashierPage = () => {
     const fetch = async () => {
       const { data } = await supabase
         .from("restaurants")
-        .select("id, total_tables")
+        .select("id, total_tables, max_tables")
         .eq("owner_id", user.id)
         .single();
       if (data) {
         setRestaurantId(data.id);
-        setTotalTables((data as any).total_tables || 20);
+        setTotalTables((data as any).max_tables || (data as any).total_tables || 20);
       }
     };
     fetch();
   }, [user]);
 
+  // Tick every 60s for elapsed time updates
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   const fetchSessions = useCallback(async () => {
     if (!restaurantId) return;
 
-    // Fetch open/check_requested sessions
     const { data: sessionsData } = await supabase
       .from("table_sessions")
       .select("*")
@@ -65,7 +71,6 @@ const CashierPage = () => {
 
     if (!sessionsData) return;
 
-    // Fetch order aggregates for each session
     const sessionIds = sessionsData.map((s: any) => s.id);
     let orderAggs: Record<string, { total: number; count: number }> = {};
 
@@ -153,7 +158,6 @@ const CashierPage = () => {
     setModalOpen(true);
   };
 
-  // Generate table numbers 1..totalTables
   const tableNumbers = Array.from({ length: totalTables }, (_, i) => String(i + 1));
 
   return (
@@ -196,6 +200,7 @@ const CashierPage = () => {
                 tableNumber={num}
                 session={session}
                 onClick={() => handleTableClick(num)}
+                tick={tick}
               />
             );
           })}
