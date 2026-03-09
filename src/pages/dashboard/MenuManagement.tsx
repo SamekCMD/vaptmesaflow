@@ -330,6 +330,7 @@ const MenuManagement = () => {
     setAvailableUntil(item.available_until || "");
     setBadge(item.badge || "none");
     setIsChefSuggestion(item.is_chef_suggestion);
+    setPrepTimeMinutes(item.prep_time_minutes ? String(item.prep_time_minutes) : "");
     setVariations(item.variations.map(v => ({ ...v })));
     setNewOptionInputs({});
     setDialogOpen(true);
