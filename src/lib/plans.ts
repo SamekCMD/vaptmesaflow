@@ -30,7 +30,7 @@ export const PLANS: PlanDefinition[] = [
     id: "pro",
     name: "Pro",
     price: 197,
-    priceId: import.meta.env.VITE_STRIPE_PRICE_PRO || "price_pro",
+    priceId: STRIPE_PRICE_PRO,
     features: [
       "Tudo do Starter",
       "Caixa e Comanda Aberta",
