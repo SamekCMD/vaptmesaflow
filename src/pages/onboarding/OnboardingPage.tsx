@@ -84,9 +84,6 @@ const OnboardingPage = () => {
           whatsapp: whatsapp.trim() || null,
           primary_color: primaryColor,
           secondary_color: secondaryColor,
-          plan_type: "starter",
-          plan_status: "trialing",
-          trial_ends_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
         })
         .select("id")
         .single();

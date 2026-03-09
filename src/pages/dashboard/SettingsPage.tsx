@@ -40,25 +40,19 @@ const SettingsPage = () => {
     setTestingKey(true);
     setTestResult(null);
     try {
-      const { data: restData } = await supabase
-        .from("restaurants")
-        .select("id")
-        .eq("owner_id", user!.id)
-        .single();
-
-      if (!restData) throw new Error("Restaurante não encontrado");
-
-      const res = await supabase.functions.invoke("manage-asaas-key", {
-        body: { action: "test", restaurant_id: restData.id, asaas_api_key: keyToTest },
+      const response = await fetch("https://api.asaas.com/v3/myAccount", {
+        method: "GET",
+        headers: {
+          access_token: keyToTest,
+          "Content-Type": "application/json",
+        },
       });
-
-      if (res.error) throw res.error;
-      const result = res.data;
-
-      if (result.valid) {
+      if (response.ok) {
         setTestResult({ type: "success", message: "✓ Chave válida e conectada" });
-      } else {
+      } else if (response.status === 401) {
         setTestResult({ type: "error", message: "✗ Chave inválida. Verifique e tente novamente." });
+      } else {
+        setTestResult({ type: "warning", message: "⚠ Não foi possível validar. Salve e teste com um pedido real." });
       }
     } catch {
       setTestResult({ type: "warning", message: "⚠ Não foi possível validar. Salve e teste com um pedido real." });
@@ -72,9 +66,10 @@ const SettingsPage = () => {
       if (!user) return;
 
       try {
+        // Fetch display fields (no asaas_api_key)
         const { data, error } = await supabase
           .from("restaurants")
-          .select("name, address, phone, hours, description, payment_mode, max_pending_orders, max_tables")
+          .select("name, address, phone, hours, description, payment_mode, max_pending_orders, max_tables, asaas_api_key")
           .eq("owner_id", user.id)
           .single();
 
@@ -89,29 +84,9 @@ const SettingsPage = () => {
             description: data.description || "",
             max_tables: (data as any).max_tables || 20,
           });
-
-          // Check if key exists via edge function
-          const { data: restId } = await supabase
-            .from("restaurants")
-            .select("id")
-            .eq("owner_id", user.id)
-            .single();
-
-          let hasKey = false;
-          if (restId) {
-            try {
-              const res = await supabase.functions.invoke("manage-asaas-key", {
-                body: { action: "check", restaurant_id: restId.id },
-              });
-              hasKey = res.data?.has_key || false;
-            } catch {
-              // ignore
-            }
-          }
-
           setPaymentForm({
             payment_mode: (data as any).payment_mode || "open_tab",
-            has_asaas_key: hasKey,
+            has_asaas_key: !!(data as any).asaas_api_key,
             new_asaas_api_key: "",
             max_pending_orders: (data as any).max_pending_orders || 3,
           });
@@ -158,39 +133,27 @@ const SettingsPage = () => {
 
   const handleSavePayment = async () => {
     if (!user) return;
-
     setSavingPayment(true);
     try {
-      // Save payment mode and max_pending_orders
+      const updatePayload: any = {
+        payment_mode: paymentForm.payment_mode,
+        max_pending_orders: paymentForm.max_pending_orders,
+      };
+
+      // Only include asaas_api_key if user entered a new one
+      if (paymentForm.new_asaas_api_key.trim()) {
+        updatePayload.asaas_api_key = paymentForm.new_asaas_api_key;
+      }
+
       const { error } = await supabase
         .from("restaurants")
-        .update({
-          payment_mode: paymentForm.payment_mode,
-          max_pending_orders: paymentForm.max_pending_orders,
-        } as any)
+        .update(updatePayload)
         .eq("owner_id", user.id);
 
       if (error) throw error;
 
-      // If a new API key was provided, save it via edge function
       if (paymentForm.new_asaas_api_key.trim()) {
-        const { data: restData } = await supabase
-          .from("restaurants")
-          .select("id")
-          .eq("owner_id", user.id)
-          .single();
-
-        if (restData) {
-          const res = await supabase.functions.invoke("manage-asaas-key", {
-            body: {
-              action: "save",
-              restaurant_id: restData.id,
-              asaas_api_key: paymentForm.new_asaas_api_key,
-            },
-          });
-          if (res.error) throw res.error;
-          setPaymentForm(prev => ({ ...prev, has_asaas_key: true, new_asaas_api_key: "" }));
-        }
+        setPaymentForm(prev => ({ ...prev, has_asaas_key: true, new_asaas_api_key: "" }));
       }
 
       toast({ title: "Configurações de pagamento salvas", description: "Modo de operação atualizado." });
@@ -240,8 +203,6 @@ const SettingsPage = () => {
             <Label>Descrição</Label>
             <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
           </div>
-
-          {/* Number of tables */}
           <div>
             <Label>Número de mesas do seu restaurante</Label>
             <Input
@@ -359,7 +320,7 @@ const SettingsPage = () => {
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Sua chave é armazenada de forma segura no servidor e nunca é exposta no navegador.
+                Sua chave será validada automaticamente ao processar o primeiro pagamento.
               </p>
             </div>
           )}
