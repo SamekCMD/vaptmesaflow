@@ -31,6 +31,9 @@ const PricingPage = () => {
 
     setCheckoutLoading(planId);
     try {
+      if (!N8N_CHECKOUT_WEBHOOK_URL) {
+        throw new Error("Webhook de checkout não configurado");
+      }
       const res = await fetch(N8N_CHECKOUT_WEBHOOK_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
