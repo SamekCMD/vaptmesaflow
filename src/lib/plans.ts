@@ -1,3 +1,5 @@
+import { STRIPE_PRICE_STARTER, STRIPE_PRICE_PRO, STRIPE_PRICE_BUSINESS } from '@/lib/constants';
+
 export interface PlanDefinition {
   id: "starter" | "pro" | "business";
   name: string;
