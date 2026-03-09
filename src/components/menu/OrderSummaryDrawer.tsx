@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { CartItem } from "@/hooks/use-cart";
 import PixPaymentModal from "@/components/menu/PixPaymentModal";
-import { N8N_WEBHOOK_URL } from "@/lib/constants";
+import { supabase } from "@/integrations/supabase/client";
 
 interface OrderSummaryDrawerProps {
   open: boolean;
