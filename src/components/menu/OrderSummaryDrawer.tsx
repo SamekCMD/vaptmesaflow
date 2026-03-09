@@ -187,12 +187,6 @@ const OrderSummaryDrawer = ({
 
         const pixResult = res.data;
 
-        if (!res.ok) {
-          throw new Error("Erro ao gerar pagamento Pix");
-        }
-
-        const pixResult = await res.json();
-
         if (!pixResult?.payment_id) {
           throw new Error("Resposta inválida do servidor de pagamento");
         }
