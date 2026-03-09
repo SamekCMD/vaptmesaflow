@@ -19,6 +19,7 @@ const SettingsPage = () => {
     phone: "",
     hours: "",
     description: "",
+    max_tables: 20,
   });
   const [paymentForm, setPaymentForm] = useState({
     payment_mode: "open_tab" as "open_tab" | "prepaid",
@@ -65,7 +66,7 @@ const SettingsPage = () => {
       try {
         const { data, error } = await supabase
           .from("restaurants")
-          .select("name, address, phone, hours, description, payment_mode, asaas_api_key, max_pending_orders")
+          .select("name, address, phone, hours, description, payment_mode, asaas_api_key, max_pending_orders, max_tables")
           .eq("owner_id", user.id)
           .single();
 
@@ -78,6 +79,7 @@ const SettingsPage = () => {
             phone: data.phone || "",
             hours: data.hours || "",
             description: data.description || "",
+            max_tables: (data as any).max_tables || 20,
           });
           setPaymentForm({
             payment_mode: (data as any).payment_mode || "open_tab",
@@ -112,7 +114,8 @@ const SettingsPage = () => {
           phone: form.phone,
           hours: form.hours,
           description: form.description,
-        })
+          max_tables: form.max_tables,
+        } as any)
         .eq("owner_id", user.id);
 
       if (error) throw error;
@@ -186,6 +189,20 @@ const SettingsPage = () => {
             <Label>Descrição</Label>
             <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
           </div>
+
+          {/* Number of tables */}
+          <div>
+            <Label>Número de mesas do seu restaurante</Label>
+            <Input
+              type="number"
+              min={1}
+              max={200}
+              value={form.max_tables}
+              onChange={(e) => setForm({ ...form, max_tables: Math.max(1, Math.min(200, Number(e.target.value))) })}
+              className="w-24"
+            />
+          </div>
+
           <Button onClick={handleSave} disabled={saving}>
             {saving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</>) : "Salvar Alterações"}
           </Button>
