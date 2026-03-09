@@ -96,7 +96,7 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan }: Stripe
       setFetchingSecret(true);
       setFetchError(null);
       try {
-        const response = await fetch(N8N_STRIPE_WEBHOOK, {
+        const response = await fetch(N8N_CHECKOUT_WEBHOOK_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
