@@ -1,5 +1,5 @@
 import { useParams, useSearchParams } from "react-router-dom";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,7 @@ import ProductDrawer from "@/components/menu/ProductDrawer";
 import OrderSummaryDrawer from "@/components/menu/OrderSummaryDrawer";
 import MyOrdersDrawer from "@/components/menu/MyOrdersDrawer";
 import FloatingActions from "@/components/menu/FloatingActions";
+import OrderRatingModal from "@/components/menu/OrderRatingModal";
 import { supabase } from "@/integrations/supabase/client";
 
 function isWithinTimeRange(from: string | null | undefined, until: string | null | undefined): boolean {
@@ -75,6 +76,12 @@ const PublicMenu = () => {
   const [tableSessionId, setTableSessionId] = useState<string | null>(null);
   const [hasPlacedOrder, setHasPlacedOrder] = useState(false);
   const [restaurantIdState, setRestaurantIdState] = useState<string | null>(null);
+
+  // 4.4 — Rating state
+  const [ratingOrder, setRatingOrder] = useState<{ id: string; displayId: number } | null>(null);
+
+  // 4.5 — Previous items ref for availability comparison
+  const prevItemsRef = useRef<Map<string | number, boolean>>(new Map());
 
   useEffect(() => {
     const fetchData = async () => {
@@ -142,8 +149,7 @@ const PublicMenu = () => {
         const { data: menuData } = await supabase
           .from("menu_items")
           .select("*")
-          .eq("restaurant_id", restData.id)
-          .eq("available", true);
+          .eq("restaurant_id", restData.id);
 
         const menuItems: PublicMenuItem[] = (menuData || []).map((m: any) => ({
           id: m.id,
@@ -157,6 +163,7 @@ const PublicMenu = () => {
           availableUntil: m.available_until || null,
           badge: m.badge || null,
           isChefSuggestion: m.is_chef_suggestion || false,
+          prepTimeMinutes: m.prep_time_minutes || null,
         }));
 
         // Fetch variations
@@ -182,6 +189,11 @@ const PublicMenu = () => {
           }
         }
 
+        // Initialize prev items ref
+        const map = new Map<string | number, boolean>();
+        menuItems.forEach(i => map.set(i.id, i.available));
+        prevItemsRef.current = map;
+
         setItems(menuItems);
       } catch {
         setError("Erro ao carregar o cardápio");
@@ -192,7 +204,128 @@ const PublicMenu = () => {
     fetchData();
   }, [slug]);
 
-  const categories = useMemo(() => Array.from(new Set(items.map((i) => i.category))), [items]);
+  // 4.5 — Polling for availability changes every 5s
+  useEffect(() => {
+    if (!restaurantIdState) return;
+    const interval = setInterval(async () => {
+      const { data: menuData } = await supabase
+        .from("menu_items")
+        .select("*")
+        .eq("restaurant_id", restaurantIdState);
+
+      if (!menuData) return;
+
+      const newItems: PublicMenuItem[] = menuData.map((m: any) => ({
+        id: m.id,
+        name: m.name,
+        description: m.description || "",
+        price: Number(m.price),
+        category: m.category || "Geral",
+        imageUrl: m.image_url || undefined,
+        available: m.available,
+        availableFrom: m.available_from || null,
+        availableUntil: m.available_until || null,
+        badge: m.badge || null,
+        isChefSuggestion: m.is_chef_suggestion || false,
+        prepTimeMinutes: m.prep_time_minutes || null,
+      }));
+
+      // Fetch variations
+      const itemIds = newItems.map(i => i.id);
+      if (itemIds.length > 0) {
+        const { data: varData } = await supabase
+          .from("menu_item_variations")
+          .select("*")
+          .in("menu_item_id", itemIds);
+        if (varData) {
+          const varMap: Record<string, MenuItemVariation[]> = {};
+          for (const v of varData) {
+            if (!varMap[v.menu_item_id]) varMap[v.menu_item_id] = [];
+            varMap[v.menu_item_id].push({
+              id: v.id, name: v.name,
+              options: Array.isArray(v.options) ? v.options : [],
+              required: v.required,
+            });
+          }
+          for (const item of newItems) {
+            item.variations = varMap[item.id] || [];
+          }
+        }
+      }
+
+      // Compare availability with previous state
+      const prev = prevItemsRef.current;
+      for (const item of newItems) {
+        const wasAvailable = prev.get(item.id);
+        if (wasAvailable === undefined) continue;
+
+        if (wasAvailable && !item.available) {
+          // Item became unavailable
+          const inCart = cart.items.some(ci => ci.item.id === item.id);
+          if (inCart) {
+            toast({
+              title: "⚠️ Item indisponível no carrinho",
+              description: `"${item.name}" ficou indisponível. Remova-o antes de confirmar o pedido.`,
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: `"${item.name}" ficou indisponível`,
+              description: "Este item não está mais disponível no momento.",
+            });
+          }
+        } else if (!wasAvailable && item.available) {
+          // Item became available again
+          toast({
+            title: `✅ "${item.name}" disponível novamente!`,
+            description: "Você já pode adicionar ao pedido.",
+          });
+        }
+      }
+
+      // Update ref
+      const newMap = new Map<string | number, boolean>();
+      newItems.forEach(i => newMap.set(i.id, i.available));
+      prevItemsRef.current = newMap;
+
+      setItems(newItems);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [restaurantIdState, cart.items]);
+
+  // 4.4 — Polling for delivered orders to trigger rating
+  useEffect(() => {
+    if (!restaurantIdState) return;
+    const interval = setInterval(async () => {
+      const key = `orders_${restaurantIdState}`;
+      let ids: string[] = [];
+      try { ids = JSON.parse(localStorage.getItem(key) || "[]"); } catch { /* empty */ }
+      if (ids.length === 0) return;
+
+      const { data } = await supabase
+        .from("orders")
+        .select("id, display_id, status")
+        .in("id", ids)
+        .eq("status", "delivered");
+
+      if (!data || data.length === 0) return;
+
+      const ratedKey = "rated_orders";
+      const rated: string[] = JSON.parse(sessionStorage.getItem(ratedKey) || "[]");
+
+      for (const order of data) {
+        if (!rated.includes(order.id) && !ratingOrder) {
+          setRatingOrder({ id: order.id, displayId: order.display_id });
+          break;
+        }
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [restaurantIdState, ratingOrder]);
+
+  const categories = useMemo(() => Array.from(new Set(items.filter(i => i.available).map((i) => i.category))), [items]);
 
   useEffect(() => {
     if (categories.length > 0 && !activeCategory) setActiveCategory(categories[0]);
@@ -278,8 +411,9 @@ const PublicMenu = () => {
     );
   }
 
-  const chefSuggestion = items.find(i => i.isChefSuggestion);
-  const filteredItems = items.filter((i) => i.category === activeCategory);
+  const chefSuggestion = items.find(i => i.isChefSuggestion && i.available);
+  const availableItems = items.filter(i => i.available);
+  const filteredItems = availableItems.filter((i) => i.category === activeCategory);
   const font = fontFamilyMap[restaurant.fontFamily];
 
   const openProduct = (item: PublicMenuItem) => {
@@ -399,6 +533,12 @@ const PublicMenu = () => {
                   <p className="text-sm font-bold mt-2" style={{ color: restaurant.primaryColor }}>
                     R$ {item.price.toFixed(2).replace(".", ",")}
                   </p>
+                  {/* Prep time on card */}
+                  {item.prepTimeMinutes && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
+                      <Clock className="h-3 w-3" /> ~{item.prepTimeMinutes} min
+                    </span>
+                  )}
                 </div>
 
                 {inTime ? (
@@ -502,6 +642,18 @@ const PublicMenu = () => {
         tableSessionId={tableSessionId}
         paymentMode={paymentMode}
       />
+
+      {/* 4.4 — Rating Modal */}
+      {ratingOrder && (
+        <OrderRatingModal
+          open={!!ratingOrder}
+          onClose={() => setRatingOrder(null)}
+          orderId={ratingOrder.id}
+          displayId={ratingOrder.displayId}
+          restaurantId={restaurant.id}
+          primaryColor={restaurant.primaryColor}
+        />
+      )}
 
       {paymentMode === "open_tab" && hasPlacedOrder && tableSessionId && (
         <FloatingActions sessionId={tableSessionId} primaryColor={restaurant.primaryColor} />

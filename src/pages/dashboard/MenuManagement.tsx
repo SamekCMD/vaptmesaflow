@@ -39,6 +39,7 @@ interface MenuItem {
   available_until: string | null;
   badge: string | null;
   is_chef_suggestion: boolean;
+  prep_time_minutes: number | null;
   variations: Variation[];
 }
 
@@ -95,6 +96,7 @@ const MenuManagement = () => {
   const [isChefSuggestion, setIsChefSuggestion] = useState(false);
   const [variations, setVariations] = useState<Variation[]>([]);
   const [newOptionInputs, setNewOptionInputs] = useState<Record<number, string>>({});
+  const [prepTimeMinutes, setPrepTimeMinutes] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -151,6 +153,7 @@ const MenuManagement = () => {
             available_until: m.available_until || null,
             badge: m.badge || null,
             is_chef_suggestion: m.is_chef_suggestion || false,
+            prep_time_minutes: m.prep_time_minutes || null,
             variations: variationsMap[m.id] || [],
           }))
         );
@@ -182,6 +185,7 @@ const MenuManagement = () => {
     setIsChefSuggestion(false);
     setVariations([]);
     setNewOptionInputs({});
+    setPrepTimeMinutes("");
   };
 
   const handleSave = async () => {
@@ -197,6 +201,7 @@ const MenuManagement = () => {
         available_until: timeRestricted && availableUntil ? availableUntil : null,
         badge: badge === "none" ? null : badge,
         is_chef_suggestion: isChefSuggestion,
+        prep_time_minutes: prepTimeMinutes ? parseInt(prepTimeMinutes) : null,
       };
 
       // If chef suggestion is on, unset others first
@@ -284,6 +289,7 @@ const MenuManagement = () => {
         available_until: updateData.available_until,
         badge: updateData.badge,
         is_chef_suggestion: isChefSuggestion,
+        prep_time_minutes: prepTimeMinutes ? parseInt(prepTimeMinutes) : null,
         variations: itemVariations,
       };
 
@@ -324,6 +330,7 @@ const MenuManagement = () => {
     setAvailableUntil(item.available_until || "");
     setBadge(item.badge || "none");
     setIsChefSuggestion(item.is_chef_suggestion);
+    setPrepTimeMinutes(item.prep_time_minutes ? String(item.prep_time_minutes) : "");
     setVariations(item.variations.map(v => ({ ...v })));
     setNewOptionInputs({});
     setDialogOpen(true);
@@ -478,6 +485,19 @@ const MenuManagement = () => {
                 <div>
                   <Label>Categoria</Label>
                   <Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Ex: Hambúrgueres" />
+                </div>
+
+                {/* Prep Time */}
+                <div>
+                  <Label>Tempo de preparo (minutos)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={120}
+                    value={prepTimeMinutes}
+                    onChange={(e) => setPrepTimeMinutes(e.target.value)}
+                    placeholder="Ex: 15"
+                  />
                 </div>
 
                 {/* Badge */}
