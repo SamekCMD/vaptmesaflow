@@ -15,7 +15,7 @@ export const PLANS: PlanDefinition[] = [
     id: "starter",
     name: "Starter",
     price: 97,
-    priceId: import.meta.env.VITE_STRIPE_PRICE_STARTER || "price_starter",
+    priceId: STRIPE_PRICE_STARTER,
     features: [
       "Cardápio digital ilimitado",
       "QR Codes para mesas",
