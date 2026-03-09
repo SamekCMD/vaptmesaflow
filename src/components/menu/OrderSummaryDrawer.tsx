@@ -172,18 +172,20 @@ const OrderSummaryDrawer = ({
       onOrderPlaced?.(orderData.id);
 
       if (paymentMode === "prepaid") {
-        // Call n8n webhook to create Pix payment
-        const res = await fetch(N8N_WEBHOOK_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        // Call edge function to create Pix payment (validates order server-side)
+        const res = await supabase.functions.invoke("create-pix-payment", {
+          body: {
             restaurant_id: restaurantId,
             order_id: orderData.id,
-            value: totalPrice,
-            customer_name: `Mesa ${tableNumber || "S/N"}`,
             table_number: tableNumber,
-          }),
+          },
         });
+
+        if (res.error) {
+          throw new Error("Erro ao gerar pagamento Pix");
+        }
+
+        const pixResult = res.data;
 
         if (!res.ok) {
           throw new Error("Erro ao gerar pagamento Pix");
