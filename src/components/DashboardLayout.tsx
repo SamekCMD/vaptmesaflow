@@ -3,6 +3,9 @@ import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import TrialBanner from "@/components/dashboard/TrialBanner";
+import PushNotificationBanner from "@/components/dashboard/PushNotificationBanner";
+import { registerServiceWorker } from "@/lib/push-notifications";
+import { supabase } from "@/integrations/supabase/client";
 import {
   LayoutDashboard,
   UtensilsCrossed,
@@ -48,10 +51,23 @@ const planBadgeStyles: Record<string, string> = {
 
 const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { isActive, loading: planLoading, planType, isTrialing, trialDaysLeft } = useSubscription();
+
+  // Register service worker and fetch restaurant ID
+  useEffect(() => {
+    registerServiceWorker();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("restaurants").select("id").eq("owner_id", user.id).single().then(({ data }) => {
+      if (data) setRestaurantId(data.id);
+    });
+  }, [user]);
 
   useEffect(() => {
     if (!planLoading && !isActive && !location.pathname.includes("/settings") && !location.pathname.includes("/subscription")) {
@@ -171,6 +187,7 @@ const DashboardLayout = () => {
 
         {/* Content */}
         <main className="flex-1 p-4 lg:p-6 overflow-auto space-y-4">
+          <PushNotificationBanner restaurantId={restaurantId} />
           <TrialBanner />
           <Outlet />
         </main>
