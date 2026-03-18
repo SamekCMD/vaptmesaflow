@@ -20,6 +20,7 @@ import {
   LogOut,
   Banknote,
   CreditCard,
+  Flame,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -45,8 +46,8 @@ const navItems = [
 const planBadgeStyles: Record<string, string> = {
   trial: "bg-muted text-muted-foreground border-border",
   starter: "bg-secondary text-secondary-foreground border-border",
-  pro: "bg-green-500/10 text-green-500 border-green-500/30",
-  business: "bg-yellow-500/10 text-yellow-500 border-yellow-500/30",
+  pro: "bg-brand-coral-muted text-primary border-primary/30",
+  business: "bg-brand-gold-muted text-brand-gold border-brand-gold/30",
 };
 
 const DashboardLayout = () => {
@@ -100,18 +101,23 @@ const DashboardLayout = () => {
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 bg-card border-r border-border transform transition-transform lg:translate-x-0 lg:static flex flex-col ${
+        className={`fixed inset-y-0 left-0 z-40 w-[220px] bg-secondary border-r border-border/60 transform transition-transform lg:translate-x-0 lg:static flex flex-col ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex items-center justify-between h-16 px-6 border-b border-border">
-          <Link to="/" className="text-xl font-bold text-gradient">Vapt</Link>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-muted-foreground">
+        {/* Logo */}
+        <div className="flex items-center justify-between h-[52px] px-5 border-b border-border/60">
+          <Link to="/" className="flex items-center gap-2">
+            <Flame className="h-5 w-5 text-primary" />
+            <span className="text-lg font-bold font-display text-foreground">Vapt</span>
+          </Link>
+          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-muted-foreground cursor-pointer">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <nav className="p-4 space-y-1 flex-1">
+        {/* Nav */}
+        <nav className="p-3 space-y-0.5 flex-1">
           {navItems.map((item) => {
             const active = location.pathname === item.path;
             return (
@@ -119,13 +125,13 @@ const DashboardLayout = () => {
                 key={item.path}
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex items-center gap-3 px-3 py-2 rounded-md text-[13px] font-medium transition-all duration-150 cursor-pointer ${
                   active
-                    ? "bg-primary/10 text-primary"
+                    ? "bg-muted text-foreground border-l-2 border-primary"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
-                <item.icon className="h-4 w-4" />
+                <item.icon className="h-4 w-4 shrink-0" />
                 {item.title}
               </Link>
             );
@@ -133,11 +139,11 @@ const DashboardLayout = () => {
         </nav>
 
         {/* Plan badge */}
-        <div className="p-4 border-t border-border">
+        <div className="p-3 border-t border-border/60">
           <Link to="/dashboard/subscription">
             <Badge
               variant="outline"
-              className={`w-full justify-center py-1.5 text-xs cursor-pointer hover:opacity-80 transition-opacity ${badgeStyle}`}
+              className={`w-full justify-center py-1.5 text-[11px] font-mono uppercase tracking-wider cursor-pointer hover:opacity-80 transition-opacity ${badgeStyle}`}
             >
               {badgeLabel}
             </Badge>
@@ -147,37 +153,37 @@ const DashboardLayout = () => {
 
       {/* Overlay */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="h-16 border-b border-border bg-card flex items-center justify-between px-4 lg:px-6">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground">
+        <header className="h-[52px] border-b border-border/60 bg-background flex items-center justify-between px-4 lg:px-6">
+          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground cursor-pointer">
             <Menu className="h-5 w-5" />
           </button>
 
-          <div className="hidden lg:block" />
+          <div className="hidden lg:block font-display text-[15px] font-medium text-foreground" />
 
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="relative">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" className="relative h-8 w-8">
               <Bell className="h-4 w-4" />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary" />
+              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary" />
             </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2 cursor-pointer">
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-primary/10 text-primary text-xs">{initials}</AvatarFallback>
+                    <AvatarFallback className="bg-muted text-foreground text-xs font-display">{initials}</AvatarFallback>
                   </Avatar>
-                  <span className="text-sm font-medium hidden sm:block">{fullName}</span>
+                  <span className="text-sm font-medium hidden sm:block text-foreground">{fullName}</span>
                   <ChevronDown className="h-3 w-3 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+                <DropdownMenuItem onClick={handleLogout} className="text-destructive cursor-pointer">
                   <LogOut className="h-4 w-4 mr-2" /> Sair
                 </DropdownMenuItem>
               </DropdownMenuContent>
