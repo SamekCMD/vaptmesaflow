@@ -26,11 +26,11 @@ const FeatureGate = ({ feature, requiredPlan, children }: FeatureGateProps) => {
       <div className="relative min-h-[60vh]">
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-10 rounded-lg border border-border">
           <div className="flex flex-col items-center gap-4 text-center p-8">
-            <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
-              <Lock className="h-8 w-8 text-muted-foreground" />
+            <div className="h-16 w-16 rounded-xl bg-muted flex items-center justify-center">
+              <Lock className="h-8 w-8 text-text-disabled" />
             </div>
-            <h2 className="text-xl font-bold">Funcionalidade Bloqueada</h2>
-            <p className="text-muted-foreground max-w-sm">
+            <h2 className="text-xl font-bold font-display">Funcionalidade Bloqueada</h2>
+            <p className="text-muted-foreground max-w-sm text-sm">
               Disponível no Plano <span className="font-semibold text-primary">{PLAN_LABELS[requiredPlan] || requiredPlan}</span>.
               Faça upgrade para desbloquear.
             </p>

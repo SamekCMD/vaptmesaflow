@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Users, Clock, Receipt } from "lucide-react";
+import { Users, Clock, Receipt, Bell } from "lucide-react";
 
 export interface TableSession {
   id: string;
@@ -26,9 +26,9 @@ function formatElapsed(openedAt: string): { text: string; colorClass: string } {
   const m = totalMins % 60;
   const text = `${h}h ${String(m).padStart(2, "0")}m`;
 
-  if (totalMins < 60) return { text, colorClass: "text-muted-foreground" };
-  if (totalMins < 120) return { text, colorClass: "text-yellow-500" };
-  return { text, colorClass: "text-red-500" };
+  if (totalMins < 60) return { text, colorClass: "text-text-secondary" };
+  if (totalMins < 120) return { text, colorClass: "text-status-warning" };
+  return { text, colorClass: "text-status-error" };
 }
 
 const TableCard = ({ tableNumber, session, onClick }: TableCardProps) => {
@@ -40,35 +40,47 @@ const TableCard = ({ tableNumber, session, onClick }: TableCardProps) => {
 
   return (
     <Card
-      className={`cursor-pointer transition-all hover:shadow-md active:scale-[0.97] border-2 ${
+      className={`cursor-pointer transition-all duration-150 hover:scale-[1.02] hover:shadow-[var(--shadow-elevated)] ${
         isCheckRequested
-          ? "border-yellow-500 ring-4 ring-yellow-400 ring-offset-2 animate-pulse bg-yellow-500/10"
+          ? "border-brand-gold border-[1.5px] animate-pulse-border"
           : isOpen
-          ? "border-emerald-500 bg-emerald-500/10"
-          : "border-border bg-card"
+          ? "border-border/80 bg-muted"
+          : "border-border"
       }`}
       onClick={onClick}
     >
-      <CardContent className="p-4 text-center space-y-2">
+      <CardContent className="p-4 text-center space-y-2 relative">
+        {/* Gold bell for check requested */}
+        {isCheckRequested && (
+          <div className="absolute top-2 right-2">
+            <Bell className="h-4 w-4 text-brand-gold" />
+          </div>
+        )}
+
         <div className="flex items-center justify-center gap-2">
           {isCheckRequested ? (
-            <Receipt className="h-4 w-4 text-yellow-500" />
+            <Receipt className="h-4 w-4 text-brand-gold" />
           ) : (
-            <Users className={`h-4 w-4 ${isOpen ? "text-emerald-500" : "text-muted-foreground"}`} />
+            <Users className={`h-4 w-4 ${isOpen ? "text-foreground" : "text-text-tertiary"}`} />
           )}
-          <span className="font-bold text-lg">Mesa {tableNumber}</span>
+          <span className={`font-bold text-xl font-display ${isFree ? "text-text-tertiary" : "text-foreground"}`}>
+            {tableNumber}
+          </span>
         </div>
 
         {isFree ? (
-          <p className="text-xs text-muted-foreground">Livre</p>
+          <p className="text-xs text-text-tertiary">Livre</p>
         ) : (
           <div className="space-y-1">
-            <p className={`text-xs font-medium ${isCheckRequested ? "text-yellow-500" : "text-emerald-500"}`}>
+            <p className={`text-xs font-medium ${isCheckRequested ? "text-brand-gold" : "text-foreground"}`}>
               {isCheckRequested ? "🧾 Pedindo a conta" : "Ocupada"}
             </p>
             {session.order_count && session.order_count > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {session.order_count} pedido{session.order_count > 1 ? "s" : ""} · R$ {(session.session_total || 0).toFixed(2).replace(".", ",")}
+              <p className="text-xs text-text-secondary">
+                {session.order_count} pedido{session.order_count > 1 ? "s" : ""} ·{" "}
+                <span className="font-mono text-primary">
+                  R$ {(session.session_total || 0).toFixed(2).replace(".", ",")}
+                </span>
               </p>
             )}
           </div>
@@ -76,7 +88,7 @@ const TableCard = ({ tableNumber, session, onClick }: TableCardProps) => {
 
         {/* Elapsed time */}
         {elapsed && (
-          <div className={`flex items-center justify-center gap-1 text-[11px] ${elapsed.colorClass}`}>
+          <div className={`flex items-center justify-center gap-1 text-[11px] font-mono ${elapsed.colorClass}`}>
             <Clock className="h-3 w-3" />
             <span>{elapsed.text}</span>
           </div>
