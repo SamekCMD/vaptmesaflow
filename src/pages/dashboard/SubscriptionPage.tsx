@@ -4,17 +4,51 @@ import { Check, X, Crown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { PLANS, type PlanDefinition } from "@/lib/plans";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useToast } from "@/hooks/use-toast";
 import StripeCheckoutModal from "@/components/dashboard/StripeCheckoutModal";
 
 const SubscriptionPage = () => {
-  const { planType, planStatus, isTrialing, trialDaysLeft } = useSubscription();
+  const { planType, planStatus, isTrialing, trialDaysLeft, refetch } = useSubscription();
+  const { toast } = useToast();
   const [selectedPlan, setSelectedPlan] = useState<PlanDefinition | null>(null);
+  const [pendingPlan, setPendingPlan] = useState<PlanDefinition | null>(null);
 
   const isCurrentPlan = (planId: string) => {
     if (planStatus !== "active") return false;
     return planType === planId;
+  };
+
+  const currentPlanName = PLANS.find((p) => p.id === planType)?.name ?? planType;
+
+  const handlePlanClick = (plan: PlanDefinition) => {
+    if (planStatus === "active") {
+      setPendingPlan(plan);
+    } else {
+      setSelectedPlan(plan);
+    }
+  };
+
+  const handleConfirmUpgrade = () => {
+    setSelectedPlan(pendingPlan);
+    setPendingPlan(null);
+  };
+
+  const handleAutoCharged = () => {
+    setSelectedPlan(null);
+    toast({ title: "Plano atualizado com sucesso!" });
+    refetch();
   };
 
   return (
@@ -89,7 +123,7 @@ const SubscriptionPage = () => {
                     className="w-full"
                     variant={plan.highlighted ? "default" : "outline"}
                     disabled={current}
-                    onClick={() => setSelectedPlan(plan)}
+                    onClick={() => handlePlanClick(plan)}
                   >
                     {current ? "Plano Atual" : `Assinar ${plan.name}`}
                   </Button>
@@ -100,10 +134,32 @@ const SubscriptionPage = () => {
         })}
       </div>
 
+      {/* Confirmation dialog for active subscribers upgrading */}
+      <AlertDialog open={!!pendingPlan} onOpenChange={(open) => !open && setPendingPlan(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar troca de plano</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você está trocando do plano {currentPlanName} para {pendingPlan?.name}. O valor de R$ {pendingPlan?.price},00 será cobrado imediatamente no cartão cadastrado.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleConfirmUpgrade}
+            >
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <StripeCheckoutModal
         open={!!selectedPlan}
         onOpenChange={(open) => !open && setSelectedPlan(null)}
         plan={selectedPlan}
+        onAutoCharged={handleAutoCharged}
       />
     </div>
   );
