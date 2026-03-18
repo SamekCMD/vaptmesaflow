@@ -37,7 +37,6 @@ const CashierPage = () => {
   const knownCheckRequestedRef = useRef<Set<string>>(new Set());
   const knownOrderCountRef = useRef<Map<string, number>>(new Map());
 
-  // Get restaurant info
   useEffect(() => {
     if (!user) return;
     const fetch = async () => {
@@ -54,7 +53,6 @@ const CashierPage = () => {
     fetch();
   }, [user]);
 
-  // Tick every 60s for elapsed time updates
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 60000);
     return () => clearInterval(interval);
@@ -62,66 +60,44 @@ const CashierPage = () => {
 
   const fetchSessions = useCallback(async () => {
     if (!restaurantId) return;
-
     const { data: sessionsData } = await supabase
       .from("table_sessions")
       .select("*")
       .eq("restaurant_id", restaurantId)
       .in("status", ["open", "check_requested"]);
-
     if (!sessionsData) return;
-
     const sessionIds = sessionsData.map((s: any) => s.id);
     let orderAggs: Record<string, { total: number; count: number }> = {};
-
     if (sessionIds.length > 0) {
       const { data: ordersData } = await supabase
         .from("orders")
         .select("table_session_id, total_price")
         .in("table_session_id", sessionIds);
-
       if (ordersData) {
         for (const o of ordersData as any[]) {
-          if (!orderAggs[o.table_session_id]) {
-            orderAggs[o.table_session_id] = { total: 0, count: 0 };
-          }
+          if (!orderAggs[o.table_session_id]) orderAggs[o.table_session_id] = { total: 0, count: 0 };
           orderAggs[o.table_session_id].total += Number(o.total_price);
           orderAggs[o.table_session_id].count += 1;
         }
       }
     }
-
     const mapped: TableSession[] = sessionsData.map((s: any) => ({
-      id: s.id,
-      restaurant_id: s.restaurant_id,
-      table_number: s.table_number,
-      status: s.status,
-      opened_at: s.opened_at,
-      closed_at: s.closed_at,
-      session_total: orderAggs[s.id]?.total || null,
-      order_count: orderAggs[s.id]?.count || null,
+      id: s.id, restaurant_id: s.restaurant_id, table_number: s.table_number,
+      status: s.status, opened_at: s.opened_at, closed_at: s.closed_at,
+      session_total: orderAggs[s.id]?.total || null, order_count: orderAggs[s.id]?.count || null,
     }));
-
-    // Detect new check_requested
-    const currentCheckRequested = new Set(
-      mapped.filter((s) => s.status === "check_requested").map((s) => s.id)
-    );
+    const currentCheckRequested = new Set(mapped.filter((s) => s.status === "check_requested").map((s) => s.id));
     if (knownCheckRequestedRef.current.size > 0) {
       for (const id of currentCheckRequested) {
         if (!knownCheckRequestedRef.current.has(id)) {
           playBellSound();
           const session = mapped.find((s) => s.id === id);
-          toast({
-            title: `🔔 Mesa ${session?.table_number} pediu a conta!`,
-            description: "Clique na mesa para ver o extrato.",
-          });
+          toast({ title: `Mesa ${session?.table_number} pediu a conta!`, description: "Clique na mesa para ver o extrato." });
           break;
         }
       }
     }
     knownCheckRequestedRef.current = currentCheckRequested;
-
-    // Detect new orders on open tables
     const currentOrderCounts = new Map(mapped.map((s) => [s.id, s.order_count || 0]));
     if (knownOrderCountRef.current.size > 0) {
       for (const [id, count] of currentOrderCounts) {
@@ -129,23 +105,16 @@ const CashierPage = () => {
         if (count > prev) {
           playBellSound();
           const session = mapped.find((s) => s.id === id);
-          toast({
-            title: `🍽️ Novo pedido na Mesa ${session?.table_number}!`,
-          });
+          toast({ title: `Novo pedido na Mesa ${session?.table_number}!` });
           break;
         }
       }
     }
     knownOrderCountRef.current = currentOrderCounts;
-
     setSessions(mapped);
   }, [restaurantId]);
 
-  useEffect(() => {
-    if (restaurantId) fetchSessions();
-  }, [restaurantId, fetchSessions]);
-
-  // Polling every 5 seconds
+  useEffect(() => { if (restaurantId) fetchSessions(); }, [restaurantId, fetchSessions]);
   useEffect(() => {
     if (!restaurantId) return;
     const interval = setInterval(fetchSessions, 5000);
@@ -165,11 +134,11 @@ const CashierPage = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Caixa</h1>
+            <h1 className="text-xl font-semibold tracking-tight">Caixa</h1>
             <p className="text-muted-foreground text-sm">Mapa de mesas em tempo real</p>
           </div>
           <Button variant="outline" size="sm" onClick={fetchSessions}>
-            <RefreshCw className="h-4 w-4 mr-1" />
+            <RefreshCw className="h-4 w-4 mr-1" strokeWidth={1.5} />
             Atualizar
           </Button>
         </div>
@@ -177,41 +146,27 @@ const CashierPage = () => {
         {/* Legend */}
         <div className="flex flex-wrap gap-4 text-xs">
           <div className="flex items-center gap-1.5">
-            <div className="h-3 w-3 rounded border-2 border-border bg-card" />
+            <div className="h-3 w-3 rounded border border-border" />
             <span className="text-muted-foreground">Livre</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="h-3 w-3 rounded border-2 border-emerald-500 bg-emerald-500/20" />
+            <div className="h-3 w-3 rounded border border-[hsl(153_14%_34%)] bg-[hsl(153_27%_14%)]" />
             <span className="text-muted-foreground">Ocupada</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="h-3 w-3 rounded border-2 border-yellow-500 bg-yellow-500/20 animate-pulse" />
+            <div className="h-3 w-3 rounded border border-[hsl(44_51%_54%)] bg-[hsl(37_27%_13%)] animate-pulse" />
             <span className="text-muted-foreground">Pediu a Conta</span>
           </div>
         </div>
 
-        {/* Table grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           {tableNumbers.map((num) => {
             const session = sessions.find((s) => s.table_number === num) || null;
-            return (
-              <TableCard
-                key={num}
-                tableNumber={num}
-                session={session}
-                onClick={() => handleTableClick(num)}
-                tick={tick}
-              />
-            );
+            return <TableCard key={num} tableNumber={num} session={session} onClick={() => handleTableClick(num)} tick={tick} />;
           })}
         </div>
 
-        <TableSessionModal
-          open={modalOpen}
-          onClose={() => setModalOpen(false)}
-          session={selectedSession}
-          onSessionClosed={fetchSessions}
-        />
+        <TableSessionModal open={modalOpen} onClose={() => setModalOpen(false)} session={selectedSession} onSessionClosed={fetchSessions} />
       </div>
     </FeatureGate>
   );

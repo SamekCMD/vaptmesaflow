@@ -78,7 +78,7 @@ const Overview = () => {
   useEffect(() => {
     if (searchParams.get("subscribed") === "true") {
       toast({
-        title: "🎉 Assinatura confirmada!",
+        title: "Assinatura confirmada!",
         description: "Bem-vindo ao seu novo plano. Aproveite todos os recursos!",
       });
       refetchSub();
@@ -122,19 +122,16 @@ const Overview = () => {
     fetchData();
   }, [user]);
 
-  // Filter orders by selected period
   const filteredOrders = useMemo(() => {
     const start = getStartDate(period);
     return orders.filter((o) => new Date(o.created_at) >= start);
   }, [orders, period]);
 
-  // Completed orders (delivered or ready)
   const completedOrders = useMemo(
     () => filteredOrders.filter((o) => ["ready", "delivered"].includes(o.status)),
     [filteredOrders]
   );
 
-  // Metrics
   const totalRevenue = useMemo(
     () => completedOrders.reduce((sum, o) => sum + Number(o.total_price), 0),
     [completedOrders]
@@ -150,7 +147,6 @@ const Overview = () => {
     [totalRevenue, completedOrders]
   );
 
-  // Average prep time: time from created_at to updated_at when status went to ready/delivered
   const avgPrepTime = useMemo(() => {
     const last24h = Date.now() - 86400000;
     const times = completedOrders
@@ -161,7 +157,6 @@ const Overview = () => {
     return Math.round(avg / 60000);
   }, [completedOrders]);
 
-  // Top items by quantity
   const topItems = useMemo(() => {
     const map = new Map<string, { qty: number; revenue: number }>();
     completedOrders.forEach((o) =>
@@ -183,49 +178,28 @@ const Overview = () => {
     [topItems]
   );
 
-  // Chart data
   const chartData = useMemo(() => {
     if (period === "day") {
-      // Hourly
-      const hours = Array.from({ length: 24 }, (_, i) => ({
-        label: `${i}h`,
-        valor: 0,
-      }));
-      completedOrders.forEach((o) => {
-        const h = new Date(o.created_at).getHours();
-        hours[h].valor += Number(o.total_price);
-      });
+      const hours = Array.from({ length: 24 }, (_, i) => ({ label: `${i}h`, valor: 0 }));
+      completedOrders.forEach((o) => { hours[new Date(o.created_at).getHours()].valor += Number(o.total_price); });
       return hours;
     }
     if (period === "week") {
       const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
       const data = days.map((d) => ({ label: d, valor: 0 }));
-      completedOrders.forEach((o) => {
-        const dow = new Date(o.created_at).getDay();
-        data[dow].valor += Number(o.total_price);
-      });
+      completedOrders.forEach((o) => { data[new Date(o.created_at).getDay()].valor += Number(o.total_price); });
       return data;
     }
     if (period === "month") {
       const now = new Date();
       const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-      const data = Array.from({ length: daysInMonth }, (_, i) => ({
-        label: `${i + 1}`,
-        valor: 0,
-      }));
-      completedOrders.forEach((o) => {
-        const day = new Date(o.created_at).getDate() - 1;
-        if (data[day]) data[day].valor += Number(o.total_price);
-      });
+      const data = Array.from({ length: daysInMonth }, (_, i) => ({ label: `${i + 1}`, valor: 0 }));
+      completedOrders.forEach((o) => { const day = new Date(o.created_at).getDate() - 1; if (data[day]) data[day].valor += Number(o.total_price); });
       return data;
     }
-    // year - monthly
     const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
     const data = months.map((m) => ({ label: m, valor: 0 }));
-    completedOrders.forEach((o) => {
-      const m = new Date(o.created_at).getMonth();
-      data[m].valor += Number(o.total_price);
-    });
+    completedOrders.forEach((o) => { data[new Date(o.created_at).getMonth()].valor += Number(o.total_price); });
     return data;
   }, [completedOrders, period]);
 
@@ -234,8 +208,8 @@ const Overview = () => {
   if (!restaurant) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-        <Store className="h-12 w-12 text-muted-foreground" />
-        <h2 className="text-xl font-semibold">Nenhum restaurante encontrado</h2>
+        <Store className="h-10 w-10 text-muted-foreground" strokeWidth={1.5} />
+        <h2 className="text-xl font-semibold tracking-tight">Nenhum restaurante encontrado</h2>
         <p className="text-muted-foreground text-sm max-w-sm">
           Complete o processo de onboarding para configurar seu restaurante.
         </p>
@@ -245,30 +219,10 @@ const Overview = () => {
   }
 
   const metricCards = [
-    {
-      title: "Faturamento",
-      value: `R$ ${totalRevenue.toFixed(2).replace(".", ",")}`,
-      sub: `${completedOrders.length} pedidos concluídos`,
-      icon: DollarSign,
-    },
-    {
-      title: "Pedidos Pendentes",
-      value: String(pendingCount),
-      sub: pendingCount === 0 ? "Tudo em dia!" : "Aguardando ação",
-      icon: ShoppingBag,
-    },
-    {
-      title: "Ticket Médio",
-      value: `R$ ${avgTicket.toFixed(2).replace(".", ",")}`,
-      sub: completedOrders.length > 0 ? "Por pedido concluído" : "Sem dados",
-      icon: TrendingUp,
-    },
-    {
-      title: "Tempo Médio",
-      value: avgPrepTime !== null ? `${avgPrepTime} min` : "— min",
-      sub: "Preparação + entrega",
-      icon: Clock,
-    },
+    { title: "FATURAMENTO", value: `R$ ${totalRevenue.toFixed(2).replace(".", ",")}`, sub: `${completedOrders.length} pedidos concluídos`, icon: DollarSign },
+    { title: "PEDIDOS PENDENTES", value: String(pendingCount), sub: pendingCount === 0 ? "Tudo em dia!" : "Aguardando ação", icon: ShoppingBag },
+    { title: "TICKET MÉDIO", value: `R$ ${avgTicket.toFixed(2).replace(".", ",")}`, sub: completedOrders.length > 0 ? "Por pedido concluído" : "Sem dados", icon: TrendingUp },
+    { title: "TEMPO MÉDIO", value: avgPrepTime !== null ? `${avgPrepTime} min` : "— min", sub: "Preparação + entrega", icon: Clock },
   ];
 
   return (
@@ -276,16 +230,16 @@ const Overview = () => {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">{restaurant.name}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{restaurant.name}</h1>
           <p className="text-muted-foreground text-sm">Resumo do seu restaurante</p>
         </div>
-        <div className="flex gap-1 bg-muted rounded-lg p-1">
+        <div className="flex gap-1 bg-card border border-border rounded-md p-1">
           {(Object.keys(periodLabels) as Period[]).map((p) => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                period === p ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors duration-150 ${
+                period === p ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {periodLabels[p]}
@@ -300,10 +254,10 @@ const Overview = () => {
           <Card key={m.title}>
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-muted-foreground">{m.title}</span>
-                <m.icon className="h-4 w-4 text-muted-foreground" />
+                <span className="text-[11px] uppercase tracking-[0.08em] font-medium text-[hsl(240_2%_34%)]">{m.title}</span>
+                <m.icon className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
               </div>
-              <p className="text-2xl font-bold">{m.value}</p>
+              <p className="text-[28px] font-medium font-mono tracking-tight">{m.value}</p>
               <p className="text-xs text-muted-foreground mt-1">{m.sub}</p>
             </CardContent>
           </Card>
@@ -313,7 +267,7 @@ const Overview = () => {
       {/* Chart */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Faturamento — {periodLabels[period]}</CardTitle>
+          <CardTitle>Faturamento — {periodLabels[period]}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
@@ -324,14 +278,15 @@ const Overview = () => {
                 <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickFormatter={(v) => `R$${v}`} />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
+                    backgroundColor: "hsl(var(--popover))",
                     border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
+                    borderRadius: "6px",
                     fontSize: "12px",
+                    color: "hsl(var(--foreground))",
                   }}
                   formatter={(value: number) => [`R$ ${value.toFixed(2).replace(".", ",")}`, "Faturamento"]}
                 />
-                <Bar dataKey="valor" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="valor" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -340,11 +295,10 @@ const Overview = () => {
 
       {/* Top Items */}
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Most ordered */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-yellow-500" />
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-[hsl(44_51%_54%)]" strokeWidth={1.5} />
               Mais Pedidos
             </CardTitle>
           </CardHeader>
@@ -356,12 +310,12 @@ const Overview = () => {
                 {topItems.slice(0, 5).map((item, i) => (
                   <div key={item.name} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <Badge variant="outline" className="h-6 w-6 flex items-center justify-center p-0 text-xs font-bold">
+                      <Badge variant="outline" className="h-6 w-6 flex items-center justify-center p-0 text-xs font-medium normal-case tracking-normal">
                         {i + 1}
                       </Badge>
                       <span className="text-sm font-medium">{item.name}</span>
                     </div>
-                    <span className="text-sm text-muted-foreground">{item.qty}x</span>
+                    <span className="text-sm text-muted-foreground font-mono">{item.qty}x</span>
                   </div>
                 ))}
               </div>
@@ -369,11 +323,10 @@ const Overview = () => {
           </CardContent>
         </Card>
 
-        {/* Most profitable */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Star className="h-4 w-4 text-primary" />
+            <CardTitle className="flex items-center gap-2">
+              <Star className="h-4 w-4 text-primary" strokeWidth={1.5} />
               Mais Rentáveis
             </CardTitle>
           </CardHeader>
@@ -385,12 +338,12 @@ const Overview = () => {
                 {topByRevenue.slice(0, 5).map((item, i) => (
                   <div key={item.name} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <Badge variant="outline" className="h-6 w-6 flex items-center justify-center p-0 text-xs font-bold">
+                      <Badge variant="outline" className="h-6 w-6 flex items-center justify-center p-0 text-xs font-medium normal-case tracking-normal">
                         {i + 1}
                       </Badge>
                       <span className="text-sm font-medium">{item.name}</span>
                     </div>
-                    <span className="text-sm font-semibold text-primary">
+                    <span className="text-sm font-medium font-mono text-primary">
                       R$ {item.revenue.toFixed(2).replace(".", ",")}
                     </span>
                   </div>

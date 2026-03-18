@@ -48,10 +48,10 @@ interface Order {
 }
 
 const columns = [
-  { key: "paid" as const, label: "Pagos (Novos)", color: "bg-emerald-500" },
-  { key: "pending" as const, label: "Na Fila", color: "bg-yellow-500" },
-  { key: "preparing" as const, label: "Preparando", color: "bg-blue-500" },
-  { key: "ready" as const, label: "Prontos", color: "bg-green-500" },
+  { key: "paid" as const, label: "Pagos (Novos)", dotColor: "bg-[hsl(153_33%_62%)]" },
+  { key: "pending" as const, label: "Na Fila", dotColor: "bg-[hsl(44_51%_54%)]" },
+  { key: "preparing" as const, label: "Preparando", dotColor: "bg-[hsl(216_34%_64%)]" },
+  { key: "ready" as const, label: "Prontos", dotColor: "bg-primary" },
 ];
 
 const nextStatus: Record<string, string> = {
@@ -75,21 +75,22 @@ const getTimerDisplay = (order: Order, isReady: boolean) => {
   const seconds = elapsedSeconds % 60;
   const display = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 
-  let bgColor: string;
-  let textColor: string;
+  // Border color based on urgency
+  let borderClass: string;
+  let textClass: string;
 
   if (minutes < 10) {
-    bgColor = "#DCFCE7";
-    textColor = "#166534";
+    borderClass = "border-border";
+    textClass = "text-[hsl(153_33%_62%)]";
   } else if (minutes < 20) {
-    bgColor = "#FEF9C3";
-    textColor = "#713F12";
+    borderClass = "border-[hsl(35_31%_18%)]";
+    textClass = "text-[hsl(44_51%_54%)]";
   } else {
-    bgColor = "#FEE2E2";
-    textColor = "#991B1B";
+    borderClass = "border-[hsl(0_23%_19%)]";
+    textClass = "text-destructive";
   }
 
-  return { display, bgColor, textColor };
+  return { display, borderClass, textClass };
 };
 
 const KitchenMonitor = () => {
@@ -113,27 +114,17 @@ const KitchenMonitor = () => {
     });
   };
 
-  // Refresh every 1s for timer + auto-archive ready orders after 1 min
   useEffect(() => {
     const interval = setInterval(() => {
       setTick((t) => t + 1);
-
       setOrders((prev) => {
         const now = Date.now();
         const toArchive = prev.filter(
-          (o) =>
-            o.status === "ready" &&
-            o.updated_at &&
-            now - new Date(o.updated_at).getTime() > 60000
+          (o) => o.status === "ready" && o.updated_at && now - new Date(o.updated_at).getTime() > 60000
         );
-
         if (toArchive.length > 0) {
           toArchive.forEach((o) => {
-            supabase
-              .from("orders")
-              .update({ status: "delivered" })
-              .eq("id", o.id)
-              .then(() => {});
+            supabase.from("orders").update({ status: "delivered" }).eq("id", o.id).then(() => {});
           });
           return prev.filter((o) => !toArchive.find((a) => a.id === o.id));
         }
@@ -143,21 +134,15 @@ const KitchenMonitor = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Get restaurant_id
   useEffect(() => {
     if (!user) return;
     const fetchRestaurant = async () => {
-      const { data } = await supabase
-        .from("restaurants")
-        .select("id")
-        .eq("owner_id", user.id)
-        .single();
+      const { data } = await supabase.from("restaurants").select("id").eq("owner_id", user.id).single();
       if (data) setRestaurantId(data.id);
     };
     fetchRestaurant();
   }, [user]);
 
-  // Fetch orders with new-order detection
   const fetchOrders = useCallback(async () => {
     if (!restaurantId) return;
     const { data } = await supabase
@@ -169,22 +154,15 @@ const KitchenMonitor = () => {
 
     if (data) {
       const fetched = data as unknown as Order[];
-
       if (knownOrderIdsRef.current.size > 0 && soundEnabled) {
         const newOrders = fetched.filter(
-          (o) =>
-            !knownOrderIdsRef.current.has(o.id) &&
-            o.payment_status === "CONFIRMED"
+          (o) => !knownOrderIdsRef.current.has(o.id) && o.payment_status === "CONFIRMED"
         );
         if (newOrders.length > 0) {
           playDoubleBeep();
-          toast({
-            title: `🔔 ${newOrders.length} novo(s) pedido(s)!`,
-            description: "Novos pedidos foram recebidos.",
-          });
+          toast({ title: `${newOrders.length} novo(s) pedido(s)!`, description: "Novos pedidos foram recebidos." });
         }
       }
-
       knownOrderIdsRef.current = new Set(fetched.map((o) => o.id));
       setOrders(fetched);
     }
@@ -195,7 +173,6 @@ const KitchenMonitor = () => {
     if (restaurantId) fetchOrders();
   }, [restaurantId, fetchOrders]);
 
-  // Polling every 5 seconds
   useEffect(() => {
     if (!restaurantId) return;
     const interval = setInterval(fetchOrders, 5000);
@@ -205,52 +182,33 @@ const KitchenMonitor = () => {
   const advance = async (order: Order) => {
     const next = nextStatus[order.status];
     if (!next) return;
-
     setUpdatingOrderId(order.id);
     const previousStatus = order.status;
-
-    // Optimistic update
     setOrders((prev) =>
       prev.map((o) =>
-        o.id === order.id
-          ? { ...o, status: next as Order["status"], updated_at: new Date().toISOString() }
-          : o
+        o.id === order.id ? { ...o, status: next as Order["status"], updated_at: new Date().toISOString() } : o
       )
     );
-
-    const { error } = await supabase
-      .from("orders")
-      .update({ status: next })
-      .eq("id", order.id);
-
+    const { error } = await supabase.from("orders").update({ status: next }).eq("id", order.id);
     setUpdatingOrderId(null);
-
     if (error) {
-      // Rollback
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === order.id ? { ...o, status: previousStatus } : o
-        )
-      );
+      setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, status: previousStatus } : o)));
       toast({ title: "Erro", description: error.message, variant: "destructive" });
       return;
     }
-
     toast({
       title: `Pedido #${order.display_id} atualizado`,
       description: `Movido para "${columns.find((c) => c.key === next)?.label}"`,
     });
   };
 
-  if (loading) {
-    return <KitchenSkeleton />;
-  }
+  if (loading) return <KitchenSkeleton />;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Monitor da Cozinha</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Monitor da Cozinha</h1>
           <p className="text-muted-foreground text-sm">Acompanhe os pedidos em tempo real</p>
         </div>
         <div className="flex items-center gap-2">
@@ -260,10 +218,10 @@ const KitchenMonitor = () => {
             onClick={toggleSound}
             title={soundEnabled ? "Som ativado" : "Som desativado"}
           >
-            {soundEnabled ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+            {soundEnabled ? <Bell className="h-4 w-4" strokeWidth={1.5} /> : <BellOff className="h-4 w-4" strokeWidth={1.5} />}
           </Button>
           <Button variant="outline" size="sm" onClick={fetchOrders}>
-            <RefreshCw className="h-4 w-4 mr-1" />
+            <RefreshCw className="h-4 w-4 mr-1" strokeWidth={1.5} />
             Atualizar
           </Button>
         </div>
@@ -273,9 +231,9 @@ const KitchenMonitor = () => {
         {columns.map((col) => (
           <div key={col.key}>
             <div className="flex items-center gap-2 mb-4">
-              <div className={`h-3 w-3 rounded-full ${col.color}`} />
-              <h2 className="font-semibold">{col.label}</h2>
-              <Badge variant="secondary" className="ml-auto text-xs">
+              <div className={`h-2 w-2 rounded-full ${col.dotColor}`} />
+              <h2 className="text-sm font-medium">{col.label}</h2>
+              <Badge variant="outline" className="ml-auto text-[10px] normal-case tracking-normal">
                 {orders.filter((o) => o.status === col.key).length}
               </Badge>
             </div>
@@ -291,23 +249,18 @@ const KitchenMonitor = () => {
                   return (
                     <Card
                       key={order.id}
-                      className="border-border/50 transition-all"
-                      style={{ backgroundColor: timer.bgColor, color: timer.textColor }}
+                      className={`${timer.borderClass} bg-card`}
                     >
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-3">
-                          <span className="font-semibold text-sm">#{order.display_id}</span>
-                          <Badge
-                            variant="outline"
-                            className="text-xs"
-                            style={{ borderColor: timer.textColor, color: timer.textColor }}
-                          >
+                          <span className="font-medium text-sm font-mono">#{order.display_id}</span>
+                          <Badge variant="outline" className="text-[10px] normal-case tracking-normal">
                             {order.table_number ? `Mesa ${order.table_number}` : "S/ mesa"}
                           </Badge>
                         </div>
                         <ul className="space-y-1 mb-3">
                           {order.order_items.map((item) => (
-                            <li key={item.id} className="text-sm" style={{ opacity: 0.8 }}>
+                            <li key={item.id} className="text-sm text-muted-foreground">
                               • {item.quantity}x {item.product_name}
                               {item.notes ? ` (${item.notes})` : ""}
                             </li>
@@ -319,21 +272,15 @@ const KitchenMonitor = () => {
                               size="sm"
                               variant="ghost"
                               className="h-7 text-xs"
-                              style={{ color: timer.textColor }}
                               onClick={() => advance(order)}
                               disabled={isUpdating}
                             >
-                              {isUpdating ? (
-                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                              ) : null}
+                              {isUpdating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
                               {actionLabels[col.key]} <ArrowRight className="h-3 w-3 ml-1" />
                             </Button>
                           )}
-                          <div
-                            className="flex items-center gap-1 text-xs font-mono font-bold ml-auto"
-                            style={{ color: timer.textColor }}
-                          >
-                            <Clock className="h-3 w-3" />
+                          <div className={`flex items-center gap-1 text-xs font-mono font-medium ml-auto ${timer.textClass}`}>
+                            <Clock className="h-3 w-3" strokeWidth={1.5} />
                             {timer.display}
                           </div>
                         </div>
