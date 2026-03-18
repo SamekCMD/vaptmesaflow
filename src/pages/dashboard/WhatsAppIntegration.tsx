@@ -34,7 +34,7 @@ const WhatsAppIntegration = () => {
           <CardContent>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${connected ? "bg-primary/10" : "bg-destructive/10"}`}>
+                <div className={`h-10 w-10 rounded-md flex items-center justify-center ${connected ? "bg-accent" : "bg-[hsl(0_27%_13%)]"}`}>
                   {connected ? <Wifi className="h-5 w-5 text-primary" /> : <WifiOff className="h-5 w-5 text-destructive" />}
                 </div>
                 <div>
