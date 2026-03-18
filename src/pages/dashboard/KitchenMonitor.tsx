@@ -48,10 +48,10 @@ interface Order {
 }
 
 const columns = [
-  { key: "paid" as const, label: "Pagos (Novos)", color: "bg-emerald-500" },
-  { key: "pending" as const, label: "Na Fila", color: "bg-yellow-500" },
-  { key: "preparing" as const, label: "Preparando", color: "bg-blue-500" },
-  { key: "ready" as const, label: "Prontos", color: "bg-green-500" },
+  { key: "paid" as const, label: "Pagos (Novos)", dotClass: "bg-status-success" },
+  { key: "pending" as const, label: "Na Fila", dotClass: "bg-status-warning" },
+  { key: "preparing" as const, label: "Preparando", dotClass: "bg-info" },
+  { key: "ready" as const, label: "Prontos", dotClass: "bg-status-success" },
 ];
 
 const nextStatus: Record<string, string> = {
@@ -75,21 +75,21 @@ const getTimerDisplay = (order: Order, isReady: boolean) => {
   const seconds = elapsedSeconds % 60;
   const display = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 
-  let bgColor: string;
-  let textColor: string;
+  let dotClass: string;
+  let textClass: string;
 
   if (minutes < 10) {
-    bgColor = "#DCFCE7";
-    textColor = "#166534";
+    dotClass = "bg-status-success";
+    textClass = "text-status-success";
   } else if (minutes < 20) {
-    bgColor = "#FEF9C3";
-    textColor = "#713F12";
+    dotClass = "bg-status-warning";
+    textClass = "text-status-warning";
   } else {
-    bgColor = "#FEE2E2";
-    textColor = "#991B1B";
+    dotClass = "bg-status-error animate-pulse";
+    textClass = "text-status-error";
   }
 
-  return { display, bgColor, textColor };
+  return { display, dotClass, textClass };
 };
 
 const KitchenMonitor = () => {
@@ -250,7 +250,7 @@ const KitchenMonitor = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Monitor da Cozinha</h1>
+          <h1 className="text-2xl font-bold font-display">Monitor da Cozinha</h1>
           <p className="text-muted-foreground text-sm">Acompanhe os pedidos em tempo real</p>
         </div>
         <div className="flex items-center gap-2">
@@ -272,10 +272,10 @@ const KitchenMonitor = () => {
       <div className="grid md:grid-cols-4 gap-6">
         {columns.map((col) => (
           <div key={col.key}>
-            <div className="flex items-center gap-2 mb-4">
-              <div className={`h-3 w-3 rounded-full ${col.color}`} />
-              <h2 className="font-semibold">{col.label}</h2>
-              <Badge variant="secondary" className="ml-auto text-xs">
+            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
+              <div className={`h-2.5 w-2.5 rounded-full ${col.dotClass}`} />
+              <h2 className="text-[11px] font-display font-medium uppercase tracking-wider text-text-tertiary">{col.label}</h2>
+              <Badge variant="secondary" className="ml-auto text-[10px] font-mono px-1.5 py-0.5">
                 {orders.filter((o) => o.status === col.key).length}
               </Badge>
             </div>
@@ -291,23 +291,21 @@ const KitchenMonitor = () => {
                   return (
                     <Card
                       key={order.id}
-                      className="border-border/50 transition-all"
-                      style={{ backgroundColor: timer.bgColor, color: timer.textColor }}
+                      className={`transition-all ${isReady ? "opacity-60 border-status-success/30" : ""}`}
                     >
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-3">
-                          <span className="font-semibold text-sm">#{order.display_id}</span>
+                          <span className="text-xl font-bold font-display text-primary">#{order.display_id}</span>
                           <Badge
                             variant="outline"
-                            className="text-xs"
-                            style={{ borderColor: timer.textColor, color: timer.textColor }}
+                            className="text-[11px] border-border text-text-secondary"
                           >
                             {order.table_number ? `Mesa ${order.table_number}` : "S/ mesa"}
                           </Badge>
                         </div>
                         <ul className="space-y-1 mb-3">
                           {order.order_items.map((item) => (
-                            <li key={item.id} className="text-sm" style={{ opacity: 0.8 }}>
+                            <li key={item.id} className="text-sm text-text-secondary">
                               • {item.quantity}x {item.product_name}
                               {item.notes ? ` (${item.notes})` : ""}
                             </li>
@@ -317,9 +315,8 @@ const KitchenMonitor = () => {
                           {col.key !== "ready" && (
                             <Button
                               size="sm"
-                              variant="ghost"
-                              className="h-7 text-xs"
-                              style={{ color: timer.textColor }}
+                              variant="outline"
+                              className="h-7 text-xs border-primary text-primary hover:bg-brand-coral-muted"
                               onClick={() => advance(order)}
                               disabled={isUpdating}
                             >
@@ -329,10 +326,8 @@ const KitchenMonitor = () => {
                               {actionLabels[col.key]} <ArrowRight className="h-3 w-3 ml-1" />
                             </Button>
                           )}
-                          <div
-                            className="flex items-center gap-1 text-xs font-mono font-bold ml-auto"
-                            style={{ color: timer.textColor }}
-                          >
+                          <div className={`flex items-center gap-1.5 text-xs font-mono font-bold ml-auto ${timer.textClass}`}>
+                            <div className={`h-2 w-2 rounded-full ${timer.dotClass}`} />
                             <Clock className="h-3 w-3" />
                             {timer.display}
                           </div>
@@ -342,7 +337,7 @@ const KitchenMonitor = () => {
                   );
                 })}
               {orders.filter((o) => o.status === col.key).length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-8">Nenhum pedido</p>
+                <p className="text-xs text-text-disabled text-center py-8">Nenhum pedido</p>
               )}
             </div>
           </div>

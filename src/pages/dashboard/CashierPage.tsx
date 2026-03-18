@@ -165,7 +165,7 @@ const CashierPage = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Caixa</h1>
+            <h1 className="text-2xl font-bold font-display">Caixa</h1>
             <p className="text-muted-foreground text-sm">Mapa de mesas em tempo real</p>
           </div>
           <Button variant="outline" size="sm" onClick={fetchSessions}>
@@ -177,16 +177,16 @@ const CashierPage = () => {
         {/* Legend */}
         <div className="flex flex-wrap gap-4 text-xs">
           <div className="flex items-center gap-1.5">
-            <div className="h-3 w-3 rounded border-2 border-border bg-card" />
-            <span className="text-muted-foreground">Livre</span>
+            <div className="h-3 w-3 rounded border border-border bg-card" />
+            <span className="text-text-secondary">Livre</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="h-3 w-3 rounded border-2 border-emerald-500 bg-emerald-500/20" />
-            <span className="text-muted-foreground">Ocupada</span>
+            <div className="h-3 w-3 rounded border border-border/80 bg-muted" />
+            <span className="text-text-secondary">Ocupada</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="h-3 w-3 rounded border-2 border-yellow-500 bg-yellow-500/20 animate-pulse" />
-            <span className="text-muted-foreground">Pediu a Conta</span>
+            <div className="h-3 w-3 rounded border-[1.5px] border-brand-gold bg-brand-gold-muted animate-pulse" />
+            <span className="text-text-secondary">Pediu a Conta</span>
           </div>
         </div>
 

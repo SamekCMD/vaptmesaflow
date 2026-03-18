@@ -14,7 +14,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ["Inter Variable", "Inter", "system-ui", "sans-serif"],
+        display: ["Geist Variable", "sans-serif"],
+        mono: ["GeistMono Variable", "monospace"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -69,17 +71,44 @@ export default {
           DEFAULT: "hsl(var(--surface))",
           foreground: "hsl(var(--surface-foreground))",
         },
+        "brand-coral": {
+          DEFAULT: "hsl(var(--brand-coral))",
+          hover: "hsl(var(--brand-coral-hover))",
+          muted: "hsl(var(--brand-coral-muted))",
+          glow: "hsl(var(--brand-coral-glow))",
+        },
+        "brand-gold": {
+          DEFAULT: "hsl(var(--brand-gold))",
+          muted: "hsl(var(--brand-gold-muted))",
+        },
+        "text-primary": "hsl(var(--text-primary))",
+        "text-secondary": "hsl(var(--text-secondary))",
+        "text-tertiary": "hsl(var(--text-tertiary))",
+        "text-disabled": "hsl(var(--text-disabled))",
         success: "hsl(var(--success))",
         warning: "hsl(var(--warning))",
         info: "hsl(var(--info))",
         "badge-pending": "hsl(var(--badge-pending))",
         "badge-preparing": "hsl(var(--badge-preparing))",
         "badge-ready": "hsl(var(--badge-ready))",
+        "status-success": {
+          DEFAULT: "hsl(var(--status-success))",
+          muted: "hsl(var(--status-success-muted))",
+        },
+        "status-warning": {
+          DEFAULT: "hsl(var(--status-warning))",
+          muted: "hsl(var(--status-warning-muted))",
+        },
+        "status-error": {
+          DEFAULT: "hsl(var(--status-error))",
+          muted: "hsl(var(--status-error-muted))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        xl: "1.25rem",
       },
       keyframes: {
         "accordion-down": {
@@ -98,12 +127,17 @@ export default {
           from: { opacity: "0", transform: "translateX(-20px)" },
           to: { opacity: "1", transform: "translateX(0)" },
         },
+        "pulse-border": {
+          "0%, 100%": { borderColor: "hsl(var(--brand-gold))" },
+          "50%": { borderColor: "hsl(var(--brand-gold-muted))" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "fade-in": "fade-in 0.6s ease-out forwards",
         "slide-in-left": "slide-in-left 0.5s ease-out forwards",
+        "pulse-border": "pulse-border 2s ease-in-out infinite",
       },
     },
   },
