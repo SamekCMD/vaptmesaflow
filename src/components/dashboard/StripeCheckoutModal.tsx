@@ -75,9 +75,10 @@ interface StripeCheckoutModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   plan: PlanDefinition | null;
+  onAutoCharged?: () => void;
 }
 
-export default function StripeCheckoutModal({ open, onOpenChange, plan }: StripeCheckoutModalProps) {
+export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCharged }: StripeCheckoutModalProps) {
   const { user } = useAuth();
   const { restaurantId } = useSubscription();
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -108,7 +109,15 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan }: Stripe
           }),
         });
         const data = await response.json();
-        if (data.clientSecret) {
+
+        if (data.autoCharged === true || !data.clientSecret) {
+          // Plan was auto-charged or no payment needed
+          onAutoCharged?.();
+          onOpenChange(false);
+        } else if (
+          typeof data.clientSecret === "string" &&
+          (data.clientSecret.startsWith("seti_") || data.clientSecret.startsWith("pi_"))
+        ) {
           setClientSecret(data.clientSecret);
         } else {
           setFetchError("Não foi possível iniciar o checkout. Tente novamente.");
