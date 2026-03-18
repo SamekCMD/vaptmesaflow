@@ -20,33 +20,33 @@ const Hero = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7 }}
           >
-            <div className="inline-flex items-center gap-2 rounded-md border border-primary/30 bg-brand-coral-muted px-4 py-1.5 text-sm text-primary mb-6">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm text-primary mb-6">
               <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
               Novo: Integração com WhatsApp via IA
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold font-display tracking-tight text-foreground leading-[1.1] mb-6">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-hero-foreground leading-[1.1] mb-6">
               Seu restaurante no{" "}
               <span className="text-gradient">piloto automático</span>
             </h1>
 
-            <p className="text-lg text-text-secondary max-w-lg mb-8 leading-relaxed">
+            <p className="text-lg text-hero-muted max-w-lg mb-8 leading-relaxed">
               Menu digital, gestão de cozinha em tempo real e atendimento via WhatsApp com IA — tudo integrado em uma única plataforma.
             </p>
 
             <div className="flex flex-wrap gap-4">
-              <Button asChild size="lg" className="text-base px-8 h-12 rounded-md glow font-display">
+              <Button asChild size="lg" className="text-base px-8 h-12 rounded-lg glow">
                 <Link to="/signup">
                   Começar Agora
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="lg" className="text-base px-8 h-12 rounded-md border-border text-foreground hover:bg-muted">
+              <Button asChild variant="outline" size="lg" className="text-base px-8 h-12 rounded-lg border-white/20 text-white hover:bg-white/10">
                 <a href="#funcionalidades">Ver Funcionalidades</a>
               </Button>
             </div>
 
-            <div className="flex items-center gap-6 mt-10 text-sm text-text-secondary">
+            <div className="flex items-center gap-6 mt-10 text-sm text-hero-muted">
               <span>✓ Setup em 5 minutos</span>
               <span>✓ Sem taxa de adesão</span>
               <span>✓ Suporte 24/7</span>

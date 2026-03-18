@@ -186,6 +186,7 @@ const Overview = () => {
   // Chart data
   const chartData = useMemo(() => {
     if (period === "day") {
+      // Hourly
       const hours = Array.from({ length: 24 }, (_, i) => ({
         label: `${i}h`,
         valor: 0,
@@ -233,10 +234,8 @@ const Overview = () => {
   if (!restaurant) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-        <div className="h-16 w-16 rounded-xl bg-muted flex items-center justify-center">
-          <Store className="h-8 w-8 text-text-disabled" />
-        </div>
-        <h2 className="text-xl font-semibold font-display">Nenhum restaurante encontrado</h2>
+        <Store className="h-12 w-12 text-muted-foreground" />
+        <h2 className="text-xl font-semibold">Nenhum restaurante encontrado</h2>
         <p className="text-muted-foreground text-sm max-w-sm">
           Complete o processo de onboarding para configurar seu restaurante.
         </p>
@@ -247,25 +246,25 @@ const Overview = () => {
 
   const metricCards = [
     {
-      title: "FATURAMENTO",
+      title: "Faturamento",
       value: `R$ ${totalRevenue.toFixed(2).replace(".", ",")}`,
       sub: `${completedOrders.length} pedidos concluídos`,
       icon: DollarSign,
     },
     {
-      title: "PEDIDOS PENDENTES",
+      title: "Pedidos Pendentes",
       value: String(pendingCount),
       sub: pendingCount === 0 ? "Tudo em dia!" : "Aguardando ação",
       icon: ShoppingBag,
     },
     {
-      title: "TICKET MÉDIO",
+      title: "Ticket Médio",
       value: `R$ ${avgTicket.toFixed(2).replace(".", ",")}`,
       sub: completedOrders.length > 0 ? "Por pedido concluído" : "Sem dados",
       icon: TrendingUp,
     },
     {
-      title: "TEMPO MÉDIO",
+      title: "Tempo Médio",
       value: avgPrepTime !== null ? `${avgPrepTime} min` : "— min",
       sub: "Preparação + entrega",
       icon: Clock,
@@ -277,18 +276,16 @@ const Overview = () => {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold font-display">{restaurant.name}</h1>
+          <h1 className="text-2xl font-bold">{restaurant.name}</h1>
           <p className="text-muted-foreground text-sm">Resumo do seu restaurante</p>
         </div>
-        <div className="flex gap-0.5 bg-secondary rounded-lg p-1">
+        <div className="flex gap-1 bg-muted rounded-lg p-1">
           {(Object.keys(periodLabels) as Period[]).map((p) => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-150 cursor-pointer ${
-                period === p
-                  ? "bg-brand-coral-muted text-primary shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                period === p ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {periodLabels[p]}
@@ -300,16 +297,14 @@ const Overview = () => {
       {/* Metrics */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {metricCards.map((m) => (
-          <Card key={m.title} className="hover:border-border/80 transition-colors duration-200">
+          <Card key={m.title}>
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[11px] uppercase tracking-[0.08em] text-text-tertiary font-sans">{m.title}</span>
-                <div className="h-8 w-8 rounded-lg bg-brand-coral-muted flex items-center justify-center">
-                  <m.icon className="h-4 w-4 text-primary" />
-                </div>
+                <span className="text-sm text-muted-foreground">{m.title}</span>
+                <m.icon className="h-4 w-4 text-muted-foreground" />
               </div>
-              <p className="text-[28px] font-bold font-display leading-tight">{m.value}</p>
-              <p className="text-xs text-text-secondary mt-1">{m.sub}</p>
+              <p className="text-2xl font-bold">{m.value}</p>
+              <p className="text-xs text-muted-foreground mt-1">{m.sub}</p>
             </CardContent>
           </Card>
         ))}
@@ -317,39 +312,26 @@ const Overview = () => {
 
       {/* Chart */}
       <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center gap-3">
-            <CardTitle className="text-[13px] font-display font-medium">Faturamento</CardTitle>
-            <Badge className="bg-brand-coral-muted text-primary border-0 text-[11px]">
-              {periodLabels[period]}
-            </Badge>
-          </div>
+        <CardHeader>
+          <CardTitle className="text-base">Faturamento — {periodLabels[period]}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
-                <defs>
-                  <linearGradient id="coralGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(11, 100%, 61%)" stopOpacity={1} />
-                    <stop offset="100%" stopColor="hsl(11, 100%, 61%)" stopOpacity={0.3} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="4 4" stroke="hsl(0 0% 100% / 0.06)" />
-                <XAxis dataKey="label" stroke="hsl(233 14% 40%)" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="hsl(233 14% 40%)" fontSize={11} tickFormatter={(v) => `R$${v}`} tickLine={false} axisLine={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickFormatter={(v) => `R$${v}`} />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "hsl(228 16% 13%)",
-                    border: "1px solid hsl(0 0% 100% / 0.18)",
-                    borderRadius: "10px",
+                    backgroundColor: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "8px",
                     fontSize: "12px",
-                    boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
-                    color: "hsl(225 14% 95%)",
                   }}
                   formatter={(value: number) => [`R$ ${value.toFixed(2).replace(".", ",")}`, "Faturamento"]}
                 />
-                <Bar dataKey="valor" fill="url(#coralGradient)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="valor" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -361,22 +343,22 @@ const Overview = () => {
         {/* Most ordered */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-[13px] font-display font-medium flex items-center gap-2">
-              <div className="h-6 w-6 rounded-md bg-brand-gold-muted flex items-center justify-center">
-                <Trophy className="h-3.5 w-3.5 text-brand-gold" />
-              </div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-yellow-500" />
               Mais Pedidos
             </CardTitle>
           </CardHeader>
           <CardContent>
             {topItems.length === 0 ? (
-              <p className="text-sm text-text-tertiary py-4 text-center">Nenhum dado ainda</p>
+              <p className="text-sm text-muted-foreground py-4 text-center">Nenhum dado ainda</p>
             ) : (
               <div className="space-y-3">
                 {topItems.slice(0, 5).map((item, i) => (
                   <div key={item.name} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <span className="font-mono text-sm font-bold text-primary w-5">{i + 1}</span>
+                      <Badge variant="outline" className="h-6 w-6 flex items-center justify-center p-0 text-xs font-bold">
+                        {i + 1}
+                      </Badge>
                       <span className="text-sm font-medium">{item.name}</span>
                     </div>
                     <span className="text-sm text-muted-foreground">{item.qty}x</span>
@@ -390,25 +372,25 @@ const Overview = () => {
         {/* Most profitable */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-[13px] font-display font-medium flex items-center gap-2">
-              <div className="h-6 w-6 rounded-md bg-brand-gold-muted flex items-center justify-center">
-                <Star className="h-3.5 w-3.5 text-brand-gold" />
-              </div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Star className="h-4 w-4 text-primary" />
               Mais Rentáveis
             </CardTitle>
           </CardHeader>
           <CardContent>
             {topByRevenue.length === 0 ? (
-              <p className="text-sm text-text-tertiary py-4 text-center">Nenhum dado ainda</p>
+              <p className="text-sm text-muted-foreground py-4 text-center">Nenhum dado ainda</p>
             ) : (
               <div className="space-y-3">
                 {topByRevenue.slice(0, 5).map((item, i) => (
                   <div key={item.name} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <span className="font-mono text-sm font-bold text-primary w-5">{i + 1}</span>
+                      <Badge variant="outline" className="h-6 w-6 flex items-center justify-center p-0 text-xs font-bold">
+                        {i + 1}
+                      </Badge>
                       <span className="text-sm font-medium">{item.name}</span>
                     </div>
-                    <span className="text-sm font-mono font-semibold text-primary">
+                    <span className="text-sm font-semibold text-primary">
                       R$ {item.revenue.toFixed(2).replace(".", ",")}
                     </span>
                   </div>

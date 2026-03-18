@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, EyeOff, Loader2, Flame } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -48,18 +48,15 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm rounded-xl">
+      <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <Flame className="h-6 w-6 text-primary" />
-            <CardTitle className="text-2xl font-bold font-display text-gradient">Vapt</CardTitle>
-          </div>
+          <CardTitle className="text-2xl font-bold text-gradient">Vapt</CardTitle>
           <CardDescription>Acesse sua conta para gerenciar seu restaurante</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label className="text-xs text-text-secondary font-medium">Email</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -71,7 +68,7 @@ const LoginPage = () => {
               {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
             </div>
             <div className="space-y-2">
-              <Label className="text-xs text-text-secondary font-medium">Senha</Label>
+              <Label htmlFor="password">Senha</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -84,7 +81,7 @@ const LoginPage = () => {
                 <button
                   type="button"
                   onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground cursor-pointer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                 >
                   {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -93,7 +90,7 @@ const LoginPage = () => {
             </div>
           </CardContent>
           <CardFooter className="flex-col gap-3">
-            <Button type="submit" className="w-full font-display" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Entrar
             </Button>

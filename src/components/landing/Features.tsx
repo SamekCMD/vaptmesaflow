@@ -35,10 +35,10 @@ const Features = () => {
           viewport={{ once: true }}
           className="text-center mb-16"
         >
-          <h2 className="text-3xl sm:text-4xl font-bold font-display tracking-tight mb-4">
+          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
             Tudo que seu restaurante precisa
           </h2>
-          <p className="text-text-secondary text-lg max-w-2xl mx-auto">
+          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
             Uma plataforma integrada que conecta salão, cozinha e delivery em uma só experiência.
           </p>
         </motion.div>
@@ -52,13 +52,13 @@ const Features = () => {
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
             >
-              <Card className="card-hover h-full">
+              <Card className="card-hover h-full border-border/50 bg-card">
                 <CardContent className="p-6">
-                  <div className="h-12 w-12 rounded-lg bg-brand-coral-muted flex items-center justify-center mb-4">
+                  <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
                     <feature.icon className="h-6 w-6 text-primary" />
                   </div>
-                  <h3 className="font-semibold font-display text-lg mb-2">{feature.title}</h3>
-                  <p className="text-text-secondary text-sm leading-relaxed">
+                  <h3 className="font-semibold text-lg mb-2">{feature.title}</h3>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
                     {feature.description}
                   </p>
                 </CardContent>

@@ -54,7 +54,7 @@ const SubscriptionPage = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold font-display">Assinatura</h1>
+        <h1 className="text-2xl font-bold">Assinatura</h1>
         <p className="text-muted-foreground text-sm">
           {isTrialing
             ? `Você está no período de teste — ${trialDaysLeft} dia${trialDaysLeft !== 1 ? "s" : ""} restante${trialDaysLeft !== 1 ? "s" : ""}.`
@@ -73,71 +73,60 @@ const SubscriptionPage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
-              className="relative"
             >
-              {plan.highlighted && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
-                  <Badge className="bg-primary text-primary-foreground gap-1 font-display text-[11px] font-medium shadow-[var(--shadow-coral)]">
-                    <Crown className="h-3 w-3" />
-                    Mais Popular
-                  </Badge>
-                </div>
-              )}
               <Card
-                className={`relative h-full flex flex-col rounded-xl ${
-                  current
-                    ? "border-primary border-[1.5px] shadow-[var(--shadow-coral)]"
-                    : plan.highlighted
-                    ? "border-border/80"
-                    : "border-border"
+                className={`relative h-full flex flex-col ${
+                  plan.highlighted
+                    ? "border-primary shadow-lg shadow-primary/10"
+                    : ""
                 }`}
               >
+                {plan.highlighted && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <Badge className="bg-primary text-primary-foreground gap-1">
+                      <Crown className="h-3 w-3" />
+                      Mais Popular
+                    </Badge>
+                  </div>
+                )}
                 {current && (
                   <div className="absolute -top-3 right-4">
-                    <Badge variant="secondary" className="text-text-tertiary">Plano Atual</Badge>
+                    <Badge variant="secondary">Plano Atual</Badge>
                   </div>
                 )}
 
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-lg font-display">{plan.name}</CardTitle>
+                  <CardTitle className="text-lg">{plan.name}</CardTitle>
                   <div className="flex items-baseline gap-1 mt-2">
-                    <span className="text-4xl font-bold font-display">R$ {plan.price}</span>
-                    <span className="text-text-secondary text-sm">/mês</span>
+                    <span className="text-3xl font-bold">R$ {plan.price}</span>
+                    <span className="text-muted-foreground text-sm">/mês</span>
                   </div>
                 </CardHeader>
 
                 <CardContent className="flex-1 flex flex-col">
                   <ul className="space-y-2.5 flex-1 mb-6">
                     {plan.features.map((f) => (
-                      <li key={f} className="flex items-start gap-2 text-[13px]">
-                        <Check className="h-4 w-4 text-status-success mt-0.5 shrink-0" />
+                      <li key={f} className="flex items-start gap-2 text-sm">
+                        <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                         {f}
                       </li>
                     ))}
                     {plan.blockedFeatures.map((f) => (
-                      <li key={f} className="flex items-start gap-2 text-[13px] text-text-tertiary line-through">
-                        <X className="h-4 w-4 text-status-error mt-0.5 shrink-0" />
+                      <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground line-through">
+                        <X className="h-4 w-4 mt-0.5 shrink-0" />
                         {f}
                       </li>
                     ))}
                   </ul>
 
-                  {current ? (
-                    <Button
-                      className="w-full bg-transparent border border-border text-text-tertiary pointer-events-none"
-                      variant="outline"
-                      disabled
-                    >
-                      Plano Atual
-                    </Button>
-                  ) : (
-                    <Button
-                      className="w-full font-display text-sm"
-                      onClick={() => handlePlanClick(plan)}
-                    >
-                      Assinar {plan.name}
-                    </Button>
-                  )}
+                  <Button
+                    className="w-full"
+                    variant={plan.highlighted ? "default" : "outline"}
+                    disabled={current}
+                    onClick={() => handlePlanClick(plan)}
+                  >
+                    {current ? "Plano Atual" : `Assinar ${plan.name}`}
+                  </Button>
                 </CardContent>
               </Card>
             </motion.div>
@@ -149,7 +138,7 @@ const SubscriptionPage = () => {
       <AlertDialog open={!!pendingPlan} onOpenChange={(open) => !open && setPendingPlan(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-display">Confirmar troca de plano</AlertDialogTitle>
+            <AlertDialogTitle>Confirmar troca de plano</AlertDialogTitle>
             <AlertDialogDescription>
               Você está trocando do plano {currentPlanName} para {pendingPlan?.name}. O valor de R$ {pendingPlan?.price},00 será cobrado imediatamente no cartão cadastrado.
             </AlertDialogDescription>
@@ -157,7 +146,7 @@ const SubscriptionPage = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-primary text-primary-foreground hover:bg-brand-coral-hover"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               onClick={handleConfirmUpgrade}
             >
               Confirmar

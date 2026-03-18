@@ -66,6 +66,7 @@ const SettingsPage = () => {
       if (!user) return;
 
       try {
+        // Fetch display fields (no asaas_api_key)
         const { data, error } = await supabase
           .from("restaurants")
           .select("name, address, phone, hours, description, payment_mode, max_pending_orders, max_tables, asaas_api_key")
@@ -139,6 +140,7 @@ const SettingsPage = () => {
         max_pending_orders: paymentForm.max_pending_orders,
       };
 
+      // Only include asaas_api_key if user entered a new one
       if (paymentForm.new_asaas_api_key.trim()) {
         updatePayload.asaas_api_key = paymentForm.new_asaas_api_key;
       }
@@ -169,7 +171,7 @@ const SettingsPage = () => {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-bold font-display">Configurações</h1>
+        <h1 className="text-2xl font-bold">Configurações</h1>
         <p className="text-muted-foreground text-sm">
           Informações do seu estabelecimento
         </p>
@@ -182,27 +184,27 @@ const SettingsPage = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label className="text-xs text-text-secondary font-medium mb-1.5">Nome do Restaurante</Label>
+            <Label>Nome do Restaurante</Label>
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </div>
           <div>
-            <Label className="text-xs text-text-secondary font-medium mb-1.5">Endereço</Label>
+            <Label>Endereço</Label>
             <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
           </div>
           <div>
-            <Label className="text-xs text-text-secondary font-medium mb-1.5">Telefone</Label>
+            <Label>Telefone</Label>
             <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </div>
           <div>
-            <Label className="text-xs text-text-secondary font-medium mb-1.5">Horário de Funcionamento</Label>
+            <Label>Horário de Funcionamento</Label>
             <Input value={form.hours} onChange={(e) => setForm({ ...form, hours: e.target.value })} />
           </div>
           <div>
-            <Label className="text-xs text-text-secondary font-medium mb-1.5">Descrição</Label>
-            <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="bg-secondary border-border" />
+            <Label>Descrição</Label>
+            <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
           </div>
           <div>
-            <Label className="text-xs text-text-secondary font-medium mb-1.5">Número de mesas</Label>
+            <Label>Número de mesas do seu restaurante</Label>
             <Input
               type="number"
               min={1}
@@ -232,13 +234,13 @@ const SettingsPage = () => {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Payment Mode Toggle */}
-          <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-secondary/50">
+          <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-muted/30">
             <div className="space-y-1">
               <Label className="font-semibold">Modo de Operação</Label>
               <p className="text-xs text-muted-foreground">
                 {paymentForm.payment_mode === "prepaid"
-                  ? "Pagamento Antecipado — Cliente paga via Pix antes do pedido ir para a cozinha."
-                  : "Comanda Aberta — Pedido vai direto para a cozinha, cliente paga depois."}
+                  ? "Pagamento Antecipado — Cliente paga via Pix antes do pedido ir para a cozinha. Ideal para balcão e fast-food."
+                  : "Comanda Aberta — Pedido vai direto para a cozinha, cliente paga depois. Ideal para mesas e consumo no local."}
               </p>
             </div>
             <div className="flex flex-col items-end gap-1">
@@ -248,7 +250,7 @@ const SettingsPage = () => {
                   setPaymentForm({ ...paymentForm, payment_mode: checked ? "prepaid" : "open_tab" })
                 }
               />
-              <span className="text-xs font-medium text-text-secondary">
+              <span className="text-xs font-medium">
                 {paymentForm.payment_mode === "prepaid" ? "Antecipado" : "Comanda"}
               </span>
             </div>
@@ -262,11 +264,12 @@ const SettingsPage = () => {
                 <Label className="font-semibold">Integração Asaas</Label>
               </div>
 
+              {/* Show current key status */}
               <div className="flex items-center gap-2 text-sm">
                 {paymentForm.has_asaas_key ? (
                   <>
-                    <CheckCircle2 className="h-4 w-4 text-status-success" />
-                    <span className="text-status-success font-medium">Chave API configurada</span>
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <span className="text-green-700 font-medium">Chave API configurada</span>
                   </>
                 ) : (
                   <>
@@ -288,7 +291,7 @@ const SettingsPage = () => {
                 />
                 <button
                   type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground cursor-pointer"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
                   onClick={() => setShowApiKey(!showApiKey)}
                 >
                   {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -307,9 +310,9 @@ const SettingsPage = () => {
                 </Button>
                 {testResult && (
                   <span className={`text-xs font-medium ${
-                    testResult.type === "success" ? "text-status-success" :
-                    testResult.type === "error" ? "text-status-error" :
-                    "text-status-warning"
+                    testResult.type === "success" ? "text-green-600" :
+                    testResult.type === "error" ? "text-red-600" :
+                    "text-yellow-600"
                   }`}>
                     {testResult.message}
                   </span>
@@ -325,7 +328,7 @@ const SettingsPage = () => {
           {/* Max pending orders - visible when open_tab */}
           {paymentForm.payment_mode === "open_tab" && (
             <div className="space-y-2">
-              <Label className="text-xs text-text-secondary font-medium">Limite de Pedidos Pendentes (Anti-fraude)</Label>
+              <Label>Limite de Pedidos Pendentes (Anti-fraude)</Label>
               <p className="text-xs text-muted-foreground">
                 Máximo de pedidos que um cliente pode ter pendentes antes que novos sejam bloqueados.
               </p>
