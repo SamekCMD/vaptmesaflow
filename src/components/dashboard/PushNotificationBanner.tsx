@@ -20,14 +20,12 @@ const PushNotificationBanner = ({ restaurantId }: PushNotificationBannerProps) =
   const [subscribing, setSubscribing] = useState(false);
 
   useEffect(() => {
-    // Show banner only if: push supported, not dismissed, not already subscribed
     if (
       isPushSupported() &&
       !isPushDismissed() &&
       !isAlreadySubscribed() &&
       Notification.permission !== "denied"
     ) {
-      // Slight delay so it doesn't flash on load
       const timer = setTimeout(() => setVisible(true), 2000);
       return () => clearTimeout(timer);
     }
@@ -40,7 +38,7 @@ const PushNotificationBanner = ({ restaurantId }: PushNotificationBannerProps) =
     setSubscribing(false);
 
     if (result.success) {
-      toast({ title: "Notificações ativadas! 🔔", description: "Você receberá alertas de novos pedidos." });
+      toast({ title: "Notificações ativadas!", description: "Você receberá alertas de novos pedidos." });
       setVisible(false);
     } else if (result.error === "Permission denied") {
       toast({ title: "Permissão negada", description: "Permita notificações nas configurações do navegador.", variant: "destructive" });
@@ -63,10 +61,10 @@ const PushNotificationBanner = ({ restaurantId }: PushNotificationBannerProps) =
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
-          className="relative flex items-center gap-3 p-3 rounded-lg border border-primary/20 bg-primary/5"
+          className="relative flex items-center gap-3 p-3 rounded-md border border-border bg-card"
         >
-          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-            <Bell className="h-4 w-4 text-primary" />
+          <div className="h-8 w-8 rounded-md bg-secondary flex items-center justify-center shrink-0">
+            <Bell className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium">Ative as notificações</p>
@@ -74,7 +72,7 @@ const PushNotificationBanner = ({ restaurantId }: PushNotificationBannerProps) =
           </div>
           <Button
             size="sm"
-            className="shrink-0 h-8 text-xs"
+            className="shrink-0 h-7 text-xs"
             onClick={handleActivate}
             disabled={subscribing}
           >
