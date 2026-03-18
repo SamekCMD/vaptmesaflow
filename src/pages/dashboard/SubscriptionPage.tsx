@@ -54,7 +54,7 @@ const SubscriptionPage = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Assinatura</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Assinatura</h1>
         <p className="text-muted-foreground text-sm">
           {isTrialing
             ? `Você está no período de teste — ${trialDaysLeft} dia${trialDaysLeft !== 1 ? "s" : ""} restante${trialDaysLeft !== 1 ? "s" : ""}.`

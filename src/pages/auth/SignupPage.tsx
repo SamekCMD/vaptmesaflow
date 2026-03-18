@@ -32,17 +32,13 @@ const SignupPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
-
     const result = signupSchema.safeParse(form);
     if (!result.success) {
       const fieldErrors: Record<string, string> = {};
-      result.error.issues.forEach((i) => {
-        fieldErrors[i.path[0] as string] = i.message;
-      });
+      result.error.issues.forEach((i) => { fieldErrors[i.path[0] as string] = i.message; });
       setErrors(fieldErrors);
       return;
     }
-
     setLoading(true);
     const { error } = await signUp(form.email, form.password, form.fullName);
     setLoading(false);
@@ -57,7 +53,7 @@ const SignupPage = () => {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-gradient">Criar Conta</CardTitle>
+          <CardTitle className="text-xl font-semibold">Criar Conta</CardTitle>
           <CardDescription>Comece a gerenciar seu restaurante agora</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
@@ -75,14 +71,7 @@ const SignupPage = () => {
             <div className="space-y-2">
               <Label htmlFor="password">Senha</Label>
               <div className="relative">
-                <Input
-                  id="password"
-                  type={showPw ? "text" : "password"}
-                  placeholder="Mínimo 8 caracteres"
-                  value={form.password}
-                  onChange={set("password")}
-                  autoComplete="new-password"
-                />
+                <Input id="password" type={showPw ? "text" : "password"} placeholder="Mínimo 8 caracteres" value={form.password} onChange={set("password")} autoComplete="new-password" />
                 <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                   {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -91,14 +80,7 @@ const SignupPage = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirmar Senha</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder="Repita a senha"
-                value={form.confirmPassword}
-                onChange={set("confirmPassword")}
-                autoComplete="new-password"
-              />
+              <Input id="confirmPassword" type="password" placeholder="Repita a senha" value={form.confirmPassword} onChange={set("confirmPassword")} autoComplete="new-password" />
               {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword}</p>}
             </div>
           </CardContent>
@@ -109,9 +91,7 @@ const SignupPage = () => {
             </Button>
             <p className="text-sm text-muted-foreground">
               Já tem conta?{" "}
-              <Link to="/login" className="text-primary font-medium hover:underline">
-                Entrar
-              </Link>
+              <Link to="/login" className="text-primary font-medium hover:underline">Entrar</Link>
             </p>
           </CardFooter>
         </form>

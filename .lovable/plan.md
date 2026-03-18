@@ -1,192 +1,250 @@
 
+# Plano: Pagina de Precos + Stripe Checkout via n8n + Trial + Feature Gating
 
-# Visual Redesign: Dark Sage Minimal Identity
+## Resumo
 
-Complete visual overhaul of the Vapt platform. No logic, routes, queries, or data changes — only CSS tokens, Tailwind config, component styles, and typography.
-
-## Scope Summary
-
-~20 files across 5 batches. Replace the green/coral HSL-based identity with a dark near-black base + sage accent system using hex values. Switch fonts from Inter to DM Sans/DM Mono.
+Criar uma pagina dedicada `/pricing` com os 3 planos (Starter R$97, Pro R$197, Business R$347), integrar com Stripe Checkout via webhook n8n, implementar trial de 3 dias no onboarding, e bloquear funcionalidades por plano no dashboard.
 
 ---
 
-## Batch 1 — Foundation (Tokens + CSS)
+## 1. Banco de Dados - Migracoes SQL
 
-### 1.1 Create `src/lib/design-tokens.ts`
-New file with the full token object as specified (bg, border, text, sage, status, font, radius, shadow).
+Adicionar colunas na tabela `restaurants`:
 
-### 1.2 Rewrite `src/index.css`
-- Replace Google Fonts import: DM Sans + DM Mono instead of Inter + Nunito
-- Remove both `:root` and `.dark` blocks. Replace with a single `:root` block using hex values directly (no HSL conversion needed since shadcn vars will be set as hex-compatible values)
-- Key shadcn overrides: `--background: 0 0% 5%` (converted from #0C0C0E), `--primary: 153 13% 55%` (from #7D9E8C), etc. — all CSS custom properties converted to HSL format for shadcn compatibility
-- Remove `.dark` class block entirely (always dark)
-- Replace utility classes: `.text-gradient` → sage-based subtle gradient, `.hero-gradient` → #0C0C0E to #111114, `.card-hover` → border-color transition only (no translateY/colored shadow), `.glow` → removed or replaced with subtle dark shadow
-- Add scrollbar, selection, and `.mono` utility styles
-- Body: `font-family: 'DM Sans'`, `font-size: 14px`, `line-height: 1.6`
+```sql
+ALTER TABLE public.restaurants
+  ADD COLUMN IF NOT EXISTS plan_type TEXT NOT NULL DEFAULT 'starter' CHECK (plan_type IN ('starter', 'pro', 'business')),
+  ADD COLUMN IF NOT EXISTS plan_status TEXT NOT NULL DEFAULT 'trialing' CHECK (plan_status IN ('trialing', 'active', 'expired', 'cancelled')),
+  ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT,
+  ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
+```
 
-### 1.3 Update `tailwind.config.ts`
-- Change `fontFamily.sans` to `['DM Sans', 'system-ui', 'sans-serif']`
-- Add `fontFamily.mono: ['DM Mono', 'monospace']`
-- Update `--radius` to `6px`
-- Remove `hero`, `surface`, `badge-*` custom colors (replaced by direct hex usage in components)
-- Keep shadcn color structure but values will come from updated CSS vars
-- Update animation keyframes: remove bounce effects, keep fade-in at 150ms ease
-
-### 1.4 Remove `src/App.css`
-Unused legacy styles (Vite boilerplate). No component imports it.
+No onboarding (INSERT do restaurante), setar `trial_ends_at = now() + interval '3 days'` e `plan_status = 'trialing'`.
 
 ---
 
-## Batch 2 — Shadcn Base Components
+## 2. Arquivos a Criar
 
-### 2.1 `button.tsx`
-Update `buttonVariants`:
-- **default**: bg `#7D9E8C`, text `#0C0C0E`, hover `#9AB5A6`, rounded-md (6px), font-medium, transition 150ms
-- **outline** (secondary): transparent bg, border `#2E2E34`, text `#F2F2F0`, hover bg `#17171B`, hover border sage
-- **ghost**: transparent, text `#8A8A8E`, hover bg `#17171B` + text `#F2F2F0`
-- **destructive**: bg `#2A1818`, text `#C97B7B`, border `#3D2626`, hover bg `#3D2626`
-- Remove `link` variant or keep minimal
+| Arquivo | Descricao |
+|---|---|
+| `src/pages/PricingPage.tsx` | Pagina publica/autenticada de planos e precos com botoes de checkout |
+| `src/hooks/use-plan.ts` | Hook centralizado que expoe `planType`, `planStatus`, `trialEndsAt`, `isFeatureAllowed(feature)`, `trialRemainingLabel` |
+| `src/components/FeatureGate.tsx` | Wrapper que mostra overlay com cadeado + link para /pricing quando funcionalidade esta bloqueada |
+| `src/components/dashboard/TrialBanner.tsx` | Banner no topo do dashboard mostrando dias restantes do trial |
 
-### 2.2 `card.tsx`
-- bg `#111114`, border `#222226`, rounded-lg (8px), no shadow
-- Hover: border-color `#2E2E34` with 150ms transition
+## 3. Arquivos a Modificar
 
-### 2.3 `input.tsx`
-- bg `#17171B`, border `#222226`, text `#F2F2F0`, placeholder `#555558`
-- Focus: border `#7D9E8C`, ring `rgba(125,158,140,0.15)`, no outline
-- Height 36px (h-9), rounded-md (6px), text-sm (14px)
-
-### 2.4 `badge.tsx`
-- Reduce default sizing: text-[11px], uppercase, tracking-[0.06em], font-medium, rounded-sm (4px), px-2 py-0.5
-- **default** (success/active): bg `#1A2E26`, text `#7DBF9E`, border `#2A4A3A`
-- **secondary** (pending): bg `#2A2318`, text `#C9A84C`, border `#3D3220`
-- **outline**: keep as-is but match border color
-- Add `info` variant: bg `#181E2A`, text `#7B9BC9`, border `#26303D`
-
-### 2.5 `select.tsx`
-- Match input styling: bg `#17171B`, border `#222226`, focus border sage
-- Dropdown content: bg `#1E1E23`, border `#222226`
-
-### 2.6 `dialog.tsx`
-- Overlay: bg `#0C0C0E/80` with backdrop-blur
-- Content: bg `#1E1E23`, border `#222226`, rounded-lg (8px)
-
-### 2.7 `label.tsx`
-- text-xs (11px when used as caption) or text-sm, font-medium, color from `--text-secondary`
+| Arquivo | Mudanca |
+|---|---|
+| `src/App.tsx` | Adicionar rota `/pricing` |
+| `src/components/landing/Pricing.tsx` | Atualizar planos (Starter/Pro/Business) e linkar para `/pricing` |
+| `src/components/landing/Navbar.tsx` | Link "Planos" aponta para `/pricing` |
+| `src/pages/onboarding/OnboardingPage.tsx` | Setar `trial_ends_at` no INSERT |
+| `src/components/DashboardLayout.tsx` | Importar `TrialBanner` e `usePlan`; mostrar banner de trial |
+| `src/pages/dashboard/CashierPage.tsx` | Envolver com `FeatureGate` (requer Pro+) |
+| `src/pages/dashboard/WhatsAppIntegration.tsx` | Envolver com `FeatureGate` (requer Business) |
+| `src/lib/constants.ts` | Adicionar URL do webhook de checkout n8n |
 
 ---
 
-## Batch 3 — Layout (Sidebar, Header, DashboardLayout)
+## 4. Detalhes Tecnicos
 
-### 3.1 `DashboardLayout.tsx`
-**Sidebar:**
-- bg `#0C0C0E`, border-right `#222226`, width 220px (w-[220px] instead of w-64)
-- Logo "Vapt": DM Sans weight-600, color `#F2F2F0`, no gradient
-- Nav items: text-[13px], color `#8A8A8E`, px-3 py-2, rounded-md (6px)
-- Active: bg `#17171B`, text `#F2F2F0`, border-left 2px solid `#7D9E8C`
-- Hover: bg `#111114`, text `#F2F2F0`
-- Icons: h-4 w-4 (16px), stroke-width inherited
-- Plan badge at bottom: use new badge status styles
+### 4.1 Definicao dos Planos
 
-**Header:**
-- bg `#0C0C0E`, border-bottom `#222226`, h-[52px]
-- Title: text-sm font-medium
-- Avatar: bg `#17171B` (remove primary tint)
+```typescript
+export const PLANS = [
+  {
+    id: "starter",
+    name: "Starter",
+    price: 97,
+    priceId: "price_XXXX", // Stripe Price ID - usuario configura
+    features: [
+      "Cardapio digital ilimitado",
+      "QR Codes para mesas",
+      "KDS - Monitor de Cozinha",
+      "Pedidos ilimitados",
+      "Suporte por e-mail",
+    ],
+    blocked: ["cashier", "open_tab", "whatsapp_bot", "multi_users"],
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    price: 197,
+    priceId: "price_YYYY",
+    features: [
+      "Tudo do Starter",
+      "Caixa e Comanda Aberta",
+      "Dashboard de metricas",
+      "Suporte prioritario",
+    ],
+    blocked: ["whatsapp_bot", "multi_users"],
+  },
+  {
+    id: "business",
+    name: "Business",
+    price: 347,
+    priceId: "price_ZZZZ",
+    features: [
+      "Tudo do Pro",
+      "WhatsApp Bot com IA",
+      "Multi-usuarios",
+      "Relatorios avancados",
+      "Gerente de conta dedicado",
+    ],
+    blocked: [],
+  },
+];
+```
 
-**Main content area:**
-- bg `#0C0C0E`
-- Padding kept but ensure 24px+ spacing between sections
+### 4.2 Hook `usePlan`
 
-### 3.2 `TrialBanner.tsx`
-- Use status token colors instead of HSL-based primary/warning/destructive tints
+Busca `plan_type`, `plan_status` e `trial_ends_at` da tabela `restaurants` pelo `owner_id` do usuario autenticado. Expoe:
 
-### 3.3 `PushNotificationBanner.tsx`
-- Match new dark styling
+- `planType`: "starter" | "pro" | "business"
+- `planStatus`: "trialing" | "active" | "expired" | "cancelled"
+- `isActive`: true se `plan_status === 'active'` OU (`plan_status === 'trialing'` E `trial_ends_at > now()`)
+- `trialDaysLeft`: numero de dias restantes (ou 0)
+- `trialLabel`: string formatada "X dias restantes"
+- `canAccess(feature: string)`: retorna true se o plano atual permite a feature
+
+### 4.3 Pagina `/pricing` (PricingPage.tsx)
+
+- Se usuario NAO esta logado: mostra a pagina normalmente com botao "Assinar" que redireciona para `/login?redirect=/pricing`
+- Se usuario esta logado:
+  - Mostra o plano atual com badge "Plano Atual"
+  - Botao "Assinar" dispara POST para webhook n8n com `{ restaurant_id, email, price_id }`
+  - n8n cria Stripe Checkout Session e retorna `{ url }`
+  - Frontend redireciona para `url` (Stripe Checkout)
+  - Apos pagamento, Stripe webhook no n8n atualiza `plan_type`, `plan_status = 'active'` e `stripe_*` no Supabase
+
+Design: 3 cards com animacao framer-motion, cores do tema, badge "Mais Popular" no Pro, check marks nas features, X vermelho nas bloqueadas.
+
+### 4.4 Fluxo de Checkout
+
+```text
+Usuario clica "Assinar Pro"
+  -> POST para N8N_CHECKOUT_WEBHOOK_URL
+     body: { restaurant_id, email, price_id, success_url, cancel_url }
+  -> n8n cria Stripe Checkout Session
+  -> retorna { url }
+  -> window.location.href = url (redireciona para Stripe)
+  -> Stripe processa pagamento
+  -> Stripe webhook -> n8n -> UPDATE restaurants SET plan_type, plan_status='active'
+  -> Usuario volta para success_url (/dashboard?checkout=success)
+```
+
+### 4.5 TrialBanner
+
+Componente que aparece no topo do dashboard quando `plan_status === 'trialing'`:
+
+- Verde: "Voce tem X dias de teste gratuito. [Assinar Plano]"
+- Amarelo: "Seu teste expira amanha! [Assinar Agora]"  
+- Vermelho: "Seu teste expirou. [Assinar para continuar]"
+
+### 4.6 FeatureGate
+
+```tsx
+<FeatureGate feature="cashier" requiredPlan="pro">
+  <CashierPage />
+</FeatureGate>
+```
+
+Quando bloqueado: renderiza overlay semi-transparente com icone de cadeado e texto "Disponivel no Plano Pro" + botao para `/pricing`.
+
+### 4.7 Bloqueio por Plano
+
+| Feature | Starter | Pro | Business |
+|---|---|---|---|
+| Cardapio digital | OK | OK | OK |
+| KDS Cozinha | OK | OK | OK |
+| Configuracoes | OK | OK | OK |
+| Caixa / Comanda Aberta | Bloqueado | OK | OK |
+| Dashboard metricas | OK | OK | OK |
+| WhatsApp Bot | Bloqueado | Bloqueado | OK |
+| Multi-usuarios | Bloqueado | Bloqueado | OK |
+
+### 4.8 Bloqueio total quando trial expira
+
+No `ProtectedRoute` ou no `DashboardLayout`, verificar:
+- Se `plan_status !== 'active'` E (`plan_status !== 'trialing'` OU `trial_ends_at < now()`):
+  - Redirecionar para `/pricing` com mensagem de que o acesso expirou
+  - Permitir apenas a pagina de `/pricing` e `/dashboard/settings`
+
+### 4.9 Onboarding - Trial automatico
+
+No `handleFinish` do `OnboardingPage.tsx`, adicionar ao INSERT:
+
+```typescript
+trial_ends_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+plan_status: 'trialing',
+plan_type: 'starter',
+```
+
+### 4.10 Constantes n8n
+
+Adicionar em `constants.ts`:
+
+```typescript
+export const N8N_CHECKOUT_WEBHOOK_URL = import.meta.env.VITE_N8N_CHECKOUT_WEBHOOK_URL 
+  || "https://samuel-n8n.br8r5p.easypanel.host/webhook/stripe-checkout-vapt";
+```
 
 ---
 
-## Batch 4 — Pages
+## 5. Fluxo Resumido
 
-### 4.1 Dashboard Overview (`Overview.tsx`)
-- H1: text-xl font-semibold (not text-2xl font-bold), tracking-tight
-- KPI cards: label as uppercase 11px `#555558`, value in `font-mono text-[28px] font-medium`, sub text `#8A8A8E`
-- Period selector: bg `#111114`, active bg `#17171B`
-- Chart: bar fill `#7D9E8C`, grid stroke `#222226`, tooltip bg `#1E1E23`
-- Top items: badge ranking circles match new badge style
+```text
+ONBOARDING:
+  1. Usuario cria conta e restaurante
+  2. trial_ends_at = now + 3 dias, plan_status = 'trialing'
+  3. Acesso total por 3 dias
 
-### 4.2 Kitchen Monitor (`KitchenMonitor.tsx`)
-- Column status dots: use sage/status token colors instead of Tailwind emerald/yellow/blue/green
-- KDS cards: remove the colored background timer system — use dark cards with subtle border color changes for urgency
-- Timer badge: mono font, status-colored text only
+DASHBOARD (durante trial):
+  1. Banner verde: "X dias de teste restantes"
+  2. Todas as funcionalidades liberadas durante o trial
 
-### 4.3 Cashier (`CashierPage.tsx`)
-- Table cards: free = border `#222226`, occupied = border sage-dim `#4A6358`, check_requested = border `#C9A84C` with subtle pulse
-- Remove colored bg tints on table cards
+TRIAL EXPIRADO:
+  1. Banner vermelho + redirect para /pricing
+  2. Apenas /pricing e /settings acessiveis
 
-### 4.4 Menu Management (`MenuManagement.tsx`)
-- Table rows: border-bottom `#222226`, hover bg `#111114`
-- No zebra striping
-- Price column: font-mono
+CHECKOUT:
+  1. /pricing -> Clica "Assinar Pro"
+  2. POST n8n -> Stripe Checkout -> Redirect
+  3. Pagamento -> n8n atualiza Supabase
+  4. plan_status = 'active', plan_type = 'pro'
 
-### 4.5 Settings + Appearance + WhatsApp + Subscription pages
-- Apply consistent heading hierarchy (h1: 20px/600, h2: 14px/500)
-- Cards with new token styling
-- Remove colored icon backgrounds (bg-primary/10) — use `#17171B` instead
-
-### 4.6 Landing pages (Navbar, Hero, Features, SocialProof, FAQ, Footer, Pricing, HeroDashboardMockup)
-- Navbar: bg `#0C0C0E`, "Vapt" in `#F2F2F0` (no gradient), links in `#8A8A8E`
-- Hero: bg gradient `#0C0C0E` → `#111114`, CTA button sage, sub-text `#8A8A8E`
-- Features: card bg `#111114`, icon containers bg `#1A2E26` (sage-subtle), icon color `#7D9E8C`
-- Pricing cards: highlighted card border sage `#4A6358`, "Mais Popular" badge sage
-- Social proof: stars in `#C9A84C` (warning), cards bg `#111114`
-- FAQ: accordion bg `#111114`
-- Footer: bg `#0C0C0E`
-- HeroDashboardMockup: update all white/5 → `#111114`, bars → sage gradient
-- Remove `text-gradient` usage → plain `#F2F2F0` or sage `#7D9E8C`
-
-### 4.7 Auth pages (Login, Signup)
-- bg `#0C0C0E`, card bg `#111114`
-- "Vapt" title: plain `#F2F2F0` font-semibold (no gradient)
-
-### 4.8 Onboarding
-- Same dark treatment, progress bar sage
-
-### 4.9 PricingPage (standalone)
-- Remove hero-gradient header, use `#0C0C0E` with border
-- Remove `.glow` and `.card-hover`
-
-### 4.10 NotFound
-- bg `#0C0C0E`
+POS-ASSINATURA:
+  1. Features liberadas conforme plano
+  2. Features bloqueadas mostram overlay + cadeado
+```
 
 ---
 
-## Batch 5 — Polish
+## 6. Secao Tecnica - Resumo de Mudancas
 
-### 5.1 `FeatureGate.tsx`
-- Lock icon container: bg `#17171B`
-- Blur overlay: `#0C0C0E/80`
+### Migracoes SQL:
+- Adicionar colunas `plan_type`, `plan_status`, `trial_ends_at`, `stripe_customer_id`, `stripe_subscription_id` em `restaurants`
 
-### 5.2 Skeletons (`DashboardSkeletons.tsx`)
-- Skeleton bg `#17171B` (inherits from muted token)
+### Novos arquivos (4):
+- `src/pages/PricingPage.tsx`
+- `src/hooks/use-plan.ts`
+- `src/components/FeatureGate.tsx`
+- `src/components/dashboard/TrialBanner.tsx`
 
-### 5.3 ThemeProvider
-- In `App.tsx`, change `defaultTheme="dark"` — remove `enableSystem` to enforce single dark theme, or keep as-is since we removed the `.dark` CSS block and made `:root` the dark theme
+### Arquivos modificados (8):
+- `src/App.tsx` - rota /pricing
+- `src/lib/constants.ts` - webhook URL
+- `src/components/landing/Pricing.tsx` - novos planos
+- `src/components/landing/Navbar.tsx` - link para /pricing
+- `src/pages/onboarding/OnboardingPage.tsx` - trial_ends_at no INSERT
+- `src/components/DashboardLayout.tsx` - TrialBanner + bloqueio trial expirado
+- `src/pages/dashboard/CashierPage.tsx` - FeatureGate pro
+- `src/pages/dashboard/WhatsAppIntegration.tsx` - FeatureGate business
 
-### 5.4 Review all remaining files for:
-- Any remaining `text-gradient` class → replace with plain text or sage
-- Any `glow` class → remove
-- Any `hero-gradient` → replace with `bg-[#0C0C0E]` or inline gradient
-- Any `card-hover` → replace with `transition-colors duration-150` + hover:border
-- Border radius > 12px (except phone mockup preview)
-- Colored shadows → black-only shadows
-- Missing mono font on monetary values and IDs
-- Icon sizing consistency (16px, strokeWidth 1.5)
-
----
-
-## Files Modified (total ~25)
-
-**New:** `src/lib/design-tokens.ts`
-**Deleted:** `src/App.css`
-**Modified:** `src/index.css`, `tailwind.config.ts`, `button.tsx`, `card.tsx`, `input.tsx`, `badge.tsx`, `select.tsx`, `dialog.tsx`, `DashboardLayout.tsx`, `TrialBanner.tsx`, `Overview.tsx`, `KitchenMonitor.tsx`, `CashierPage.tsx`, `MenuManagement.tsx`, `SettingsPage.tsx`, `AppearancePage.tsx`, `WhatsAppIntegration.tsx`, `SubscriptionPage.tsx`, `Navbar.tsx`, `Hero.tsx`, `Features.tsx`, `SocialProof.tsx`, `FAQ.tsx`, `Footer.tsx`, `Pricing.tsx`, `HeroDashboardMockup.tsx`, `LoginPage.tsx`, `SignupPage.tsx`, `OnboardingPage.tsx`, `PricingPage.tsx`, `NotFound.tsx`, `FeatureGate.tsx`, `TableCard.tsx`, `App.tsx`
-
+### Configuracao necessaria pelo usuario:
+- Criar 3 produtos/precos no Stripe (Starter, Pro, Business)
+- Configurar workflow no n8n para receber POST, criar Checkout Session e retornar URL
+- Configurar webhook do Stripe no n8n para atualizar `plan_status` no Supabase apos pagamento
+- Definir os `price_id` do Stripe nos planos (pode ser via env vars ou hardcoded)
