@@ -32,12 +32,12 @@ const SocialProof = () => {
           viewport={{ once: true }}
           className="text-center mb-20"
         >
-          <p className="text-sm text-muted-foreground uppercase tracking-wider mb-8">
+          <p className="text-[11px] text-text-tertiary uppercase tracking-[0.08em] mb-8">
             Restaurantes que confiam no Vapt
           </p>
           <div className="flex flex-wrap justify-center gap-8 md:gap-12">
             {partners.map((p) => (
-              <span key={p} className="text-lg font-semibold text-muted-foreground/60 hover:text-foreground transition-colors">
+              <span key={p} className="text-lg font-semibold font-display text-text-disabled hover:text-foreground transition-colors cursor-default">
                 {p}
               </span>
             ))}
@@ -53,17 +53,17 @@ const SocialProof = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
-              className="bg-card border border-border/50 rounded-xl p-6"
+              className="bg-card border border-border rounded-xl p-6"
             >
               <div className="flex gap-1 mb-4">
                 {[...Array(5)].map((_, j) => (
                   <Star key={j} className="h-4 w-4 fill-primary text-primary" />
                 ))}
               </div>
-              <p className="text-sm leading-relaxed mb-4 text-muted-foreground">"{t.text}"</p>
+              <p className="text-sm leading-relaxed mb-4 text-text-secondary">"{t.text}"</p>
               <div>
-                <p className="font-semibold text-sm">{t.name}</p>
-                <p className="text-xs text-muted-foreground">{t.role}</p>
+                <p className="font-semibold font-display text-sm">{t.name}</p>
+                <p className="text-xs text-text-tertiary">{t.role}</p>
               </div>
             </motion.div>
           ))}

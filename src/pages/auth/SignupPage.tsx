@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, Flame } from "lucide-react";
 import { z } from "zod";
 
 const signupSchema = z.object({
@@ -55,25 +55,28 @@ const SignupPage = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm rounded-xl">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-gradient">Criar Conta</CardTitle>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Flame className="h-6 w-6 text-primary" />
+            <CardTitle className="text-2xl font-bold font-display text-gradient">Criar Conta</CardTitle>
+          </div>
           <CardDescription>Comece a gerenciar seu restaurante agora</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="fullName">Nome Completo</Label>
+              <Label className="text-xs text-text-secondary font-medium">Nome Completo</Label>
               <Input id="fullName" placeholder="João Silva" value={form.fullName} onChange={set("fullName")} autoComplete="name" />
               {errors.fullName && <p className="text-xs text-destructive">{errors.fullName}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label className="text-xs text-text-secondary font-medium">Email</Label>
               <Input id="email" type="email" placeholder="voce@restaurante.com" value={form.email} onChange={set("email")} autoComplete="email" />
               {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
+              <Label className="text-xs text-text-secondary font-medium">Senha</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -83,14 +86,14 @@ const SignupPage = () => {
                   onChange={set("password")}
                   autoComplete="new-password"
                 />
-                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground cursor-pointer">
                   {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
               {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirmar Senha</Label>
+              <Label className="text-xs text-text-secondary font-medium">Confirmar Senha</Label>
               <Input
                 id="confirmPassword"
                 type="password"
@@ -103,7 +106,7 @@ const SignupPage = () => {
             </div>
           </CardContent>
           <CardFooter className="flex-col gap-3">
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full font-display" disabled={loading}>
               {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Criar Conta
             </Button>
