@@ -71,6 +71,7 @@ const PublicMenu = () => {
 
   const [ratingOrder, setRatingOrder] = useState<{ id: string; displayId: number } | null>(null);
   const prevItemsRef = useRef<Map<string | number, boolean>>(new Map());
+  const isInitialLoadRef = useRef(true);
 
   useEffect(() => {
     const fetchData = async () => {
