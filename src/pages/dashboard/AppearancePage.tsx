@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { fontFamilyLabels, fontFamilyMap, type RestaurantConfig } from "@/lib/restaurant-config";
 import { toast } from "@/hooks/use-toast";
-import { Upload, Smartphone, ExternalLink, Loader2 } from "lucide-react";
+import { Upload, Smartphone, ExternalLink, Loader2, UtensilsCrossed } from "lucide-react";
 import { AppearanceFormSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
