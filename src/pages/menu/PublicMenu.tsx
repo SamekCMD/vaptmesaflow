@@ -359,6 +359,7 @@ const PublicMenu = () => {
 
   const handleOrderPlaced = useCallback((orderId: string) => {
     if (!restaurant) return;
+    // Save to localStorage (for rating/history)
     const key = `orders_${restaurant.id}`;
     try {
       const stored = JSON.parse(localStorage.getItem(key) || "[]");
@@ -366,6 +367,14 @@ const PublicMenu = () => {
       localStorage.setItem(key, JSON.stringify(stored));
     } catch {
       localStorage.setItem(key, JSON.stringify([orderId]));
+    }
+    // Save to sessionStorage (for current-session toast filtering)
+    try {
+      const sessionIds = JSON.parse(sessionStorage.getItem('vapt_current_order_ids') || "[]");
+      sessionIds.push(orderId);
+      sessionStorage.setItem('vapt_current_order_ids', JSON.stringify(sessionIds));
+    } catch {
+      sessionStorage.setItem('vapt_current_order_ids', JSON.stringify([orderId]));
     }
     setHasPlacedOrder(true);
   }, [restaurant]);
