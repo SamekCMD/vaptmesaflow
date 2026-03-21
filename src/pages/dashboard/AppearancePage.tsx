@@ -225,66 +225,145 @@ const AppearancePage = () => {
 /* ── Live Preview (phone mockup) ── */
 const LivePreview = ({ config, logoPreview }: { config: RestaurantConfig; logoPreview: string }) => {
   const font = fontFamilyMap[config.fontFamily];
+  const pc = config.primaryColor;
 
   return (
-    <div className="w-full max-w-[320px] mx-auto rounded-[2rem] border-4 border-border bg-background shadow-xl overflow-hidden">
-      <div className="h-6 bg-muted flex items-center justify-center">
-        <div className="w-20 h-1.5 rounded-full bg-border" />
+    <div className="w-full max-w-[320px] mx-auto rounded-[2rem] border-4 border-border bg-[#0C0C0E] shadow-xl overflow-hidden">
+      {/* Phone notch */}
+      <div className="h-6 bg-[#0C0C0E] flex items-center justify-center">
+        <div className="w-20 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }} />
       </div>
-      <div className="h-[560px] overflow-auto" style={{ fontFamily: font }}>
-        <div className="p-4 text-center" style={{ backgroundColor: config.primaryColor }}>
+      <div className="h-[560px] overflow-auto relative" style={{ fontFamily: font, backgroundColor: '#0C0C0E' }}>
+        {/* Fixed Header */}
+        <div
+          className="sticky top-0 z-10 flex items-center px-3 gap-2"
+          style={{
+            height: 48,
+            backgroundColor: 'rgba(12,12,14,0.95)',
+            backdropFilter: 'blur(12px)',
+            borderBottom: '1px solid rgba(255,255,255,0.06)',
+          }}
+        >
           {logoPreview ? (
-            <img src={logoPreview} alt="Logo" className="h-12 w-12 rounded-full object-cover mx-auto mb-2 border-2 border-white/30" />
+            <img src={logoPreview} alt="Logo" className="shrink-0 object-cover" style={{ width: 28, height: 28, borderRadius: 6 }} />
           ) : (
-            <div className="h-12 w-12 rounded-full mx-auto mb-2 bg-white/20 flex items-center justify-center text-white font-bold text-lg">
-              {config.name.charAt(0)}
+            <div
+              className="shrink-0 flex items-center justify-center font-semibold"
+              style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: pc + '33', color: pc, fontSize: 11 }}
+            >
+              {config.name.charAt(0).toUpperCase()}
             </div>
           )}
-          <p className="text-white font-semibold text-sm">{config.name || "Nome do Restaurante"}</p>
+          <span className="text-xs font-semibold truncate" style={{ color: '#F2F2F0' }}>
+            {config.name || "Nome do Restaurante"}
+          </span>
+          <span
+            className="ml-auto shrink-0 uppercase font-medium"
+            style={{
+              fontSize: 9,
+              letterSpacing: '0.06em',
+              backgroundColor: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 4,
+              padding: '2px 6px',
+              color: 'rgba(255,255,255,0.5)',
+            }}
+          >
+            Mesa 5
+          </span>
         </div>
-        <div className="flex gap-2 p-3 overflow-x-auto" style={{ borderBottom: `1px solid ${config.secondaryColor}33` }}>
+
+        {/* Category pills */}
+        <div className="flex gap-1.5 px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           {["Entradas", "Pratos", "Bebidas"].map((cat, i) => (
-            <Badge
+            <span
               key={cat}
-              variant="outline"
-              className="whitespace-nowrap text-xs cursor-pointer border-0"
-              style={
-                i === 0
-                  ? { backgroundColor: config.primaryColor, color: "#fff" }
-                  : { backgroundColor: config.secondaryColor + "15", color: config.secondaryColor }
-              }
+              className="whitespace-nowrap"
+              style={{
+                fontSize: 11,
+                fontWeight: i === 0 ? 500 : 400,
+                borderRadius: 4,
+                padding: '4px 10px',
+                backgroundColor: i === 0 ? pc + '26' : 'rgba(255,255,255,0.04)',
+                border: i === 0 ? `1px solid ${pc}66` : '1px solid rgba(255,255,255,0.08)',
+                color: i === 0 ? pc : 'rgba(255,255,255,0.45)',
+              }}
             >
               {cat}
-            </Badge>
+            </span>
           ))}
         </div>
-        <div className="px-3 space-y-2 pb-20">
+
+        {/* 2-column grid of items */}
+        <div className="grid grid-cols-2 gap-2 px-3 pt-3 pb-16">
           {[
             { name: "Bruschetta Caprese", desc: "Tomate e mozzarella", price: "R$ 24,90" },
             { name: "Ceviche de Peixe", desc: "Peixe marinado com limão", price: "R$ 32,00" },
-            { name: "X-Burguer Especial", desc: "Blend 180g, cheddar, bacon", price: "R$ 38,90" },
+            { name: "X-Burguer Especial", desc: "Blend 180g, cheddar", price: "R$ 38,90" },
           ].map((item) => (
-            <div key={item.name} className="flex items-center justify-between p-3 rounded-lg" style={{ border: `1px solid ${config.secondaryColor}20`, backgroundColor: "var(--card)" }}>
-              <div>
-                <p className="text-sm font-medium">{item.name}</p>
-                <p className="text-xs text-muted-foreground">{item.desc}</p>
+            <div
+              key={item.name}
+              className="flex flex-col overflow-hidden"
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.07)',
+                borderRadius: 8,
+              }}
+            >
+              {/* Image placeholder */}
+              <div
+                className="w-full flex items-center justify-center"
+                style={{ aspectRatio: '4/3', backgroundColor: 'rgba(255,255,255,0.04)' }}
+              >
+                <UtensilsCrossed style={{ width: 16, height: 16, color: 'rgba(255,255,255,0.15)' }} />
               </div>
-              <span className="text-sm font-bold" style={{ color: config.primaryColor }}>{item.price}</span>
+              {/* Content */}
+              <div style={{ padding: '6px 6px 8px' }}>
+                <p className="font-medium" style={{ fontSize: 10, lineHeight: 1.3, color: 'rgba(255,255,255,0.9)' }}>
+                  {item.name}
+                </p>
+                <p style={{ fontSize: 8, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>{item.desc}</p>
+                <div className="flex items-center justify-between" style={{ marginTop: 4 }}>
+                  <span className="font-mono font-medium" style={{ fontSize: 10, color: pc }}>
+                    {item.price}
+                  </span>
+                  <span
+                    className="flex items-center justify-center"
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 4,
+                      backgroundColor: pc + '26',
+                      border: `1px solid ${pc}4D`,
+                      color: pc,
+                      fontSize: 14,
+                      lineHeight: 1,
+                    }}
+                  >
+                    +
+                  </span>
+                </div>
+              </div>
             </div>
           ))}
         </div>
-        <div className="absolute bottom-0 left-0 right-0 h-14 bg-background flex items-center justify-around px-4" style={{ borderTop: `1px solid ${config.secondaryColor}33` }}>
-          <div className="flex flex-col items-center">
-            <div className="h-5 w-5 rounded" style={{ backgroundColor: config.primaryColor + "30" }} />
-            <span className="text-[10px] mt-0.5" style={{ color: config.primaryColor }}>Menu</span>
+
+        {/* Bottom nav */}
+        <div
+          className="absolute bottom-0 left-0 right-0 flex items-center justify-around"
+          style={{
+            height: 48,
+            backgroundColor: 'rgba(12,12,14,0.96)',
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+          }}
+        >
+          <div className="flex flex-col items-center gap-0.5">
+            <div className="h-4 w-4 rounded" style={{ backgroundColor: pc + '30' }} />
+            <span style={{ fontSize: 8, color: pc }}>Menu</span>
           </div>
-          <div className="flex flex-col items-center">
-            <div className="h-5 w-5 rounded" style={{ backgroundColor: config.secondaryColor + "20" }} />
-            <span className="text-[10px] mt-0.5" style={{ color: config.secondaryColor + "80" }}>Pedidos</span>
-          </div>
-          <div className="flex flex-col items-center">
-            <div className="h-5 w-5 rounded" style={{ backgroundColor: config.secondaryColor + "20" }} />
-            <span className="text-[10px] mt-0.5" style={{ color: config.secondaryColor + "80" }}>Tema</span>
+          <div className="flex flex-col items-center gap-0.5">
+            <div className="h-4 w-4 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }} />
+            <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)' }}>Pedidos</span>
           </div>
         </div>
       </div>
