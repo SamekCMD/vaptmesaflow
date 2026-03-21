@@ -71,6 +71,7 @@ const PublicMenu = () => {
 
   const [ratingOrder, setRatingOrder] = useState<{ id: string; displayId: number } | null>(null);
   const prevItemsRef = useRef<Map<string | number, boolean>>(new Map());
+  const isInitialLoadRef = useRef(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -324,24 +325,29 @@ const PublicMenu = () => {
 
   useEffect(() => {
     if (!restaurant) return;
-    const key = `orders_${restaurant.id}`;
-    const getIds = (): string[] => {
-      try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
+    // Mark initial load complete after a short delay so we skip stale events
+    const initTimer = setTimeout(() => { isInitialLoadRef.current = false; }, 3000);
+    const getSessionOrderIds = (): string[] => {
+      try { return JSON.parse(sessionStorage.getItem('vapt_current_order_ids') || "[]"); } catch { return []; }
     };
-    const ids = getIds();
-    if (ids.length === 0) return;
+    const sessionIds = getSessionOrderIds();
+    if (sessionIds.length === 0) {
+      // Still subscribe in case orders are placed later this session
+    }
     const channel = supabase
       .channel("client-orders-realtime")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
         const updated = payload.new as any;
-        if (!getIds().includes(updated.id)) return;
+        const currentSessionIds = getSessionOrderIds();
+        if (!currentSessionIds.includes(updated.id)) return;
+        if (isInitialLoadRef.current) return;
         if (updated.status === "ready") {
           setHasReadyOrder(true);
           toast({ title: "🎉 Pedido pronto!", description: `Seu pedido #${updated.display_id} está pronto para retirada!` });
         }
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { clearTimeout(initTimer); supabase.removeChannel(channel); };
   }, [restaurant]);
 
   const handleSessionCreated = useCallback((sessionId: string) => {
@@ -353,6 +359,7 @@ const PublicMenu = () => {
 
   const handleOrderPlaced = useCallback((orderId: string) => {
     if (!restaurant) return;
+    // Save to localStorage (for rating/history)
     const key = `orders_${restaurant.id}`;
     try {
       const stored = JSON.parse(localStorage.getItem(key) || "[]");
@@ -360,6 +367,14 @@ const PublicMenu = () => {
       localStorage.setItem(key, JSON.stringify(stored));
     } catch {
       localStorage.setItem(key, JSON.stringify([orderId]));
+    }
+    // Save to sessionStorage (for current-session toast filtering)
+    try {
+      const sessionIds = JSON.parse(sessionStorage.getItem('vapt_current_order_ids') || "[]");
+      sessionIds.push(orderId);
+      sessionStorage.setItem('vapt_current_order_ids', JSON.stringify(sessionIds));
+    } catch {
+      sessionStorage.setItem('vapt_current_order_ids', JSON.stringify([orderId]));
     }
     setHasPlacedOrder(true);
   }, [restaurant]);
