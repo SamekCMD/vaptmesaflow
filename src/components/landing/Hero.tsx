@@ -22,7 +22,7 @@ const Hero = () => {
           >
             <div className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground mb-6">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-              Novo: Integração com WhatsApp via IA
+              Gestão inteligente para restaurantes
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight text-foreground leading-[1.1] mb-6">
@@ -31,7 +31,7 @@ const Hero = () => {
             </h1>
 
             <p className="text-lg text-muted-foreground max-w-lg mb-8 leading-relaxed">
-              Menu digital, gestão de cozinha em tempo real e atendimento via WhatsApp com IA — tudo integrado em uma única plataforma.
+              Menu digital, gestão de cozinha em tempo real e métricas completas — tudo integrado em uma única plataforma.
             </p>
 
             <div className="flex flex-wrap gap-4">

@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 export type PlanType = "starter" | "pro" | "business";
 export type PlanStatus = "trialing" | "active" | "expired" | "cancelled";
 
-type Feature = "cashier" | "open_tab" | "whatsapp_bot" | "multi_users";
+type Feature = "cashier" | "open_tab" | "multi_users";
 
 const PLAN_HIERARCHY: Record<PlanType, number> = {
   starter: 0,
@@ -16,7 +16,6 @@ const PLAN_HIERARCHY: Record<PlanType, number> = {
 const FEATURE_MIN_PLAN: Record<Feature, PlanType> = {
   cashier: "pro",
   open_tab: "pro",
-  whatsapp_bot: "business",
   multi_users: "business",
 };
 
@@ -91,7 +90,6 @@ export function usePlan(): PlanData {
 
   const canAccess = useCallback(
     (feature: Feature): boolean => {
-      // During active trial, everything is accessible
       if (planStatus === "trialing" && trialEndsAt && trialEndsAt > now) return true;
       if (planStatus !== "active") return false;
       const required = FEATURE_MIN_PLAN[feature];

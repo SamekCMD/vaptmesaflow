@@ -9,7 +9,6 @@ const featureAccess: Record<string, string[]> = {
   cashier: ["pro", "business"],
   open_tab: ["pro", "business"],
   metrics: ["pro", "business"],
-  whatsapp: ["business"],
   multi_user: ["business"],
   advanced_reports: ["business"],
 };
@@ -73,11 +72,10 @@ export function useSubscription(): SubscriptionData {
 
   const canAccess = useCallback(
     (feature: string): boolean => {
-      // During active trial, everything is accessible
       if (isTrialing) return true;
       if (planStatus !== "active") return false;
       const allowed = featureAccess[feature];
-      if (!allowed) return true; // unknown feature = allow
+      if (!allowed) return true;
       const actualPlan = planType === "trial" ? "starter" : planType;
       return allowed.includes(actualPlan);
     },

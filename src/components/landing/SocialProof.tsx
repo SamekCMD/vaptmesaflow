@@ -5,7 +5,7 @@ const testimonials = [
   {
     name: "Carlos Mendes",
     role: "Dono — Bistrô du Chef",
-    text: "O Vapt reduziu nosso tempo de atendimento em 40%. A integração com WhatsApp é surreal.",
+    text: "O Vapt reduziu nosso tempo de atendimento em 40%. O cardápio digital é incrível.",
   },
   {
     name: "Ana Paula Ferreira",

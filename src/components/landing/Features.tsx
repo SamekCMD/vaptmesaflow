@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
-import { QrCode, Monitor, MessageCircle, BarChart3 } from "lucide-react";
+import { QrCode, Monitor, BarChart3 } from "lucide-react";
 
 const features = [
   {
@@ -12,11 +12,6 @@ const features = [
     icon: Monitor,
     title: "Gestão de Cozinha (KDS)",
     description: "Tela em tempo real para chefs acompanharem pedidos, tempos de preparo e prioridades.",
-  },
-  {
-    icon: MessageCircle,
-    title: "WhatsApp Bot com IA",
-    description: "Inteligência artificial que atende, tira dúvidas e anota pedidos automaticamente pelo WhatsApp.",
   },
   {
     icon: BarChart3,
@@ -39,11 +34,11 @@ const Features = () => {
             Tudo que seu restaurante precisa
           </h2>
           <p className="text-muted-foreground text-base max-w-2xl mx-auto">
-            Uma plataforma integrada que conecta salão, cozinha e delivery em uma só experiência.
+            Uma plataforma integrada que conecta salão, cozinha e gestão em uma só experiência.
           </p>
         </motion.div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid sm:grid-cols-3 gap-6">
           {features.map((feature, i) => (
             <motion.div
               key={feature.title}

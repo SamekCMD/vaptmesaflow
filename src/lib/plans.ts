@@ -23,7 +23,7 @@ export const PLANS: PlanDefinition[] = [
       "Pedidos ilimitados",
       "Suporte por e-mail",
     ],
-    blockedFeatures: ["Caixa e Comanda Aberta", "WhatsApp Bot com IA", "Multi-usuários"],
+    blockedFeatures: ["Caixa e Comanda Aberta", "Multi-usuários"],
     highlighted: false,
   },
   {
@@ -37,7 +37,7 @@ export const PLANS: PlanDefinition[] = [
       "Dashboard de métricas",
       "Suporte prioritário",
     ],
-    blockedFeatures: ["WhatsApp Bot com IA", "Multi-usuários"],
+    blockedFeatures: ["Multi-usuários"],
     highlighted: true,
   },
   {
@@ -47,7 +47,6 @@ export const PLANS: PlanDefinition[] = [
     priceId: STRIPE_PRICE_BUSINESS,
     features: [
       "Tudo do Pro",
-      "WhatsApp Bot com IA",
       "Multi-usuários",
       "Relatórios avançados",
       "Gerente de conta dedicado",
