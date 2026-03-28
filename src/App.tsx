@@ -26,9 +26,15 @@ import SubscriptionPage from "./pages/dashboard/SubscriptionPage";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark">
+const App = () => {
+  useEffect(() => {
+    const stored = localStorage.getItem('vapt_theme') || 'light';
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(stored);
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
@@ -58,8 +64,8 @@ const App = () => (
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
-);
+    </QueryClientProvider>
+  );
+};
 
 export default App;
