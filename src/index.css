@@ -5,7 +5,65 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  /* Light mode — padrão */
+  :root,
+  .light {
+    --bg-base:     45 7% 97%;
+    --bg-subtle:   0 0% 100%;
+    --bg-muted:    45 7% 94%;
+    --bg-elevated: 0 0% 100%;
+
+    --border:        45 5% 89%;
+    --border-strong: 45 5% 82%;
+
+    --text-primary:   60 7% 7%;
+    --text-secondary: 60 2% 43%;
+    --text-muted:     45 2% 64%;
+
+    --sage:        153 20% 45%;
+    --sage-light:  153 22% 59%;
+    --sage-dim:    153 28% 33%;
+    --sage-subtle: 153 22% 93%;
+    --sage-text:   153 30% 25%;
+
+    --font-display: 'DM Sans', sans-serif;
+    --font-body:    'DM Sans', sans-serif;
+    --font-mono:    'DM Mono', monospace;
+
+    --radius: 0.375rem;
+
+    /* Shadcn overrides — light */
+    --background:           45 7% 97%;
+    --foreground:           60 7% 7%;
+    --card:                 0 0% 100%;
+    --card-foreground:      60 7% 7%;
+    --popover:              0 0% 100%;
+    --popover-foreground:   60 7% 7%;
+    --primary:              153 20% 45%;
+    --primary-foreground:   0 0% 100%;
+    --secondary:            45 7% 94%;
+    --secondary-foreground: 60 7% 7%;
+    --muted:                45 7% 94%;
+    --muted-foreground:     60 2% 43%;
+    --accent:               153 22% 93%;
+    --accent-foreground:    153 30% 25%;
+    --destructive:          6 63% 46%;
+    --destructive-foreground: 0 0% 100%;
+    --input:                45 7% 94%;
+    --ring:                 153 20% 45%;
+
+    --sidebar-background:         45 7% 97%;
+    --sidebar-foreground:         60 7% 7%;
+    --sidebar-primary:            153 20% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent:             45 7% 94%;
+    --sidebar-accent-foreground:  60 7% 7%;
+    --sidebar-border:             45 5% 89%;
+    --sidebar-ring:               153 20% 45%;
+  }
+
+  /* Dark mode */
+  .dark {
     --bg-base:     0 0% 5%;
     --bg-subtle:   240 10% 7%;
     --bg-muted:    240 8% 10%;
@@ -24,13 +82,9 @@
     --sage-subtle: 153 27% 14%;
     --sage-text:   153 19% 71%;
 
-    --font-display: 'DM Sans', sans-serif;
-    --font-body:    'DM Sans', sans-serif;
-    --font-mono:    'DM Mono', monospace;
-
     --radius: 0.375rem;
 
-    /* Shadcn overrides */
+    /* Shadcn overrides — dark */
     --background:           0 0% 5%;
     --foreground:           60 5% 95%;
     --card:                 240 10% 7%;
@@ -78,11 +132,11 @@
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: hsl(240 5% 19%); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: hsl(240 2% 34%); }
+::-webkit-scrollbar-thumb { background: hsl(var(--border-strong)); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--text-muted)); }
 
 /* Selection */
-::selection { background: hsl(153 27% 14%); color: hsl(153 19% 71%); }
+::selection { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
 
 @layer utilities {
   .mono {
@@ -96,7 +150,7 @@
   }
 
   .hero-gradient {
-    background: linear-gradient(180deg, hsl(0 0% 5%) 0%, hsl(240 10% 7%) 100%);
+    background: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--card)) 100%);
   }
 
   .card-hover {
@@ -104,6 +158,6 @@
   }
 
   .card-hover:hover {
-    border-color: hsl(240 5% 19%);
+    border-color: hsl(var(--border-strong));
   }
 }

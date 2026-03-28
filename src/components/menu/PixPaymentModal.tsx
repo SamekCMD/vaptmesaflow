@@ -58,7 +58,7 @@ const PixPaymentModal = ({
   const checkStatus = useCallback(async () => {
     if (!orderId || confirmed || !open) return;
 
-    console.log("🔍 Vapt Vigilante: Verificando pagamento do pedido:", orderId);
+    if (import.meta.env.DEV) console.log("🔍 Vapt Vigilante: Verificando pagamento do pedido:", orderId);
 
     try {
       const { data, error } = await supabase
@@ -68,20 +68,20 @@ const PixPaymentModal = ({
         .single();
 
       if (error) {
-        console.error("❌ Erro na vigilância:", error.message);
+        if (import.meta.env.DEV) console.error("❌ Erro na vigilância:", error.message);
         return;
       }
       
-      console.log("📡 Status atual no banco:", data?.payment_status);
+      if (import.meta.env.DEV) console.log("📡 Status atual no banco:", data?.payment_status);
 
       // Se o n8n já mudou para CONFIRMED ou RECEIVED, ativa o sucesso!
       if (data && ["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH"].includes(data.payment_status)) {
-        console.log("✅ PAGAMENTO DETECTADO!");
+        if (import.meta.env.DEV) console.log("✅ PAGAMENTO DETECTADO!");
         setConfirmed(true);
         onPaymentConfirmed();
       }
     } catch (err) {
-      console.error("🚨 Erro crítico ao checar pagamento:", err);
+      if (import.meta.env.DEV) console.error("🚨 Erro crítico ao checar pagamento:", err);
     }
   }, [orderId, confirmed, open, onPaymentConfirmed]);
 

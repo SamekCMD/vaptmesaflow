@@ -2,16 +2,17 @@ import { useState, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useTheme } from "@/hooks/useTheme";
 import TrialBanner from "@/components/dashboard/TrialBanner";
 import PushNotificationBanner from "@/components/dashboard/PushNotificationBanner";
 import { registerServiceWorker } from "@/lib/push-notifications";
 import { supabase } from "@/integrations/supabase/client";
+import { Switch } from "@/components/ui/switch";
 import {
   LayoutDashboard,
   UtensilsCrossed,
   Monitor,
   Settings,
-  MessageCircle,
   Palette,
   Menu,
   X,
@@ -19,6 +20,9 @@ import {
   ChevronDown,
   LogOut,
   Banknote,
+  Sun,
+  Moon,
+  ExternalLink,
   CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,6 +33,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 
 const navItems = [
@@ -37,18 +43,18 @@ const navItems = [
   { title: "Cozinha (KDS)", icon: Monitor, path: "/dashboard/kitchen" },
   { title: "Caixa", icon: Banknote, path: "/dashboard/cashier" },
   { title: "Aparência", icon: Palette, path: "/dashboard/appearance" },
-  { title: "WhatsApp", icon: MessageCircle, path: "/dashboard/whatsapp" },
-  { title: "Assinatura", icon: CreditCard, path: "/dashboard/subscription" },
   { title: "Configurações", icon: Settings, path: "/dashboard/settings" },
 ];
 
 const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const [restaurantSlug, setRestaurantSlug] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { isActive, loading: planLoading, planType, isTrialing, trialDaysLeft } = useSubscription();
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     registerServiceWorker();
@@ -56,8 +62,11 @@ const DashboardLayout = () => {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("restaurants").select("id").eq("owner_id", user.id).single().then(({ data }) => {
-      if (data) setRestaurantId(data.id);
+    supabase.from("restaurants").select("id, slug").eq("owner_id", user.id).single().then(({ data }) => {
+      if (data) {
+        setRestaurantId(data.id);
+        setRestaurantSlug(data.slug);
+      }
     });
   }, [user]);
 
@@ -166,9 +175,57 @@ const DashboardLayout = () => {
                   <ChevronDown className="h-3 w-3 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleLogout} className="text-destructive">
-                  <LogOut className="h-4 w-4 mr-2" /> Sair
+              <DropdownMenuContent align="end" className="w-[220px]">
+                {/* User info */}
+                <DropdownMenuLabel className="font-normal px-3 py-2.5">
+                  <div className="text-[13px] font-medium text-foreground">{fullName}</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5 truncate">{user?.email}</div>
+                </DropdownMenuLabel>
+
+                <DropdownMenuSeparator />
+
+                {/* Theme toggle */}
+                <div
+                  className="flex items-center justify-between px-3 py-2 cursor-pointer rounded-sm hover:bg-muted transition-colors"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleTheme();
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    {theme === 'light' ? <Sun className="h-4 w-4 text-muted-foreground" /> : <Moon className="h-4 w-4 text-muted-foreground" />}
+                    <span className="text-[13px]">{theme === 'light' ? 'Modo Claro' : 'Modo Escuro'}</span>
+                  </div>
+                  <Switch
+                    checked={theme === 'dark'}
+                    onCheckedChange={toggleTheme}
+                    className="scale-75"
+                  />
+                </div>
+
+                <DropdownMenuSeparator />
+
+                {/* Navigation items */}
+                <DropdownMenuItem onClick={() => navigate("/dashboard/subscription")} className="px-3 py-2 text-[13px] gap-2">
+                  <CreditCard className="h-4 w-4" />
+                  Assinatura
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/dashboard/settings")} className="px-3 py-2 text-[13px] gap-2">
+                  <Settings className="h-4 w-4" />
+                  Configurações
+                </DropdownMenuItem>
+                {restaurantSlug && (
+                  <DropdownMenuItem onClick={() => window.open(`/menu/${restaurantSlug}`, '_blank')} className="px-3 py-2 text-[13px] gap-2">
+                    <ExternalLink className="h-4 w-4" />
+                    Ver Cardápio
+                  </DropdownMenuItem>
+                )}
+
+                <DropdownMenuSeparator />
+
+                {/* Logout */}
+                <DropdownMenuItem onClick={handleLogout} className="px-3 py-2 text-[13px] gap-2 text-destructive focus:text-destructive">
+                  <LogOut className="h-4 w-4" /> Sair
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
