@@ -43,7 +43,6 @@ const navItems = [
   { title: "Cozinha (KDS)", icon: Monitor, path: "/dashboard/kitchen" },
   { title: "Caixa", icon: Banknote, path: "/dashboard/cashier" },
   { title: "Aparência", icon: Palette, path: "/dashboard/appearance" },
-  { title: "Configurações", icon: Settings, path: "/dashboard/settings" },
 ];
 
 const DashboardLayout = () => {

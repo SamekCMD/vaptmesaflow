@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { RestaurantProvider } from "@/contexts/RestaurantContext";
 import { useEffect } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -15,7 +15,6 @@ import MenuManagement from "./pages/dashboard/MenuManagement";
 import KitchenMonitor from "./pages/dashboard/KitchenMonitor";
 import SettingsPage from "./pages/dashboard/SettingsPage";
 import AppearancePage from "./pages/dashboard/AppearancePage";
-import WhatsAppIntegration from "./pages/dashboard/WhatsAppIntegration";
 import CashierPage from "./pages/dashboard/CashierPage";
 import PublicMenu from "./pages/menu/PublicMenu";
 import LoginPage from "./pages/auth/LoginPage";
@@ -53,7 +52,7 @@ const App = () => {
                   <Route path="kitchen" element={<KitchenMonitor />} />
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="appearance" element={<AppearancePage />} />
-                  <Route path="whatsapp" element={<WhatsAppIntegration />} />
+                  <Route path="whatsapp" element={<Navigate to="/dashboard" replace />} />
                   <Route path="cashier" element={<CashierPage />} />
                   <Route path="subscription" element={<SubscriptionPage />} />
                 </Route>
