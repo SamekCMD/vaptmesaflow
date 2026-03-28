@@ -16,10 +16,6 @@ const faqs = [
     answer: "Não. O Vapt funciona em qualquer dispositivo com acesso à internet — tablet, celular ou computador. Para o KDS da cozinha, recomendamos um tablet ou monitor dedicado.",
   },
   {
-    question: "Como funciona o bot do WhatsApp?",
-    answer: "Nosso bot com IA é conectado ao seu número de WhatsApp Business. Ele entende mensagens dos clientes, apresenta o cardápio e registra pedidos automaticamente no sistema.",
-  },
-  {
     question: "Posso cancelar a qualquer momento?",
     answer: "Sim. Não há fidelidade nem multa. Você pode fazer upgrade, downgrade ou cancelar quando quiser.",
   },
