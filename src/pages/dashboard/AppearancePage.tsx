@@ -11,7 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { Upload, Smartphone, ExternalLink, Loader2, UtensilsCrossed } from "lucide-react";
 import { AppearanceFormSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 
 const AppearancePage = () => {
   const { user } = useAuth();

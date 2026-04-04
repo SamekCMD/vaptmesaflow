@@ -1,5 +1,5 @@
 import { ENV } from "@/lib/env";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 
 const STORAGE_KEY = "rated_orders";
 

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Copy, CheckCircle2, Loader2, Clock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 
 interface PixPaymentModalProps {
   open: boolean;

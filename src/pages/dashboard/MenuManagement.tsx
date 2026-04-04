@@ -20,7 +20,7 @@ import { toast } from "@/hooks/use-toast";
 import { MenuTableSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { buildSupabaseStoragePublicUrl } from "@/lib/env";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import {

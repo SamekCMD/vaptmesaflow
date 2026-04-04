@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, Trash2, X, CheckCircle2, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 import type { CartItem } from "@/hooks/use-cart";
 import PixPaymentModal from "@/components/menu/PixPaymentModal";
