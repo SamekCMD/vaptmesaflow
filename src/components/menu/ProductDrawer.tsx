@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import {
   Drawer,
   DrawerContent,
@@ -100,7 +100,7 @@ const ProductDrawer = ({ item, open, onClose, onAdd, primaryColor }: ProductDraw
 
         <DrawerHeader className="relative">
           <DrawerClose asChild>
-            <button className="absolute right-4 top-4 rounded-full p-1 bg-muted hover:bg-muted/80 transition-colors active:scale-90 z-10">
+            <button aria-label="Fechar detalhes do item" className="absolute right-4 top-4 rounded-full p-1 bg-muted hover:bg-muted/80 transition-colors active:scale-90 z-10">
               <X className="h-4 w-4" />
             </button>
           </DrawerClose>
@@ -221,7 +221,7 @@ const ProductDrawer = ({ item, open, onClose, onAdd, primaryColor }: ProductDraw
                 Adicionado!
               </motion.span>
             ) : (
-              `Adicionar ao Carrinho — R$ ${(item.price * quantity).toFixed(2).replace(".", ",")}`
+              `Adicionar ao pedido • R$ ${(item.price * quantity).toFixed(2).replace(".", ",")}`
             )}
           </Button>
         </DrawerFooter>
@@ -231,3 +231,4 @@ const ProductDrawer = ({ item, open, onClose, onAdd, primaryColor }: ProductDraw
 };
 
 export default ProductDrawer;
+

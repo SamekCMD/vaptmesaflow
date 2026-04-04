@@ -8,7 +8,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -19,7 +19,16 @@ import { Plus, Pencil, Trash2, Search, Loader2, Upload, X, Star, Tag, Sparkles, 
 import { toast } from "@/hooks/use-toast";
 import { MenuTableSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { buildSupabaseStoragePublicUrl } from "@/lib/env";
+import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
+import {
+  completeGuideModule,
+  getGuideModuleHref,
+  getNextGuideModule,
+  GUIDE_MODULE_CONTENT,
+} from "@/lib/onboarding";
 
 interface Variation {
   id?: string;
@@ -76,6 +85,8 @@ const SUPABASE_URL = "https://samuel-supabase.br8r5p.easypanel.host";
 
 const MenuManagement = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<MenuItem[]>([]);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -166,6 +177,14 @@ const MenuManagement = () => {
     fetchItems();
   }, [user]);
 
+  const guideMode = searchParams.get("guide") === "1";
+  const guideNextModule = getNextGuideModule("menu");
+
+  const handleGuideComplete = () => {
+    completeGuideModule("menu");
+    navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
+  };
+
   const filtered = items.filter(
     (i) =>
       i.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -247,7 +266,7 @@ const MenuManagement = () => {
           .from("menu-images")
           .upload(path, resized, { upsert: true, contentType: "image/jpeg" });
         if (upErr) throw upErr;
-        const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/menu-images/${path}`;
+        const publicUrl = buildSupabaseStoragePublicUrl("menu-images", path);
         await supabase.from("menu_items").update({ image_url: publicUrl }).eq("id", itemId);
         updateData.image_url = publicUrl;
       }
@@ -420,6 +439,15 @@ const MenuManagement = () => {
 
   return (
     <div className="space-y-6">
+      {guideMode && (
+        <OnboardingGuideCard
+          module="menu"
+          title={GUIDE_MODULE_CONTENT.menu.title}
+          description={GUIDE_MODULE_CONTENT.menu.description}
+          nextHref={guideNextModule ? getGuideModuleHref(guideNextModule) : null}
+          onComplete={handleGuideComplete}
+        />
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Gestão de Cardápio</h1>
@@ -432,12 +460,12 @@ const MenuManagement = () => {
               Adicionar Item
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
-            <DialogHeader>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden p-0 flex flex-col">
+            <DialogHeader className="border-b border-border px-6 py-5">
               <DialogTitle>{editItem ? "Editar Item" : "Novo Item"}</DialogTitle>
             </DialogHeader>
-            <ScrollArea className="flex-1 pr-4">
-              <div className="space-y-4 pt-2 pb-4">
+            <ScrollArea className="flex-1">
+              <div className="space-y-4 px-6 py-5">
                 {/* Image Upload */}
                 <div>
                   <Label>Imagem do Prato</Label>

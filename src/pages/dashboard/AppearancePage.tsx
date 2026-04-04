@@ -214,7 +214,123 @@ const AppearancePage = () => {
               <Smartphone className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium text-muted-foreground">Preview ao Vivo</span>
             </div>
-            <LivePreview config={config} logoPreview={logoPreview} />
+            <CurrentMenuPreview config={config} logoPreview={logoPreview} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CurrentMenuPreview = ({ config, logoPreview }: { config: RestaurantConfig; logoPreview: string }) => {
+  const font = fontFamilyMap[config.fontFamily];
+  const pc = config.primaryColor;
+  const sc = config.secondaryColor;
+  const mutedSurface = `${sc}14`;
+  const mutedBorder = `${sc}33`;
+
+  return (
+    <div className="mx-auto w-full max-w-[320px] overflow-hidden rounded-[2rem] border-4 border-border bg-background shadow-xl">
+      <div className="flex h-6 items-center justify-center bg-background">
+        <div className="h-1.5 w-20 rounded-full bg-muted" />
+      </div>
+      <div className="flex h-[560px] flex-col bg-background" style={{ fontFamily: font }}>
+        <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
+          <div className="flex items-center gap-2 px-3 py-3">
+            {logoPreview ? (
+              <img src={logoPreview} alt="Logo" className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-border" />
+            ) : (
+              <div
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold ring-1 ring-border"
+                style={{ backgroundColor: mutedSurface, color: pc }}
+              >
+                {(config.name || "R").charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-foreground">{config.name || "Nome do Restaurante"}</p>
+            </div>
+            <span
+              className="shrink-0 rounded-md border px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.08em]"
+              style={{ borderColor: mutedBorder, backgroundColor: mutedSurface, color: pc }}
+            >
+              Mesa 5
+            </span>
+          </div>
+        </div>
+
+        <div className="flex-1 space-y-3 overflow-hidden px-3 py-3">
+          <div className="rounded-[20px] border border-border bg-card px-4 py-3">
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Cardápio da mesa</p>
+              <p className="text-base font-semibold text-foreground">Escolha os itens e monte seu pedido</p>
+              <p className="text-[11px] leading-5 text-muted-foreground">Abra um produto para ver detalhes, observações e quantidade.</p>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+              <div className="rounded-2xl px-3 py-2.5" style={{ backgroundColor: mutedSurface }}>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Itens</p>
+                <p className="mt-1 text-lg font-semibold text-foreground">2</p>
+              </div>
+              <div className="rounded-2xl px-3 py-2.5" style={{ backgroundColor: mutedSurface }}>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Total</p>
+                <p className="mt-1 text-lg font-semibold text-foreground">R$ 61,90</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2 flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+              {["Entradas", "Pratos", "Bebidas"].map((cat, i) => {
+                const active = i === 0;
+                return (
+                  <span
+                    key={cat}
+                    className="whitespace-nowrap rounded-full border px-3 py-1.5 text-[11px] font-medium"
+                    style={{
+                      backgroundColor: active ? `${pc}16` : "hsl(var(--card))",
+                      borderColor: active ? `${pc}55` : mutedBorder,
+                      color: active ? pc : "hsl(var(--foreground))",
+                    }}
+                  >
+                    {cat}
+                  </span>
+                );
+              })}
+            </div>
+
+            <div className="space-y-2.5">
+              {[
+                { name: "Bruschetta Caprese", desc: "Tomate e mozzarella", price: "R$ 24,90" },
+                { name: "Ceviche de Peixe", desc: "Peixe marinado com limão", price: "R$ 32,00" },
+                { name: "X-Burguer Especial", desc: "Blend 180g, cheddar", price: "R$ 38,90" },
+              ].map((item) => (
+                <div key={item.name} className="grid grid-cols-[56px_minmax(0,1fr)_auto] gap-3 rounded-[18px] border border-border bg-card p-3">
+                  <div className="flex h-14 items-center justify-center rounded-xl" style={{ backgroundColor: mutedSurface }}>
+                    <UtensilsCrossed className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold text-foreground">{item.name}</p>
+                    <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{item.desc}</p>
+                    <p className="mt-2 text-xs font-medium" style={{ color: pc }}>{item.price}</p>
+                  </div>
+                  <div className="flex items-center">
+                    <span
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border text-sm"
+                      style={{ borderColor: `${pc}33`, backgroundColor: `${pc}10`, color: pc }}
+                    >
+                      +
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-border bg-background/95 px-3 py-3 backdrop-blur">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-xl border border-border bg-card px-3 py-2 text-center text-[10px] font-semibold text-foreground">Menu</div>
+            <div className="rounded-xl px-3 py-2 text-center text-[10px] font-semibold" style={{ backgroundColor: mutedSurface, color: pc }}>Pedidos</div>
           </div>
         </div>
       </div>

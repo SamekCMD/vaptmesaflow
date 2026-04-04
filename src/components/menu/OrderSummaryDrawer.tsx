@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import {
   Drawer,
   DrawerContent,
@@ -237,7 +237,7 @@ const OrderSummaryDrawer = ({
     setSent(true);
 
     toast({
-      title: "Pagamento confirmado! 🎉",
+      title: "Pagamento confirmado!",
       description: "Seu pedido foi enviado para a cozinha!",
     });
 
@@ -266,13 +266,13 @@ const OrderSummaryDrawer = ({
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ type: "spring", duration: 0.5 }}
+                transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
                 className="flex flex-col items-center justify-center py-16 px-4"
               >
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  transition={{ type: "spring", delay: 0.1, stiffness: 200 }}
+                  transition={{ duration: 0.22, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
                 >
                   <CheckCircle2 className="h-16 w-16 mb-4" style={{ color: primaryColor }} />
                 </motion.div>
@@ -291,7 +291,7 @@ const OrderSummaryDrawer = ({
                   className="text-muted-foreground text-sm text-center"
                 >
                   {paymentMode === "prepaid"
-                    ? "Seu pedido foi enviado para a cozinha! 🎉"
+                    ? "Seu pedido foi enviado para a cozinha."
                     : "Acompanhe o status na aba \"Meus Pedidos\"."}
                 </motion.p>
               </motion.div>
@@ -299,7 +299,7 @@ const OrderSummaryDrawer = ({
               <motion.div key="cart" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <DrawerHeader className="relative">
                   <DrawerClose asChild>
-                    <button className="absolute right-4 top-4 rounded-full p-1 bg-muted hover:bg-muted/80 transition-colors active:scale-90">
+                    <button aria-label="Fechar resumo do pedido" className="absolute right-4 top-4 rounded-full p-1 bg-muted hover:bg-muted/80 transition-colors active:scale-90">
                       <X className="h-4 w-4" />
                     </button>
                   </DrawerClose>
@@ -324,7 +324,7 @@ const OrderSummaryDrawer = ({
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: 20, height: 0, marginBottom: 0 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                        transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
                         className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border"
                       >
                         <div className="flex-1 min-w-0">
@@ -398,7 +398,7 @@ const OrderSummaryDrawer = ({
                     ) : paymentMode === "prepaid" ? (
                       "Pagar com Pix"
                     ) : (
-                      "Confirmar Pedido"
+                      "Enviar para a cozinha"
                     )}
                   </Button>
                 </DrawerFooter>
@@ -429,3 +429,4 @@ const OrderSummaryDrawer = ({
 };
 
 export default OrderSummaryDrawer;
+

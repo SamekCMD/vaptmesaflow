@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { HandHelping, Receipt, X } from "lucide-react";
@@ -16,8 +16,8 @@ const FloatingActions = ({ sessionId, primaryColor }: FloatingActionsProps) => {
 
   const handleCallWaiter = () => {
     toast({
-      title: "Garçom chamado! 🙋",
-      description: "Um garçom virá até sua mesa em breve.",
+      title: "Atendimento solicitado",
+      description: "Um atendente vai até a mesa em instantes.",
     });
     setExpanded(false);
   };
@@ -33,7 +33,7 @@ const FloatingActions = ({ sessionId, primaryColor }: FloatingActionsProps) => {
       if (error) throw error;
 
       toast({
-        title: "Conta solicitada! 🧾",
+        title: "Conta solicitada",
         description: "O caixa foi notificado. Aguarde o atendimento.",
       });
       setExpanded(false);
@@ -66,7 +66,7 @@ const FloatingActions = ({ sessionId, primaryColor }: FloatingActionsProps) => {
                 onClick={handleCallWaiter}
               >
                 <HandHelping className="h-4 w-4" />
-                Chamar Garçom
+                Chamar atendimento
               </Button>
             </motion.div>
             <motion.div
@@ -90,7 +90,7 @@ const FloatingActions = ({ sessionId, primaryColor }: FloatingActionsProps) => {
         )}
       </AnimatePresence>
 
-      <motion.button
+      <motion.button aria-label="Abrir ações de atendimento"
         whileTap={{ scale: 0.9 }}
         className="h-12 w-12 rounded-full shadow-lg flex items-center justify-center text-white"
         style={{ backgroundColor: primaryColor }}
@@ -113,3 +113,4 @@ const FloatingActions = ({ sessionId, primaryColor }: FloatingActionsProps) => {
 };
 
 export default FloatingActions;
+
