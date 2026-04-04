@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,15 +6,20 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ArrowLeft, ArrowRight, Check, Upload, UtensilsCrossed, Palette, Store, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "react-router-dom";
+import {
+  POST_SETUP_PRIMARY_ACTION,
+  POST_SETUP_SECONDARY_ACTION,
+} from "@/lib/onboarding";
 
 const STEPS = [
   { title: "Boas-vindas", icon: Store },
   { title: "Sua Marca", icon: Palette },
-  { title: "Primeiro Prato", icon: UtensilsCrossed },
+  { title: "Primeiro prato", icon: UtensilsCrossed },
+  { title: "Operação", icon: UtensilsCrossed },
 ];
 
 const OnboardingPage = () => {
@@ -31,10 +36,17 @@ const OnboardingPage = () => {
   const [primaryColor, setPrimaryColor] = useState("#0ea573");
   const [secondaryColor, setSecondaryColor] = useState("#1e293b");
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [tableCount, setTableCount] = useState("10");
   const [dishName, setDishName] = useState("");
   const [dishPrice, setDishPrice] = useState("");
   const [dishDescription, setDishDescription] = useState("");
   const [dishCategory, setDishCategory] = useState("Pratos Principais");
+  const [setupComplete, setSetupComplete] = useState(false);
+  const trialEndsAt = useMemo(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 3);
+    return date.toISOString();
+  }, []);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -47,13 +59,21 @@ const OnboardingPage = () => {
 
   const handleNameChange = (value: string) => {
     setRestaurantName(value);
-    setSlug(value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""));
+    setSlug(
+      value
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+    );
   };
 
   const canAdvance = () => {
     if (step === 0) return restaurantName.trim().length >= 2;
     if (step === 1) return true;
     if (step === 2) return dishName.trim().length >= 2 && dishPrice.trim().length > 0;
+    if (step === 3) return Number.parseInt(tableCount, 10) >= 1;
     return false;
   };
 
@@ -63,16 +83,32 @@ const OnboardingPage = () => {
     try {
       const { data: restaurant, error: restError } = await supabase
         .from("restaurants")
-        .insert({ owner_id: user.id, name: restaurantName.trim(), slug: slug.trim(), whatsapp: whatsapp.trim() || null, primary_color: primaryColor, secondary_color: secondaryColor })
+        .insert({
+          owner_id: user.id,
+          name: restaurantName.trim(),
+          slug: slug.trim(),
+          whatsapp: whatsapp.trim() || null,
+          primary_color: primaryColor,
+          secondary_color: secondaryColor,
+          plan_type: "starter",
+          plan_status: "trialing",
+          trial_ends_at: trialEndsAt,
+          total_tables: Math.max(1, Number.parseInt(tableCount, 10) || 1),
+          max_tables: Math.max(1, Number.parseInt(tableCount, 10) || 1),
+        })
         .select("id")
         .single();
       if (restError) throw restError;
       const { error: menuError } = await supabase.from("menu_items").insert({
-        restaurant_id: restaurant.id, name: dishName.trim(), price: parseFloat(dishPrice), description: dishDescription.trim() || null, category: dishCategory.trim(),
+        restaurant_id: restaurant.id,
+        name: dishName.trim(),
+        price: parseFloat(dishPrice),
+        description: dishDescription.trim() || null,
+        category: dishCategory.trim(),
       });
       if (menuError) throw menuError;
       toast({ title: "Restaurante criado com sucesso!" });
-      navigate("/dashboard");
+      setSetupComplete(true);
     } catch (err: any) {
       toast({ title: "Erro ao salvar", description: err.message || "Tente novamente.", variant: "destructive" });
     } finally {
@@ -80,13 +116,44 @@ const OnboardingPage = () => {
     }
   };
 
+  if (setupComplete) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-4 py-12">
+        <Card className="w-full max-w-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">Operação pronta</CardTitle>
+            <CardDescription>
+              Seu restaurante já está configurado. Agora você pode ir direto para o caixa ou continuar o guia.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex flex-col gap-3 sm:flex-row">
+            <Button asChild className="w-full sm:w-auto">
+              <Link to={POST_SETUP_PRIMARY_ACTION.to}>{POST_SETUP_PRIMARY_ACTION.label}</Link>
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => navigate(POST_SETUP_SECONDARY_ACTION.to)}
+            >
+              {POST_SETUP_SECONDARY_ACTION.label}
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <div className="px-4 pt-6 pb-2 max-w-lg mx-auto w-full">
         <div className="flex items-center justify-between mb-2">
           {STEPS.map((s, i) => (
             <div key={i} className="flex items-center gap-1.5">
-              <div className={`h-7 w-7 rounded-md flex items-center justify-center text-xs font-medium ${i <= step ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}>
+              <div
+                className={`h-7 w-7 rounded-md flex items-center justify-center text-xs font-medium ${
+                  i <= step ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                }`}
+              >
                 {i < step ? <Check className="h-3.5 w-3.5" /> : i + 1}
               </div>
               <span className="text-xs font-medium hidden sm:inline">{s.title}</span>
@@ -108,8 +175,14 @@ const OnboardingPage = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Nome do Restaurante</Label>
-                  <Input placeholder="Ex: Hamburgueria do Chef" value={restaurantName} onChange={(e) => handleNameChange(e.target.value)} maxLength={80} />
+                  <Label htmlFor="restaurant-name">Nome do Restaurante</Label>
+                  <Input
+                    id="restaurant-name"
+                    placeholder="Ex: Hamburgueria do Chef"
+                    value={restaurantName}
+                    onChange={(e) => handleNameChange(e.target.value)}
+                    maxLength={80}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>URL do Cardápio</Label>
@@ -153,14 +226,24 @@ const OnboardingPage = () => {
                   <div className="space-y-2">
                     <Label>Cor Primária</Label>
                     <div className="flex items-center gap-2">
-                      <input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="h-9 w-9 rounded-md border border-border cursor-pointer" />
+                      <input
+                        type="color"
+                        value={primaryColor}
+                        onChange={(e) => setPrimaryColor(e.target.value)}
+                        className="h-9 w-9 rounded-md border border-border cursor-pointer"
+                      />
                       <Input value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="font-mono text-sm" maxLength={7} />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label>Cor Secundária</Label>
                     <div className="flex items-center gap-2">
-                      <input type="color" value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} className="h-9 w-9 rounded-md border border-border cursor-pointer" />
+                      <input
+                        type="color"
+                        value={secondaryColor}
+                        onChange={(e) => setSecondaryColor(e.target.value)}
+                        className="h-9 w-9 rounded-md border border-border cursor-pointer"
+                      />
                       <Input value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} className="font-mono text-sm" maxLength={7} />
                     </div>
                   </div>
@@ -185,28 +268,79 @@ const OnboardingPage = () => {
             <>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <UtensilsCrossed className="h-4 w-4 text-primary" strokeWidth={1.5} /> Seu Primeiro Prato
+                  <UtensilsCrossed className="h-4 w-4 text-primary" strokeWidth={1.5} /> Primeiro prato
                 </CardTitle>
-                <CardDescription>Adicione um item ao seu cardápio para começar.</CardDescription>
+                <CardDescription>Adicione um item ao cardápio para começar a operação.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Nome do Prato</Label>
-                  <Input placeholder="Ex: X-Burguer Especial" value={dishName} onChange={(e) => setDishName(e.target.value)} maxLength={80} />
+                  <Label htmlFor="dish-name">Nome do Prato</Label>
+                  <Input
+                    id="dish-name"
+                    placeholder="Ex: X-Burguer Especial"
+                    value={dishName}
+                    onChange={(e) => setDishName(e.target.value)}
+                    maxLength={80}
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Preço (R$)</Label>
-                    <Input type="number" step="0.01" min="0" placeholder="29.90" value={dishPrice} onChange={(e) => setDishPrice(e.target.value)} />
+                    <Label htmlFor="dish-price">Preço (R$)</Label>
+                    <Input
+                      id="dish-price"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="29.90"
+                      value={dishPrice}
+                      onChange={(e) => setDishPrice(e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label>Categoria</Label>
-                    <Input placeholder="Ex: Pratos Principais" value={dishCategory} onChange={(e) => setDishCategory(e.target.value)} maxLength={40} />
+                    <Label htmlFor="dish-category">Categoria</Label>
+                    <Input
+                      id="dish-category"
+                      placeholder="Ex: Pratos Principais"
+                      value={dishCategory}
+                      onChange={(e) => setDishCategory(e.target.value)}
+                      maxLength={40}
+                    />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Descrição</Label>
-                  <Textarea placeholder="Descreva os ingredientes ou detalhes..." value={dishDescription} onChange={(e) => setDishDescription(e.target.value)} className="resize-none h-20" maxLength={200} />
+                  <Label htmlFor="dish-description">Descrição</Label>
+                  <Input
+                    id="dish-description"
+                    placeholder="Descreva os ingredientes ou detalhes..."
+                    value={dishDescription}
+                    onChange={(e) => setDishDescription(e.target.value)}
+                    maxLength={200}
+                  />
+                </div>
+              </CardContent>
+            </>
+          )}
+
+          {step === 3 && (
+            <>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <UtensilsCrossed className="h-4 w-4 text-primary" strokeWidth={1.5} /> Primeira operação
+                </CardTitle>
+                <CardDescription>Defina quantas mesas começam ativas e deixe tudo pronto para operar.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="table-count">Número inicial de mesas</Label>
+                  <Input
+                    id="table-count"
+                    type="number"
+                    min="1"
+                    placeholder="Ex: 10"
+                    value={tableCount}
+                    onChange={(e) => setTableCount(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">Você pode alterar isso depois nas configurações.</p>
                 </div>
               </CardContent>
             </>

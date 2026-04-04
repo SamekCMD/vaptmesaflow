@@ -7,6 +7,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import TableCard, { type TableSession } from "@/components/cashier/TableCard";
 import TableSessionModal from "@/components/cashier/TableSessionModal";
 import FeatureGate from "@/components/FeatureGate";
+import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
+import {
+  completeGuideModule,
+  getGuideModuleHref,
+  getNextGuideModule,
+  GUIDE_MODULE_CONTENT,
+} from "@/lib/onboarding";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const playBellSound = () => {
   try {
@@ -28,6 +36,8 @@ const playBellSound = () => {
 
 const CashierPage = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [totalTables, setTotalTables] = useState(20);
   const [sessions, setSessions] = useState<TableSession[]>([]);
@@ -52,6 +62,14 @@ const CashierPage = () => {
     };
     fetch();
   }, [user]);
+
+  const guideMode = searchParams.get("guide") === "1";
+  const guideNextModule = getNextGuideModule("cashier");
+
+  const handleGuideComplete = () => {
+    completeGuideModule("cashier");
+    navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
+  };
 
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 60000);
@@ -132,6 +150,15 @@ const CashierPage = () => {
   return (
     <FeatureGate feature="cashier" requiredPlan="pro">
       <div className="space-y-6">
+        {guideMode && (
+          <OnboardingGuideCard
+            module="cashier"
+            title={GUIDE_MODULE_CONTENT.cashier.title}
+            description={GUIDE_MODULE_CONTENT.cashier.description}
+            nextHref={guideNextModule ? getGuideModuleHref(guideNextModule) : null}
+            onComplete={handleGuideComplete}
+          />
+        )}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Caixa</h1>

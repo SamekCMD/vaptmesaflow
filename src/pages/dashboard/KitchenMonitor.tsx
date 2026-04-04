@@ -7,6 +7,14 @@ import { toast } from "@/hooks/use-toast";
 import { KitchenSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
+import {
+  completeGuideModule,
+  getGuideModuleHref,
+  getNextGuideModule,
+  GUIDE_MODULE_CONTENT,
+} from "@/lib/onboarding";
 
 const playDoubleBeep = () => {
   try {
@@ -95,6 +103,8 @@ const getTimerDisplay = (order: Order, isReady: boolean) => {
 
 const KitchenMonitor = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [orders, setOrders] = useState<Order[]>([]);
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -142,6 +152,14 @@ const KitchenMonitor = () => {
     };
     fetchRestaurant();
   }, [user]);
+
+  const guideMode = searchParams.get("guide") === "1";
+  const guideNextModule = getNextGuideModule("kitchen");
+
+  const handleGuideComplete = () => {
+    completeGuideModule("kitchen");
+    navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
+  };
 
   const fetchOrders = useCallback(async () => {
     if (!restaurantId) return;
@@ -206,6 +224,15 @@ const KitchenMonitor = () => {
 
   return (
     <div className="space-y-6">
+      {guideMode && (
+        <OnboardingGuideCard
+          module="kitchen"
+          title={GUIDE_MODULE_CONTENT.kitchen.title}
+          description={GUIDE_MODULE_CONTENT.kitchen.description}
+          nextHref={guideNextModule ? getGuideModuleHref(guideNextModule) : null}
+          onComplete={handleGuideComplete}
+        />
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Monitor da Cozinha</h1>

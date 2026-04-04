@@ -11,9 +11,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, CreditCard, ShieldCheck, Eye, EyeOff, CheckCircle2, XCircle } from "lucide-react";
 import { SettingsFormSkeleton } from "@/components/skeletons/DashboardSkeletons";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
+import {
+  completeGuideModule,
+  getGuideModuleHref,
+  getNextGuideModule,
+  GUIDE_MODULE_CONTENT,
+} from "@/lib/onboarding";
 
 const SettingsPage = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [form, setForm] = useState({
     name: "",
     address: "",
@@ -120,6 +130,14 @@ const SettingsPage = () => {
     fetchData();
   }, [user]);
 
+  const guideMode = searchParams.get("guide") === "1";
+  const guideNextModule = getNextGuideModule("settings");
+
+  const handleGuideComplete = () => {
+    completeGuideModule("settings");
+    navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
+  };
+
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
@@ -222,6 +240,15 @@ const SettingsPage = () => {
 
   return (
     <div className="space-y-6 max-w-2xl">
+      {guideMode && (
+        <OnboardingGuideCard
+          module="settings"
+          title={GUIDE_MODULE_CONTENT.settings.title}
+          description={GUIDE_MODULE_CONTENT.settings.description}
+          nextHref={guideNextModule ? getGuideModuleHref(guideNextModule) : null}
+          onComplete={handleGuideComplete}
+        />
+      )}
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Configurações</h1>
         <p className="text-muted-foreground text-sm">
