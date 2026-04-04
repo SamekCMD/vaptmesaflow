@@ -158,7 +158,7 @@ const PublicMenu = () => {
           prepTimeMinutes: m.prep_time_minutes || null,
         }));
 
-        const itemIds = menuItems.map((item) => item.id);
+        const itemIds = menuItems.map((item) => String(item.id));
         if (itemIds.length > 0) {
           const { data: varData } = await supabase.from("menu_item_variations").select("*").in("menu_item_id", itemIds);
           if (varData) {
