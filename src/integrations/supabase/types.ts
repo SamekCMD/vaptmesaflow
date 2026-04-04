@@ -247,6 +247,7 @@ export type Database = {
       restaurants: {
         Row: {
           address: string | null
+          asaas_api_key: string | null
           created_at: string
           description: string | null
           font_family: string
@@ -271,6 +272,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          asaas_api_key?: string | null
           created_at?: string
           description?: string | null
           font_family?: string
@@ -295,6 +297,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          asaas_api_key?: string | null
           created_at?: string
           description?: string | null
           font_family?: string
