@@ -1,4 +1,4 @@
-import { Toaster } from "@/components/ui/toaster";
+﻿import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -27,8 +27,8 @@ const queryClient = new QueryClient();
 
 const App = () => {
   useEffect(() => {
-    const stored = localStorage.getItem('vapt_theme') || 'light';
-    document.documentElement.classList.remove('light', 'dark');
+    const stored = localStorage.getItem("vapt_theme") || "light";
+    document.documentElement.classList.remove("light", "dark");
     document.documentElement.classList.add(stored);
   }, []);
 
