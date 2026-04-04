@@ -1,0 +1,1 @@
+ALTER TABLE public.restaurants ADD COLUMN asaas_api_key TEXT;

@@ -1,11 +1,11 @@
-﻿const readEnv = (key: keyof ImportMetaEnv, fallback = ""): string => {
-  const value = import.meta.env[key];
+const readEnv = (key: string, fallback = ""): string => {
+  const value = (import.meta.env as Record<string, string>)[key];
   return typeof value === "string" ? value : fallback;
 };
 
 export const ENV = {
   supabaseUrl: readEnv("VITE_SUPABASE_URL"),
-  supabaseAnonKey: readEnv("VITE_SUPABASE_ANON_KEY"),
+  supabaseAnonKey: readEnv("VITE_SUPABASE_PUBLISHABLE_KEY", readEnv("VITE_SUPABASE_ANON_KEY")),
   stripePublishableKey: readEnv("VITE_STRIPE_PUBLISHABLE_KEY"),
   stripePriceStarter: readEnv("VITE_STRIPE_PRICE_STARTER"),
   stripePricePro: readEnv("VITE_STRIPE_PRICE_PRO"),
