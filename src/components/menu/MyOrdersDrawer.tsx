@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import {
   Drawer,
   DrawerContent,
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { X, Clock, Package } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
+import InlineOrderRatingCard from "@/components/menu/InlineOrderRatingCard";
 
 interface OrderData {
   id: string;
@@ -91,7 +92,7 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor, tableSessio
 
   useEffect(() => {
     if (!open) return;
-    const interval = setInterval(fetchOrders, 5000);
+    const interval = setInterval(fetchOrders, 8000);
     return () => clearInterval(interval);
   }, [open]);
 
@@ -143,6 +144,16 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor, tableSessio
             R$ {Number(order.total_price).toFixed(2).replace(".", ",")}
           </span>
         </div>
+
+        {/* Só pedidos entregues entram no fluxo de avaliação. */}
+        {order.status === "delivered" && (
+          <InlineOrderRatingCard
+            orderId={order.id}
+            restaurantId={restaurantId}
+            displayId={order.display_id}
+            primaryColor={primaryColor}
+          />
+        )}
       </motion.div>
     );
   };
@@ -152,7 +163,7 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor, tableSessio
       <DrawerContent className="max-w-md mx-auto max-h-[85vh]">
         <DrawerHeader className="relative">
           <DrawerClose asChild>
-            <button className="absolute right-4 top-4 rounded-full p-1 bg-muted hover:bg-muted/80 transition-colors active:scale-90">
+            <button aria-label="Fechar pedidos" className="absolute right-4 top-4 rounded-full p-1 bg-muted hover:bg-muted/80 transition-colors active:scale-90">
               <X className="h-4 w-4" />
             </button>
           </DrawerClose>
@@ -216,3 +227,4 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor, tableSessio
 };
 
 export default MyOrdersDrawer;
+

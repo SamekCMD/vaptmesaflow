@@ -1,4 +1,4 @@
-import { useParams, useSearchParams } from "react-router-dom";
+﻿import { useParams, useSearchParams } from "react-router-dom";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import {
   type PublicMenuItem,
   type MenuItemVariation,
 } from "@/lib/restaurant-config";
-import { ShoppingBag, Menu, ClipboardList, BellRing, Clock, QrCode, UtensilsCrossed, Plus } from "lucide-react";
+import { ShoppingBag, ClipboardList, Clock, QrCode, UtensilsCrossed, Plus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { PublicMenuSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useCart } from "@/hooks/use-cart";
@@ -17,7 +17,6 @@ import ProductDrawer from "@/components/menu/ProductDrawer";
 import OrderSummaryDrawer from "@/components/menu/OrderSummaryDrawer";
 import MyOrdersDrawer from "@/components/menu/MyOrdersDrawer";
 import FloatingActions from "@/components/menu/FloatingActions";
-import OrderRatingModal from "@/components/menu/OrderRatingModal";
 import { supabase } from "@/integrations/supabase/client";
 
 function isWithinTimeRange(from: string | null | undefined, until: string | null | undefined): boolean {
@@ -29,7 +28,8 @@ function isWithinTimeRange(from: string | null | undefined, until: string | null
     return h * 60 + (m || 0);
   };
   if (from && until) {
-    const f = parse(from), u = parse(until);
+    const f = parse(from);
+    const u = parse(until);
     return f <= u ? mins >= f && mins <= u : mins >= f || mins <= u;
   }
   if (from) return mins >= parse(from);
@@ -39,7 +39,7 @@ function isWithinTimeRange(from: string | null | undefined, until: string | null
 
 function formatTimeRange(from: string | null | undefined, until: string | null | undefined): string {
   const fmt = (t: string) => t.substring(0, 5).replace(":", "h");
-  if (from && until) return `${fmt(from)}–${fmt(until)}`;
+  if (from && until) return `${fmt(from)} - ${fmt(until)}`;
   if (from) return `a partir de ${fmt(from)}`;
   if (until) return `até ${fmt(until)}`;
   return "";
@@ -54,11 +54,9 @@ const PublicMenu = () => {
   const [items, setItems] = useState<PublicMenuItem[]>([]);
   const [paymentMode, setPaymentMode] = useState<"open_tab" | "prepaid">("open_tab");
   const [maxPendingOrders, setMaxPendingOrders] = useState(3);
-  const [activeCategory, setActiveCategory] = useState<string>("");
+  const [activeCategory, setActiveCategory] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const cart = useCart();
   const [selectedItem, setSelectedItem] = useState<PublicMenuItem | null>(null);
   const [productDrawerOpen, setProductDrawerOpen] = useState(false);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
@@ -69,13 +67,18 @@ const PublicMenu = () => {
   const [hasPlacedOrder, setHasPlacedOrder] = useState(false);
   const [restaurantIdState, setRestaurantIdState] = useState<string | null>(null);
 
-  const [ratingOrder, setRatingOrder] = useState<{ id: string; displayId: number } | null>(null);
+  const cart = useCart();
   const prevItemsRef = useRef<Map<string | number, boolean>>(new Map());
   const isInitialLoadRef = useRef(true);
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!slug) { setError("URL inválida"); setLoading(false); return; }
+      if (!slug) {
+        setError("URL inválida");
+        setLoading(false);
+        return;
+      }
+
       try {
         const { data: restData, error: restError } = await supabase
           .from("restaurants")
@@ -83,7 +86,11 @@ const PublicMenu = () => {
           .eq("slug", slug)
           .single();
 
-        if (restError || !restData) { setError("Restaurante não encontrado"); setLoading(false); return; }
+        if (restError || !restData) {
+          setError("Restaurante não encontrado");
+          setLoading(false);
+          return;
+        }
 
         const config: RestaurantConfig = {
           id: restData.id,
@@ -95,15 +102,15 @@ const PublicMenu = () => {
           fontFamily: (restData.font_family as RestaurantConfig["fontFamily"]) || "modern",
           activeModules: { menu: true, kds: true, metrics: true },
         };
+
         setRestaurant(config);
         setRestaurantIdState(restData.id);
         setPaymentMode((restData as any).payment_mode || "open_tab");
         setMaxPendingOrders((restData as any).max_pending_orders || 3);
 
         const mode = (restData as any).payment_mode || "open_tab";
-        const table = searchParams.get("table") || searchParams.get("mesa") || "";
-        if (mode === "open_tab" && table) {
-          const storedSessionId = localStorage.getItem(`table_session_${restData.id}_${table}`);
+        if (mode === "open_tab" && tableNumber) {
+          const storedSessionId = localStorage.getItem(`table_session_${restData.id}_${tableNumber}`);
           if (storedSessionId) {
             const { data: existingSession } = await supabase
               .from("table_sessions")
@@ -115,30 +122,27 @@ const PublicMenu = () => {
               setTableSessionId(existingSession.id);
               setHasPlacedOrder(true);
             } else {
-              localStorage.removeItem(`table_session_${restData.id}_${table}`);
+              localStorage.removeItem(`table_session_${restData.id}_${tableNumber}`);
             }
           }
+
           if (!storedSessionId) {
             const { data: dbSession } = await supabase
               .from("table_sessions")
               .select("id")
               .eq("restaurant_id", restData.id)
-              .eq("table_number", table)
+              .eq("table_number", tableNumber)
               .in("status", ["open", "check_requested"])
               .single();
             if (dbSession) {
               setTableSessionId(dbSession.id);
               setHasPlacedOrder(true);
-              localStorage.setItem(`table_session_${restData.id}_${table}`, dbSession.id);
+              localStorage.setItem(`table_session_${restData.id}_${tableNumber}`, dbSession.id);
             }
           }
         }
 
-        const { data: menuData } = await supabase
-          .from("menu_items")
-          .select("*")
-          .eq("restaurant_id", restData.id);
-
+        const { data: menuData } = await supabase.from("menu_items").select("*").eq("restaurant_id", restData.id);
         const menuItems: PublicMenuItem[] = (menuData || []).map((m: any) => ({
           id: m.id,
           name: m.name,
@@ -154,32 +158,27 @@ const PublicMenu = () => {
           prepTimeMinutes: m.prep_time_minutes || null,
         }));
 
-        const itemIds = menuItems.map(i => i.id);
+        const itemIds = menuItems.map((item) => item.id);
         if (itemIds.length > 0) {
-          const { data: varData } = await supabase
-            .from("menu_item_variations")
-            .select("*")
-            .in("menu_item_id", itemIds);
+          const { data: varData } = await supabase.from("menu_item_variations").select("*").in("menu_item_id", itemIds);
           if (varData) {
             const varMap: Record<string, MenuItemVariation[]> = {};
             for (const v of varData) {
               if (!varMap[v.menu_item_id]) varMap[v.menu_item_id] = [];
               varMap[v.menu_item_id].push({
-                id: v.id, name: v.name,
+                id: v.id,
+                name: v.name,
                 options: Array.isArray(v.options) ? v.options : [],
                 required: v.required,
               });
             }
-            for (const item of menuItems) {
-              item.variations = varMap[item.id] || [];
-            }
+            for (const item of menuItems) item.variations = varMap[item.id] || [];
           }
         }
 
         const map = new Map<string | number, boolean>();
-        menuItems.forEach(i => map.set(i.id, i.available));
+        menuItems.forEach((item) => map.set(item.id, item.available));
         prevItemsRef.current = map;
-
         setItems(menuItems);
       } catch {
         setError("Erro ao carregar o cardápio");
@@ -187,17 +186,14 @@ const PublicMenu = () => {
         setLoading(false);
       }
     };
+
     fetchData();
-  }, [slug]);
+  }, [slug, tableNumber]);
 
   useEffect(() => {
     if (!restaurantIdState) return;
     const interval = setInterval(async () => {
-      const { data: menuData } = await supabase
-        .from("menu_items")
-        .select("*")
-        .eq("restaurant_id", restaurantIdState);
-
+      const { data: menuData } = await supabase.from("menu_items").select("*").eq("restaurant_id", restaurantIdState);
       if (!menuData) return;
 
       const newItems: PublicMenuItem[] = menuData.map((m: any) => ({
@@ -215,25 +211,21 @@ const PublicMenu = () => {
         prepTimeMinutes: m.prep_time_minutes || null,
       }));
 
-      const itemIds = newItems.map(i => i.id);
+      const itemIds = newItems.map((item) => item.id);
       if (itemIds.length > 0) {
-        const { data: varData } = await supabase
-          .from("menu_item_variations")
-          .select("*")
-          .in("menu_item_id", itemIds);
+        const { data: varData } = await supabase.from("menu_item_variations").select("*").in("menu_item_id", itemIds);
         if (varData) {
           const varMap: Record<string, MenuItemVariation[]> = {};
           for (const v of varData) {
             if (!varMap[v.menu_item_id]) varMap[v.menu_item_id] = [];
             varMap[v.menu_item_id].push({
-              id: v.id, name: v.name,
+              id: v.id,
+              name: v.name,
               options: Array.isArray(v.options) ? v.options : [],
               required: v.required,
             });
           }
-          for (const item of newItems) {
-            item.variations = varMap[item.id] || [];
-          }
+          for (const item of newItems) item.variations = varMap[item.id] || [];
         }
       }
 
@@ -241,71 +233,34 @@ const PublicMenu = () => {
       for (const item of newItems) {
         const wasAvailable = prev.get(item.id);
         if (wasAvailable === undefined) continue;
-
         if (wasAvailable && !item.available) {
-          const inCart = cart.items.some(ci => ci.item.id === item.id);
-          if (inCart) {
-            toast({
-              title: "⚠️ Item indisponível no carrinho",
-              description: `"${item.name}" ficou indisponível. Remova-o antes de confirmar o pedido.`,
-              variant: "destructive",
-            });
-          } else {
-            toast({
-              title: `"${item.name}" ficou indisponível`,
-              description: "Este item não está mais disponível no momento.",
-            });
-          }
+          const inCart = cart.items.some((ci) => ci.item.id === item.id);
+          toast({
+            title: inCart ? "Item indisponível no pedido" : `"${item.name}" ficou indisponível`,
+            description: inCart
+              ? `"${item.name}" saiu do cardápio agora. Remova antes de confirmar.`
+              : "Este item não está disponível no momento.",
+            variant: inCart ? "destructive" : undefined,
+          });
         } else if (!wasAvailable && item.available) {
           toast({
-            title: `✅ "${item.name}" disponível novamente!`,
-            description: "Você já pode adicionar ao pedido.",
+            title: `"${item.name}" voltou ao cardápio`,
+            description: "Você já pode adicionar esse item ao pedido.",
           });
         }
       }
 
       const newMap = new Map<string | number, boolean>();
-      newItems.forEach(i => newMap.set(i.id, i.available));
+      newItems.forEach((item) => newMap.set(item.id, item.available));
       prevItemsRef.current = newMap;
-
       setItems(newItems);
-    }, 5000);
+    }, 8000);
 
     return () => clearInterval(interval);
   }, [restaurantIdState, cart.items]);
 
-  useEffect(() => {
-    if (!restaurantIdState) return;
-    const interval = setInterval(async () => {
-      const key = `orders_${restaurantIdState}`;
-      let ids: string[] = [];
-      try { ids = JSON.parse(localStorage.getItem(key) || "[]"); } catch { /* empty */ }
-      if (ids.length === 0) return;
-
-      const { data } = await supabase
-        .from("orders")
-        .select("id, display_id, status")
-        .in("id", ids)
-        .eq("status", "delivered");
-
-      if (!data || data.length === 0) return;
-
-      const ratedKey = "rated_orders";
-      const rated: string[] = JSON.parse(sessionStorage.getItem(ratedKey) || "[]");
-
-      for (const order of data) {
-        if (!rated.includes(order.id) && !ratingOrder) {
-          setRatingOrder({ id: order.id, displayId: order.display_id });
-          break;
-        }
-      }
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [restaurantIdState, ratingOrder]);
-
-  const categories = useMemo(() => Array.from(new Set(items.filter(i => i.available).map((i) => i.category))), [items]);
-
+  const categories = useMemo(() => Array.from(new Set(items.filter((i) => i.available).map((i) => i.category))), [items]);
+  const availableItems = useMemo(() => items.filter((i) => i.available), [items]);
   useEffect(() => {
     if (categories.length > 0 && !activeCategory) setActiveCategory(categories[0]);
   }, [categories, activeCategory]);
@@ -325,29 +280,28 @@ const PublicMenu = () => {
 
   useEffect(() => {
     if (!restaurant) return;
-    // Mark initial load complete after a short delay so we skip stale events
     const initTimer = setTimeout(() => { isInitialLoadRef.current = false; }, 3000);
     const getSessionOrderIds = (): string[] => {
-      try { return JSON.parse(sessionStorage.getItem('vapt_current_order_ids') || "[]"); } catch { return []; }
+      try { return JSON.parse(sessionStorage.getItem("vapt_current_order_ids") || "[]"); } catch { return []; }
     };
-    const sessionIds = getSessionOrderIds();
-    if (sessionIds.length === 0) {
-      // Still subscribe in case orders are placed later this session
-    }
+
     const channel = supabase
       .channel("client-orders-realtime")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
         const updated = payload.new as any;
         const currentSessionIds = getSessionOrderIds();
-        if (!currentSessionIds.includes(updated.id)) return;
-        if (isInitialLoadRef.current) return;
+        if (!currentSessionIds.includes(updated.id) || isInitialLoadRef.current) return;
         if (updated.status === "ready") {
           setHasReadyOrder(true);
-          toast({ title: "🎉 Pedido pronto!", description: `Seu pedido #${updated.display_id} está pronto para retirada!` });
+          toast({ title: "Pedido pronto", description: `Seu pedido #${updated.display_id} está pronto para retirada.` });
         }
       })
       .subscribe();
-    return () => { clearTimeout(initTimer); supabase.removeChannel(channel); };
+
+    return () => {
+      clearTimeout(initTimer);
+      supabase.removeChannel(channel);
+    };
   }, [restaurant]);
 
   const handleSessionCreated = useCallback((sessionId: string) => {
@@ -359,7 +313,6 @@ const PublicMenu = () => {
 
   const handleOrderPlaced = useCallback((orderId: string) => {
     if (!restaurant) return;
-    // Save to localStorage (for rating/history)
     const key = `orders_${restaurant.id}`;
     try {
       const stored = JSON.parse(localStorage.getItem(key) || "[]");
@@ -368,420 +321,110 @@ const PublicMenu = () => {
     } catch {
       localStorage.setItem(key, JSON.stringify([orderId]));
     }
-    // Save to sessionStorage (for current-session toast filtering)
     try {
-      const sessionIds = JSON.parse(sessionStorage.getItem('vapt_current_order_ids') || "[]");
+      const sessionIds = JSON.parse(sessionStorage.getItem("vapt_current_order_ids") || "[]");
       sessionIds.push(orderId);
-      sessionStorage.setItem('vapt_current_order_ids', JSON.stringify(sessionIds));
+      sessionStorage.setItem("vapt_current_order_ids", JSON.stringify(sessionIds));
     } catch {
-      sessionStorage.setItem('vapt_current_order_ids', JSON.stringify([orderId]));
+      sessionStorage.setItem("vapt_current_order_ids", JSON.stringify([orderId]));
     }
     setHasPlacedOrder(true);
   }, [restaurant]);
-
-  if (loading) return <PublicMenuSkeleton />;
-
-  if (error || !restaurant) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#0C0C0E' }}>
-        <div className="text-center space-y-2">
-          <h1 className="text-xl font-semibold" style={{ color: '#F2F2F0' }}>{error || "Restaurante não encontrado"}</h1>
-          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>Verifique o endereço e tente novamente.</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!tableNumber) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#0C0C0E', fontFamily: fontFamilyMap[restaurant.fontFamily] }}>
-        <div className="text-center space-y-4 px-6">
-          <QrCode className="h-16 w-16 mx-auto" style={{ color: 'rgba(255,255,255,0.3)' }} />
-          <h1 className="text-xl font-semibold" style={{ color: '#F2F2F0' }}>Leia o QR Code da mesa</h1>
-          <p className="text-sm max-w-xs mx-auto" style={{ color: 'rgba(255,255,255,0.45)' }}>Para fazer seu pedido, escaneie o QR Code disponível na sua mesa.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const primaryColor = restaurant.primaryColor;
-  const availableItems = items.filter(i => i.available);
-  const unavailableItems = items.filter(i => !i.available);
-  const filteredAvailable = availableItems.filter((i) => i.category === activeCategory);
-  const filteredUnavailable = unavailableItems.filter((i) => i.category === activeCategory);
-  const filteredItems = [...filteredAvailable, ...filteredUnavailable];
-  const font = fontFamilyMap[restaurant.fontFamily];
 
   const openProduct = (item: PublicMenuItem) => {
     setSelectedItem(item);
     setProductDrawerOpen(true);
   };
 
+  if (loading) return <PublicMenuSkeleton />;
+  if (error || !restaurant) {
+    return <div className="min-h-screen flex items-center justify-center bg-background px-6 text-center"><div className="space-y-2"><h1 className="text-xl font-semibold text-foreground">{error || "Restaurante não encontrado"}</h1><p className="text-sm text-muted-foreground">Verifique o endereço e tente novamente.</p></div></div>;
+  }
+  if (!tableNumber) {
+    return <div className="min-h-screen flex items-center justify-center bg-background px-6 text-center" style={{ fontFamily: fontFamilyMap[restaurant.fontFamily] }}><div className="space-y-4"><QrCode className="mx-auto h-16 w-16 text-muted-foreground" /><h1 className="text-xl font-semibold text-foreground">Leia o QR Code da mesa</h1><p className="mx-auto max-w-xs text-sm text-muted-foreground">Para fazer seu pedido, escaneie o QR Code disponível na sua mesa.</p></div></div>;
+  }
+
+  const primaryColor = restaurant.primaryColor;
+  const secondaryColor = restaurant.secondaryColor;
+  const font = fontFamilyMap[restaurant.fontFamily];
+  const unavailableItems = items.filter((i) => !i.available);
+  const filteredAvailable = availableItems.filter((i) => i.category === activeCategory);
+  const filteredUnavailable = unavailableItems.filter((i) => i.category === activeCategory);
+  const filteredItems = [...filteredAvailable, ...filteredUnavailable];
+  const heroTitle = hasPlacedOrder ? "Seu pedido segue com a mesa" : "Cardápio da mesa";
+  const heroDescription = hasPlacedOrder
+    ? "Acompanhe os pedidos em andamento e revise o carrinho quando precisar."
+    : "Escolha os itens por categoria e abra cada produto para ver detalhes.";
+
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#0C0C0E', fontFamily: font }}>
-      {/* Fixed Header */}
-      <header
-        className="fixed top-0 inset-x-0 z-30 flex items-center px-4"
-        style={{
-          height: 60,
-          backgroundColor: 'rgba(12,12,14,0.95)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
-        }}
-      >
-        <div className="flex items-center gap-3 min-w-0 flex-1 max-w-md mx-auto w-full">
-          {/* Logo */}
-          {restaurant.logoUrl ? (
-            <img
-              src={restaurant.logoUrl}
-              alt={restaurant.name}
-              className="shrink-0 object-cover"
-              style={{ width: 36, height: 36, borderRadius: 8 }}
-            />
-          ) : (
-            <div
-              className="shrink-0 flex items-center justify-center font-semibold text-sm"
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                backgroundColor: primaryColor + '33',
-                color: primaryColor,
-              }}
-            >
-              {restaurant.name.substring(0, 2).toUpperCase()}
-            </div>
-          )}
-
-          {/* Name */}
-          <span className="text-sm font-semibold truncate" style={{ color: '#F2F2F0' }}>
-            {restaurant.name}
-          </span>
-
-          {/* Mesa Badge */}
-          <span
-            className="ml-auto shrink-0 uppercase font-medium"
-            style={{
-              fontSize: 11,
-              letterSpacing: '0.06em',
-              backgroundColor: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 6,
-              padding: '4px 10px',
-              color: 'rgba(255,255,255,0.5)',
-            }}
-          >
-            Mesa {tableNumber}
-          </span>
+    <div className="min-h-screen bg-background text-foreground" style={{ fontFamily: font }}>
+      <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3 sm:px-6">
+          {restaurant.logoUrl ? <img src={restaurant.logoUrl} alt={restaurant.name} className="h-11 w-11 rounded-xl object-cover ring-1 ring-border" /> : <div className="flex h-11 w-11 items-center justify-center rounded-xl text-sm font-semibold ring-1 ring-border" style={{ backgroundColor: `${primaryColor}18`, color: primaryColor }}>{restaurant.name.substring(0, 2).toUpperCase()}</div>}
+          <div className="min-w-0 flex-1"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Mesa {tableNumber}</p><h1 className="truncate text-base font-semibold text-foreground">{restaurant.name}</h1></div>
+          <Button variant="outline" className="h-11 min-w-[136px] justify-between rounded-xl border-border bg-card px-4 text-sm" onClick={() => { setActiveTab("orders"); setMyOrdersOpen(true); setHasReadyOrder(false); }}><span className="flex items-center gap-2"><ClipboardList className="h-4 w-4" />Pedidos</span>{hasReadyOrder && <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: primaryColor }} />}</Button>
         </div>
       </header>
 
-      {/* Category Navigation — sticky below header */}
-      <nav
-        className="sticky z-20 overflow-x-auto"
-        style={{
-          top: 60,
-          backgroundColor: '#0C0C0E',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
-          scrollbarWidth: 'none',
-        }}
-      >
-        <div className="flex gap-2 px-4 max-w-md mx-auto" style={{ padding: '10px 16px' }}>
-          {categories.map((cat) => {
-            const isActive = activeCategory === cat;
-            return (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className="whitespace-nowrap"
-                style={{
-                  fontSize: 13,
-                  fontWeight: isActive ? 500 : 400,
-                  borderRadius: 6,
-                  padding: '6px 14px',
-                  transition: 'all 120ms ease',
-                  backgroundColor: isActive ? primaryColor + '26' : 'rgba(255,255,255,0.04)',
-                  border: isActive ? `1px solid ${primaryColor}66` : '1px solid rgba(255,255,255,0.08)',
-                  color: isActive ? primaryColor : 'rgba(255,255,255,0.45)',
-                }}
-              >
-                {cat}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+      <main className="mx-auto max-w-4xl px-4 pb-32 pt-6 sm:px-6 lg:pb-24">
+        <section className="mb-6">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22 }}
+            className="rounded-[24px] border border-border bg-card px-5 py-5 sm:px-6"
+          >
+            <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  {paymentMode === "prepaid" ? "Pagamento por Pix" : "Conta aberta na mesa"}
+                </p>
+                <h2 className="text-2xl font-semibold text-foreground sm:text-3xl">{heroTitle}</h2>
+                <p className="max-w-xl text-sm leading-6 text-muted-foreground">{heroDescription}</p>
+              </div>
 
-      {/* Spacer for fixed header */}
-      <div style={{ height: 60 }} />
+              <div className="grid min-w-[220px] grid-cols-2 gap-3 text-sm">
+                <div className="rounded-2xl px-4 py-3" style={{ backgroundColor: `${secondaryColor}14` }}>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Itens
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold text-foreground">{cart.totalItems}</p>
+                </div>
+                <div className="rounded-2xl px-4 py-3" style={{ backgroundColor: `${secondaryColor}14` }}>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Total
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold text-foreground">
+                    R$ {cart.totalPrice.toFixed(2).replace(".", ",")}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </section>
 
-      {/* Menu Items — 2-column grid */}
-      <main className="max-w-md mx-auto px-4 pt-4" style={{ paddingBottom: 100 }}>
-        <div className="grid grid-cols-2 gap-3">
-          <AnimatePresence mode="popLayout">
-            {filteredItems.map((item, index) => {
-              const inTime = isWithinTimeRange(item.availableFrom, item.availableUntil);
-              const isAvailable = item.available && inTime;
+        <section className="mt-8">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Cardápio</p>
+              <h2 className="mt-1 text-2xl font-semibold text-foreground">Escolha por categoria</h2>
+            </div>
+            <p className="max-w-md text-sm leading-6 text-muted-foreground">
+              Toque no item para ver detalhes e adicionar ao pedido.
+            </p>
+          </div>
 
-              return (
-                <motion.div
-                  key={item.id}
-                  layout
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.2, delay: index * 0.03 }}
-                  className="flex flex-col overflow-hidden cursor-pointer"
-                  style={{
-                    backgroundColor: 'rgba(255,255,255,0.03)',
-                    border: '1px solid rgba(255,255,255,0.07)',
-                    borderRadius: 10,
-                    transition: 'border-color 120ms ease, background 120ms ease',
-                  }}
-                  onClick={() => isAvailable && openProduct(item)}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)';
-                    e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)';
-                    e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)';
-                  }}
-                >
-                  {/* Image */}
-                  <div className="relative" style={{ aspectRatio: '4/3' }}>
-                    {item.imageUrl ? (
-                      <img
-                        src={item.imageUrl}
-                        alt={item.name}
-                        className="w-full h-full object-cover"
-                        style={{ opacity: isAvailable ? 1 : 0.4 }}
-                      />
-                    ) : (
-                      <div
-                        className="w-full h-full flex items-center justify-center"
-                        style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}
-                      >
-                        <UtensilsCrossed style={{ width: 24, height: 24, color: 'rgba(255,255,255,0.15)' }} />
-                      </div>
-                    )}
+          <nav aria-label="Categorias do cardápio" className="sticky top-[72px] z-20 -mx-1 overflow-x-auto px-1 pb-4" style={{ scrollbarWidth: "none" }}><div className="flex gap-2">{categories.map((cat) => { const isActive = activeCategory === cat; return <button key={cat} type="button" aria-pressed={isActive} onClick={() => { setActiveCategory(cat); setActiveTab("menu"); }} className="whitespace-nowrap rounded-full border px-4 py-2.5 text-sm font-medium transition-colors" style={{ backgroundColor: isActive ? `${primaryColor}16` : "hsl(var(--card))", borderColor: isActive ? `${primaryColor}55` : "hsl(var(--border))", color: isActive ? primaryColor : "hsl(var(--foreground))" }}>{cat}</button>; })}</div></nav>
 
-                    {/* Unavailable overlay */}
-                    {!isAvailable && (
-                      <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-                        <span
-                          className="uppercase font-medium"
-                          style={{
-                            fontSize: 10,
-                            letterSpacing: '0.05em',
-                            backgroundColor: 'rgba(0,0,0,0.7)',
-                            color: 'rgba(255,255,255,0.4)',
-                            padding: '2px 6px',
-                            borderRadius: 4,
-                          }}
-                        >
-                          {!item.available ? 'Indisponível' : formatTimeRange(item.availableFrom, item.availableUntil)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Content */}
-                  <div style={{ padding: '10px 10px 12px' }}>
-                    <h3
-                      className="font-medium"
-                      style={{
-                        fontSize: 13,
-                        lineHeight: 1.3,
-                        color: isAvailable ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      {item.name}
-                    </h3>
-
-                    {item.description && (
-                      <p
-                        style={{
-                          fontSize: 11,
-                          color: 'rgba(255,255,255,0.35)',
-                          marginTop: 2,
-                          display: '-webkit-box',
-                          WebkitLineClamp: 1,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        {item.description}
-                      </p>
-                    )}
-
-                    {/* Price + Add button row */}
-                    <div className="flex items-center justify-between" style={{ marginTop: 8 }}>
-                      <span
-                        className="font-mono font-medium"
-                        style={{
-                          fontSize: 14,
-                          color: isAvailable ? primaryColor : 'rgba(255,255,255,0.4)',
-                        }}
-                      >
-                        R$ {item.price.toFixed(2).replace(".", ",")}
-                      </span>
-
-                      {isAvailable && (
-                        <button
-                          className="flex items-center justify-center"
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 6,
-                            backgroundColor: primaryColor + '26',
-                            border: `1px solid ${primaryColor}4D`,
-                            color: primaryColor,
-                            fontSize: 18,
-                            lineHeight: 1,
-                            transition: 'background 120ms ease',
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openProduct(item);
-                          }}
-                        >
-                          <Plus style={{ width: 16, height: 16 }} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-        </div>
-
-        {filteredItems.length === 0 && (
-          <p className="text-center text-sm py-8" style={{ color: 'rgba(255,255,255,0.35)' }}>
-            Nenhum item disponível nesta categoria.
-          </p>
-        )}
+          <div className="space-y-3"><AnimatePresence mode="popLayout">{filteredItems.map((item, index) => { const inTime = isWithinTimeRange(item.availableFrom, item.availableUntil); const isAvailable = item.available && inTime; return <motion.button key={item.id} type="button" layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.16, delay: index * 0.015 }} className="grid w-full gap-4 rounded-[20px] border border-border bg-card p-4 text-left transition-colors md:grid-cols-[88px_minmax(0,1fr)_auto]" onClick={() => isAvailable && openProduct(item)} disabled={!isAvailable}><div className="relative h-20 overflow-hidden rounded-xl md:h-full" style={{ backgroundColor: `${secondaryColor}14` }}>{item.imageUrl ? <img src={item.imageUrl} alt={item.name} className={`h-full w-full object-cover ${isAvailable ? "" : "opacity-45"}`} /> : <div className="flex h-full w-full items-center justify-center"><UtensilsCrossed className="h-5 w-5 text-muted-foreground" /></div>}</div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className={`text-base font-semibold ${isAvailable ? "text-foreground" : "text-muted-foreground"}`}>{item.name}</h3>{item.badge && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}>{item.badge}</span>}{!isAvailable && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground" style={{ backgroundColor: `${secondaryColor}14` }}>{!item.available ? "Indisponível" : formatTimeRange(item.availableFrom, item.availableUntil)}</span>}</div>{item.description && <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{item.description}</p>}<div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">{item.prepTimeMinutes && <span className="inline-flex items-center gap-1.5"><Clock className="h-4 w-4" />{item.prepTimeMinutes} min</span>}<span className="mono text-base font-medium" style={{ color: isAvailable ? primaryColor : "hsl(var(--muted-foreground))" }}>R$ {item.price.toFixed(2).replace(".", ",")}</span></div></div><div className="flex items-center justify-between gap-3 md:flex-col md:items-end md:justify-center"><span className="text-sm text-muted-foreground">{isAvailable ? "Ver detalhes" : "Indisponível"}</span>{isAvailable && <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border" style={{ borderColor: `${primaryColor}33`, color: primaryColor, backgroundColor: `${primaryColor}10` }}><Plus className="h-4 w-4" /></span>}</div></motion.button>; })}</AnimatePresence>
+            {filteredItems.length === 0 && <div className="rounded-[24px] border border-dashed border-border bg-card px-6 py-12 text-center"><p className="text-base font-medium text-foreground">Nada disponível nessa categoria agora.</p><p className="mt-2 text-sm text-muted-foreground">Troque de categoria ou fale com a equipe se quiser confirmar a disponibilidade.</p></div>}
+          </div>
+        </section>
       </main>
 
-      {/* Floating "Ver Pedido" button */}
-      {cart.totalItems > 0 && (
-        <div className="fixed inset-x-0 z-20 px-4 pb-2" style={{ bottom: 64 }}>
-          <div className="max-w-md mx-auto">
-            <Button
-              className="w-full h-12 text-sm font-semibold flex items-center justify-between px-5"
-              style={{
-                backgroundColor: primaryColor,
-                color: '#000',
-                borderRadius: 10,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-              }}
-              onClick={() => setOrderDrawerOpen(true)}
-            >
-              <span className="flex items-center gap-2">
-                <ShoppingBag className="h-4 w-4" />
-                Ver Pedido ({cart.totalItems} {cart.totalItems === 1 ? "item" : "itens"})
-              </span>
-              <span className="font-mono">R$ {cart.totalPrice.toFixed(2).replace(".", ",")}</span>
-            </Button>
-          </div>
-        </div>
-      )}
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6"><div className="mx-auto grid max-w-4xl gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"><Button variant="outline" className="h-11 rounded-xl border-border bg-card text-sm font-semibold" onClick={() => { setActiveTab("orders"); setMyOrdersOpen(true); setHasReadyOrder(false); }} aria-current={activeTab === "orders" ? "page" : undefined}><ClipboardList className="mr-2 h-4 w-4" />{hasReadyOrder ? "Pedido pronto" : "Acompanhar pedidos"}</Button><Button className="h-11 rounded-xl text-sm font-semibold" style={{ backgroundColor: primaryColor }} onClick={() => setOrderDrawerOpen(true)} aria-current={activeTab === "menu" ? "page" : undefined}><ShoppingBag className="mr-2 h-4 w-4" />{cart.totalItems > 0 ? `Revisar pedido • ${cart.totalItems} ${cart.totalItems === 1 ? "item" : "itens"}` : "Montar pedido"}</Button></div></div>
 
-      {/* Bottom Navigation */}
-      <nav
-        className="fixed bottom-0 inset-x-0 z-20 flex"
-        style={{
-          height: 64,
-          backgroundColor: 'rgba(12,12,14,0.96)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          borderTop: '1px solid rgba(255,255,255,0.06)',
-          paddingBottom: 'env(safe-area-inset-bottom)',
-        }}
-      >
-        <div className="max-w-md mx-auto flex items-center w-full">
-          {/* Menu tab */}
-          <button
-            className="flex-1 flex flex-col items-center justify-center gap-1 relative"
-            onClick={() => setActiveTab("menu")}
-          >
-            <Menu
-              className="h-5 w-5"
-              strokeWidth={1.5}
-              style={{ color: activeTab === "menu" ? primaryColor : 'rgba(255,255,255,0.3)' }}
-            />
-            <span
-              style={{
-                fontSize: 10,
-                letterSpacing: '0.04em',
-                color: activeTab === "menu" ? primaryColor : 'rgba(255,255,255,0.3)',
-              }}
-            >
-              Menu
-            </span>
-            {/* Cart badge */}
-            {cart.totalItems > 0 && (
-              <span
-                className="absolute flex items-center justify-center"
-                style={{
-                  width: 16,
-                  height: 16,
-                  borderRadius: '50%',
-                  backgroundColor: primaryColor,
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: '#000',
-                  top: 8,
-                  right: 'calc(50% - 18px)',
-                }}
-              >
-                {cart.totalItems}
-              </span>
-            )}
-          </button>
-
-          {/* Meus Pedidos tab */}
-          <button
-            className="flex-1 flex flex-col items-center justify-center gap-1 relative"
-            onClick={() => { setActiveTab("orders"); setMyOrdersOpen(true); setHasReadyOrder(false); }}
-          >
-            {hasReadyOrder && <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-green-500 animate-ping" />}
-            {hasReadyOrder ? (
-              <BellRing className="h-5 w-5 animate-bounce" strokeWidth={1.5} style={{ color: primaryColor }} />
-            ) : (
-              <ClipboardList
-                className="h-5 w-5"
-                strokeWidth={1.5}
-                style={{ color: activeTab === "orders" ? primaryColor : 'rgba(255,255,255,0.3)' }}
-              />
-            )}
-            <span
-              style={{
-                fontSize: 10,
-                letterSpacing: '0.04em',
-                color: hasReadyOrder ? primaryColor : (activeTab === "orders" ? primaryColor : 'rgba(255,255,255,0.3)'),
-              }}
-            >
-              Meus Pedidos
-            </span>
-          </button>
-        </div>
-      </nav>
-
-      {/* Drawers */}
-      <ProductDrawer
-        item={selectedItem}
-        open={productDrawerOpen}
-        onClose={() => setProductDrawerOpen(false)}
-        onAdd={cart.addItem}
-        primaryColor={restaurant.primaryColor}
-      />
+      <ProductDrawer item={selectedItem} open={productDrawerOpen} onClose={() => setProductDrawerOpen(false)} onAdd={cart.addItem} primaryColor={restaurant.primaryColor} />
       <OrderSummaryDrawer
         open={orderDrawerOpen}
         onClose={() => setOrderDrawerOpen(false)}
@@ -801,29 +444,19 @@ const PublicMenu = () => {
       />
       <MyOrdersDrawer
         open={myOrdersOpen}
-        onClose={() => { setMyOrdersOpen(false); setActiveTab("menu"); }}
+        onClose={() => {
+          setMyOrdersOpen(false);
+          setActiveTab("menu");
+        }}
         restaurantId={restaurant.id}
         primaryColor={restaurant.primaryColor}
         tableSessionId={tableSessionId}
         paymentMode={paymentMode}
       />
-
-      {ratingOrder && (
-        <OrderRatingModal
-          open={!!ratingOrder}
-          onClose={() => setRatingOrder(null)}
-          orderId={ratingOrder.id}
-          displayId={ratingOrder.displayId}
-          restaurantId={restaurant.id}
-          primaryColor={restaurant.primaryColor}
-        />
-      )}
-
-      {paymentMode === "open_tab" && hasPlacedOrder && tableSessionId && (
-        <FloatingActions sessionId={tableSessionId} primaryColor={restaurant.primaryColor} />
-      )}
+      {paymentMode === "open_tab" && hasPlacedOrder && tableSessionId && <FloatingActions sessionId={tableSessionId} primaryColor={restaurant.primaryColor} />}
     </div>
   );
 };
 
 export default PublicMenu;
+
