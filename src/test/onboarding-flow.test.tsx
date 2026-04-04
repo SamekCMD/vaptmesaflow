@@ -45,7 +45,7 @@ vi.stubGlobal("ResizeObserver", ResizeObserverMock);
 
 import OnboardingPage from "@/pages/onboarding/OnboardingPage";
 import { getGuideChecklistState, OverviewGuideChecklist } from "@/pages/dashboard/Overview";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import {
   EMPTY_GUIDE_PROGRESS,
   POST_SETUP_PRIMARY_ACTION,

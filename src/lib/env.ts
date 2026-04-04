@@ -4,8 +4,8 @@ const readEnv = (key: string, fallback = ""): string => {
 };
 
 export const ENV = {
-  supabaseUrl: readEnv("VITE_SUPABASE_URL"),
-  supabaseAnonKey: readEnv("VITE_SUPABASE_PUBLISHABLE_KEY", readEnv("VITE_SUPABASE_ANON_KEY")),
+  supabaseUrl: readEnv("VITE_EXT_SUPABASE_URL"),
+  supabaseAnonKey: readEnv("VITE_EXT_SUPABASE_ANON_KEY"),
   stripePublishableKey: readEnv("VITE_STRIPE_PUBLISHABLE_KEY"),
   stripePriceStarter: readEnv("VITE_STRIPE_PRICE_STARTER"),
   stripePricePro: readEnv("VITE_STRIPE_PRICE_PRO"),

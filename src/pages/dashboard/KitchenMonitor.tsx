@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Clock, ArrowRight, RefreshCw, Bell, BellOff, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { KitchenSkeleton } from "@/components/skeletons/DashboardSkeletons";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";

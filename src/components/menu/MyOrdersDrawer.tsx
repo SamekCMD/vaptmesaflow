@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { X, Clock, Package } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import InlineOrderRatingCard from "@/components/menu/InlineOrderRatingCard";
 
 interface OrderData {
