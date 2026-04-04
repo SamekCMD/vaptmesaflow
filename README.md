@@ -1,73 +1,146 @@
-# Welcome to your Lovable project
+# Vapt
 
-## Project info
+Operação mais clara para restaurantes.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+O Vapt é uma plataforma para restaurantes, padarias e hamburguerias brasileiras que centraliza salão, cardápio, cozinha, caixa e visão operacional em um só produto. A proposta da marca é reduzir ruído entre etapas do atendimento e dar contexto suficiente para decidir antes do atraso aparecer.
 
-## How can I edit this code?
+## O que o produto resolve
 
-There are several ways of editing your application.
+- Cardápio digital com fluxo público para pedidos na mesa
+- Gestão de cozinha com monitor de preparo em tempo real
+- Caixa com visão das mesas e fechamento operacional
+- Dashboard com leitura rápida da operação
+- Onboarding guiado para tirar o restaurante do zero até a primeira operação
+- Aparência personalizável para o cardápio público
 
-**Use Lovable**
+## Identidade da marca
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+O Vapt não se posiciona como um “app bonito para restaurante”. O foco é clareza operacional.
 
-Changes made via Lovable will be committed automatically to this repo.
+- Direto ao ponto
+- Profissional sem ser frio
+- Rápido para operar
+- Legível no pico
+- Útil para dono, salão e cozinha
 
-**Use your preferred IDE**
+## Stack principal
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- React 18
+- TypeScript
+- Vite
+- Tailwind CSS
+- shadcn/ui
+- Framer Motion
+- Supabase
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Estrutura do produto
 
-Follow these steps:
+- `src/pages/dashboard`
+  - áreas internas como visão geral, caixa, cardápio, cozinha, aparência e configurações
+- `src/pages/menu`
+  - experiência pública do cardápio
+- `src/pages/onboarding`
+  - fluxo de ativação inicial
+- `src/components/landing`
+  - landing page e blocos comerciais
+- `src/lib`
+  - utilitários de negócio, configuração e integrações
+- `supabase/migrations`
+  - migrations SQL do projeto
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## Como rodar localmente
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### 1. Instale as dependências
 
-# Step 3: Install the necessary dependencies.
-npm i
+```bash
+npm install
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+### 2. Configure o ambiente
+
+Crie um arquivo `.env.local` a partir de `.env.example`.
+
+Variáveis esperadas:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `VITE_STRIPE_PUBLISHABLE_KEY`
+- `VITE_STRIPE_PRICE_STARTER`
+- `VITE_STRIPE_PRICE_PRO`
+- `VITE_STRIPE_PRICE_BUSINESS`
+- `VITE_N8N_CHECKOUT_WEBHOOK_URL`
+- `VITE_N8N_WEBHOOK_URL`
+- `VITE_VAPID_PUBLIC_KEY`
+- `VITE_PUSH_SUBSCRIBE_WEBHOOK_URL`
+
+### 3. Inicie o projeto
+
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+O app sobe em ambiente local pelo Vite.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Scripts úteis
 
-**Use GitHub Codespaces**
+```bash
+npm run dev
+npm run build
+npm run test
+npx tsc --noEmit
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Banco e migrations
 
-## What technologies are used for this project?
+As mudanças de banco ficam em `supabase/migrations`.
 
-This project is built with:
+Se uma feature depender de tabela nova, rode a migration correspondente no Supabase antes de validar o fluxo em ambiente real.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Exemplo recente:
 
-## How can I deploy this project?
+- `20260403_create_order_feedback.sql`
+  - cria a base para avaliações de pedidos e resumo de satisfação
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## Fluxos importantes do produto
 
-## Can I connect a custom domain to my Lovable project?
+### Landing
 
-Yes, you can!
+A landing apresenta o Vapt como cockpit operacional, não como vitrine genérica de SaaS.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### Onboarding
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+O onboarding foi desenhado para levar o restaurante até a primeira operação e depois oferecer um guia contextual dentro dos módulos reais.
+
+### Cardápio público
+
+O cardápio público é o ponto de contato do cliente final com o restaurante. Ele precisa manter clareza de navegação, contexto do pedido e consistência visual com a identidade configurada.
+
+### Overview
+
+A visão geral do dashboard existe para responder rapidamente:
+
+- como está a operação agora
+- se existe alguma pendência real
+- o que merece atenção sem forçar leitura excessiva
+
+## Qualidade e manutenção
+
+Este projeto já passou por refactors importantes de:
+
+- onboarding
+- landing page
+- fluxo público de avaliação de pedidos
+- configuração via variáveis de ambiente
+- preview visual da aparência
+
+Ao continuar evoluindo o produto, a regra deve ser manter commits separados por assunto, com escopo claro e sem misturar feature com ruído de workspace.
+
+## Observações
+
+- `.env` e variações locais não devem ir para o git
+- artefatos locais de skills, planos e tooling auxiliar também ficam ignorados
+- o projeto ainda depende de configurações externas reais para Stripe, Supabase, webhooks e push
+
+## Resumo
+
+O Vapt é um sistema de operação para restaurantes que troca improviso por visibilidade. A ideia central do produto é simples: menos ruído entre salão, cozinha e caixa, mais clareza para agir no tempo certo.
