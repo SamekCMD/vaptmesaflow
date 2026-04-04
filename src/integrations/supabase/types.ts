@@ -246,13 +246,19 @@ export type Database = {
       }
       restaurants: {
         Row: {
+          address: string | null
           created_at: string
+          description: string | null
           font_family: string
+          hours: string | null
           id: string
           logo_url: string | null
+          max_pending_orders: number
           max_tables: number
           name: string
           owner_id: string
+          payment_mode: string
+          phone: string | null
           plan_status: string
           plan_type: string
           primary_color: string
@@ -264,13 +270,19 @@ export type Database = {
           whatsapp: string | null
         }
         Insert: {
+          address?: string | null
           created_at?: string
+          description?: string | null
           font_family?: string
+          hours?: string | null
           id?: string
           logo_url?: string | null
+          max_pending_orders?: number
           max_tables?: number
           name: string
           owner_id: string
+          payment_mode?: string
+          phone?: string | null
           plan_status?: string
           plan_type?: string
           primary_color?: string
@@ -282,13 +294,19 @@ export type Database = {
           whatsapp?: string | null
         }
         Update: {
+          address?: string | null
           created_at?: string
+          description?: string | null
           font_family?: string
+          hours?: string | null
           id?: string
           logo_url?: string | null
+          max_pending_orders?: number
           max_tables?: number
           name?: string
           owner_id?: string
+          payment_mode?: string
+          phone?: string | null
           plan_status?: string
           plan_type?: string
           primary_color?: string
