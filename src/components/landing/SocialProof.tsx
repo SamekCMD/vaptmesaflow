@@ -1,70 +1,157 @@
-import { motion } from "framer-motion";
-import { Star } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { BadgeCheck, Clock3, LayoutDashboard, ShieldCheck } from "lucide-react";
 
-const testimonials = [
+const proofMetrics = [
   {
-    name: "Carlos Mendes",
-    role: "Dono — Bistrô du Chef",
-    text: "O Vapt reduziu nosso tempo de atendimento em 40%. O cardápio digital é incrível.",
+    label: "Tempo de atendimento",
+    value: "40% mais rápido",
+    detail: "com o salão vendo pedido e status na mesma tela",
   },
   {
-    name: "Ana Paula Ferreira",
-    role: "Gerente — Sushi Express",
-    text: "Finalmente um sistema que não complica. Em 1 semana já estávamos operando 100% digital.",
+    label: "Pedidos no pico",
+    value: "98% rastreados",
+    detail: "sem perder prioridade quando a fila aperta",
   },
   {
-    name: "Roberto Lima",
-    role: "Sócio — Rede Burguer Point",
-    text: "O dashboard de métricas mudou a forma como tomamos decisões. Recomendo fortemente.",
+    label: "Fechamento diário",
+    value: "12 min",
+    detail: "da conferência ao caixa, sem retrabalho",
   },
 ];
 
-const partners = ["Bistrô du Chef", "Sushi Express", "Burguer Point", "Trattoria Bella", "Café Central", "Poke House"];
+const operationalSignals = [
+  {
+    icon: Clock3,
+    title: "Salão",
+    text: "Mesa, pedido e preparo ficam visíveis no mesmo fluxo.",
+  },
+  {
+    icon: BadgeCheck,
+    title: "Cozinha",
+    text: "Urgências sobem antes do atraso crescer.",
+  },
+  {
+    icon: LayoutDashboard,
+    title: "Caixa",
+    text: "Conferência e repasse saem mais rápido no fechamento.",
+  },
+];
+
+const partners = [
+  "Bistrô du Chef",
+  "Sushi Express",
+  "Burguer Point",
+  "Trattoria Bella",
+  "Café Central",
+  "Poke House",
+];
 
 const SocialProof = () => {
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const entranceEase = [0.16, 1, 0.3, 1] as const;
+
   return (
     <section className="py-24 bg-background">
       <div className="container">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 18 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="text-center mb-20"
+          viewport={{ once: true, amount: 0.35 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.45, ease: entranceEase }}
+          className="text-center max-w-3xl mx-auto"
         >
-          <p className="text-[11px] text-muted-foreground uppercase tracking-[0.08em] font-medium mb-8">
-            Restaurantes que confiam no Vapt
+          <p className="text-[11px] text-muted-foreground uppercase tracking-[0.08em] font-medium mb-4">
+            Prova operacional em campo
           </p>
-          <div className="flex flex-wrap justify-center gap-8 md:gap-12">
-            {partners.map((p) => (
-              <span key={p} className="text-lg font-medium text-muted-foreground/50 hover:text-foreground transition-colors duration-150">
-                {p}
-              </span>
-            ))}
-          </div>
+          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-4">
+            Confiança que aparece no salão, na cozinha e no caixa
+          </h2>
+          <p className="text-muted-foreground text-base">
+            Números visíveis, rotinas mais curtas e uma operação que dá para confiar antes do atraso aparecer.
+          </p>
         </motion.div>
 
-        <div className="grid md:grid-cols-3 gap-6">
-          {testimonials.map((t, i) => (
+        <div className="grid gap-6 md:grid-cols-3 mt-12">
+          {proofMetrics.map((metric, i) => (
             <motion.div
-              key={t.name}
-              initial={{ opacity: 0, y: 20 }}
+              key={metric.label}
+              initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className="bg-card border border-border rounded-lg p-6"
+              viewport={{ once: true, amount: 0.35 }}
+              transition={{
+                duration: prefersReducedMotion ? 0 : 0.45,
+                delay: prefersReducedMotion ? 0 : i * 0.08,
+                ease: entranceEase,
+              }}
+              className="rounded-2xl border border-border bg-card p-6"
             >
-              <div className="flex gap-1 mb-4">
-                {[...Array(5)].map((_, j) => (
-                  <Star key={j} className="h-3.5 w-3.5 fill-[hsl(44_51%_54%)] text-[hsl(44_51%_54%)]" />
-                ))}
-              </div>
-              <p className="text-sm leading-relaxed mb-4 text-muted-foreground">"{t.text}"</p>
-              <div>
-                <p className="font-medium text-sm">{t.name}</p>
-                <p className="text-xs text-muted-foreground">{t.role}</p>
-              </div>
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground mb-3">
+                {metric.label}
+              </p>
+              <p className="text-2xl font-semibold tracking-tight text-foreground mb-2">{metric.value}</p>
+              <p className="text-sm leading-relaxed text-muted-foreground">{metric.detail}</p>
             </motion.div>
           ))}
+        </div>
+
+        <div className="mt-12 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <motion.div
+            initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.45, ease: entranceEase }}
+            className="rounded-2xl border border-border bg-card p-6"
+          >
+            <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground font-medium mb-6">
+              Sinais de operação
+            </p>
+            <div className="space-y-5">
+              {operationalSignals.map((signal) => (
+                <div key={signal.title} className="flex items-start gap-3">
+                  <div className="mt-0.5 h-10 w-10 rounded-md bg-accent flex items-center justify-center shrink-0">
+                    <signal.icon className="h-4.5 w-4.5 text-primary" strokeWidth={1.75} />
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{signal.title}</p>
+                    <p className="text-sm leading-relaxed text-muted-foreground">{signal.text}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.45, ease: entranceEase }}
+            className="rounded-2xl border border-border bg-card p-6"
+          >
+            <div className="flex items-center justify-between gap-4 mb-6">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground font-medium mb-1">
+                  Operando com
+                </p>
+                <p className="text-sm font-medium text-foreground">
+                  Restaurantes que precisam decidir rápido
+                </p>
+              </div>
+              <ShieldCheck className="h-5 w-5 text-primary shrink-0" strokeWidth={1.8} />
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {partners.map((partner) => (
+                <span
+                  key={partner}
+                  className="inline-flex items-center rounded-full border border-border bg-background px-3 py-1.5 text-sm text-muted-foreground"
+                >
+                  {partner}
+                </span>
+              ))}
+            </div>
+            <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
+              Sem promessa genérica: o salão enxerga, a cozinha prioriza e o caixa fecha com clareza.
+            </p>
+          </motion.div>
         </div>
       </div>
     </section>
