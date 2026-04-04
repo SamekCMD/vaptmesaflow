@@ -101,10 +101,16 @@ const DashboardLayout = () => {
         className={`fixed inset-y-0 left-0 z-40 w-[220px] bg-background border-r border-border transform transition-transform lg:translate-x-0 lg:static flex flex-col ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
+        aria-label="Navegação principal do dashboard"
       >
         <div className="flex items-center justify-between h-[52px] px-5 border-b border-border">
           <Link to="/" className="text-base font-semibold text-foreground">Vapt</Link>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-muted-foreground">
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden min-h-11 min-w-11 text-muted-foreground"
+            aria-label="Fechar menu lateral"
+            type="button"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -151,23 +157,38 @@ const DashboardLayout = () => {
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="h-[52px] border-b border-border bg-background flex items-center justify-between px-4 lg:px-6">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground">
+        <header className="min-h-[56px] border-b border-border bg-background flex items-center justify-between px-4 lg:px-6">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="lg:hidden min-h-11 min-w-11 text-foreground"
+            aria-label="Abrir menu lateral"
+            type="button"
+          >
             <Menu className="h-4 w-4" />
           </button>
 
           <div className="hidden lg:block" />
 
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="relative h-8 w-8">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative h-11 w-11"
+              aria-label="Notificações"
+              type="button"
+            >
               <Bell className="h-4 w-4" strokeWidth={1.5} />
               <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-primary" />
             </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 cursor-pointer">
-                  <Avatar className="h-7 w-7">
+                <button
+                  className="flex min-h-11 items-center gap-2 rounded-md px-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label="Abrir menu da conta"
+                  type="button"
+                >
+                  <Avatar className="h-8 w-8">
                     <AvatarFallback className="bg-secondary text-muted-foreground text-[10px]">{initials}</AvatarFallback>
                   </Avatar>
                   <span className="text-[13px] font-medium hidden sm:block">{fullName}</span>
@@ -185,11 +206,13 @@ const DashboardLayout = () => {
 
                 {/* Theme toggle */}
                 <div
-                  className="flex items-center justify-between px-3 py-2 cursor-pointer rounded-sm hover:bg-muted transition-colors"
+                  className="flex min-h-11 items-center justify-between px-3 py-2 cursor-pointer rounded-sm hover:bg-muted transition-colors"
                   onClick={(e) => {
                     e.preventDefault();
                     toggleTheme();
                   }}
+                  role="button"
+                  aria-label={`Ativar ${theme === "light" ? "modo escuro" : "modo claro"}`}
                 >
                   <div className="flex items-center gap-2">
                     {theme === 'light' ? <Sun className="h-4 w-4 text-muted-foreground" /> : <Moon className="h-4 w-4 text-muted-foreground" />}

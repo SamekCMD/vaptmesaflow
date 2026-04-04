@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Bell, X } from "lucide-react";
 import {
   isPushSupported,
+  isPushConfigured,
   isPushDismissed,
   isAlreadySubscribed,
   dismissPushBanner,
@@ -22,6 +23,7 @@ const PushNotificationBanner = ({ restaurantId }: PushNotificationBannerProps) =
   useEffect(() => {
     if (
       isPushSupported() &&
+      isPushConfigured() &&
       !isPushDismissed() &&
       !isAlreadySubscribed() &&
       Notification.permission !== "denied"
@@ -41,7 +43,11 @@ const PushNotificationBanner = ({ restaurantId }: PushNotificationBannerProps) =
       toast({ title: "Notificações ativadas!", description: "Você receberá alertas de novos pedidos." });
       setVisible(false);
     } else if (result.error === "Permission denied") {
-      toast({ title: "Permissão negada", description: "Permita notificações nas configurações do navegador.", variant: "destructive" });
+      toast({
+        title: "Permissão negada",
+        description: "Permita notificações nas configurações do navegador.",
+        variant: "destructive",
+      });
       dismissPushBanner();
       setVisible(false);
     } else {
@@ -81,6 +87,8 @@ const PushNotificationBanner = ({ restaurantId }: PushNotificationBannerProps) =
           <button
             onClick={handleDismiss}
             className="absolute top-1 right-1 p-1 text-muted-foreground hover:text-foreground rounded-full"
+            aria-label="Fechar aviso de notificações"
+            type="button"
           >
             <X className="h-3 w-3" />
           </button>
