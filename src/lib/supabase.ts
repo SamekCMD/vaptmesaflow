@@ -1,18 +1,10 @@
-import { createClient } from "@supabase/supabase-js";
+﻿import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
+import { ENV } from "@/lib/env";
 
-// Reads from Build Secrets (Workspace Settings → Build Secrets)
-// These override the auto-generated Cloud .env values
-const EXT_URL = import.meta.env.VITE_EXT_SUPABASE_URL as string;
-const EXT_KEY = import.meta.env.VITE_EXT_SUPABASE_ANON_KEY as string;
-
-if (!EXT_URL || !EXT_KEY) {
-  console.warn(
-    "[Vapt] VITE_EXT_SUPABASE_URL or VITE_EXT_SUPABASE_ANON_KEY not set. " +
-    "Add them as Build Secrets in Workspace Settings."
-  );
-}
-
-export const supabase = createClient(EXT_URL, EXT_KEY, {
+// Fonte única para o cliente Supabase. Suporta o fluxo externo do Lovable,
+// o fluxo padrão do Vite e os fallbacks públicos do frontend.
+export const supabase = createClient<Database>(ENV.supabaseUrl, ENV.supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
