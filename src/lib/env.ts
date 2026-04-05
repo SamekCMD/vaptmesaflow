@@ -13,8 +13,10 @@ const PUBLIC_DEFAULTS = {
   stripePriceStarter: "price_1T8nKuAhzmizeEVEsV60CdhT",
   stripePricePro: "price_1T8nLcAhzmizeEVExZvLA89J",
   stripePriceBusiness: "price_1T8nMKAhzmizeEVEnUhLkBif",
-  n8nCheckoutWebhookUrl: "https://samuel-n8n.br8r5p.easypanel.host/webhook/stripe",
-  n8nWebhookUrl: "https://samuel-n8n.br8r5p.easypanel.host/webhook/vapt",
+  n8nWebhookBaseUrl: "https://samuel-n8n.br8r5p.easypanel.host/webhook",
+  vaptAppEndpointSecret: "R1JyiaOg59ZcbSQSBq2Jd+baYs8bdWhuiPCTdBVOxsv9Z+vt2upYbfVt+7aVre2l",
+  vaptWebhookSetupSecret: "Mhf7zHdEGshvk1IAeHgFYsn75syJTlkHxmqB2wOyceY+VWpkaDYN2Mosp7PSth3v",
+  vaptAdminEndpointSecret: "DpDh4LBxKphvJEgMqSHEAFNq4uG34FKvITAOBbjFcxJRxmUkeuzaixSOoMZugm0e",
 } as const;
 
 export const ENV = {
@@ -27,10 +29,11 @@ export const ENV = {
   stripePriceStarter: readEnv("VITE_STRIPE_PRICE_STARTER", PUBLIC_DEFAULTS.stripePriceStarter),
   stripePricePro: readEnv("VITE_STRIPE_PRICE_PRO", PUBLIC_DEFAULTS.stripePricePro),
   stripePriceBusiness: readEnv("VITE_STRIPE_PRICE_BUSINESS", PUBLIC_DEFAULTS.stripePriceBusiness),
-  n8nCheckoutWebhookUrl: readEnv("VITE_N8N_CHECKOUT_WEBHOOK_URL", PUBLIC_DEFAULTS.n8nCheckoutWebhookUrl),
-  n8nWebhookUrl: readEnv("VITE_N8N_WEBHOOK_URL", PUBLIC_DEFAULTS.n8nWebhookUrl),
+  n8nWebhookBaseUrl: readEnv("VITE_N8N_WEBHOOK_BASE_URL", PUBLIC_DEFAULTS.n8nWebhookBaseUrl),
+  vaptAppEndpointSecret: readEnv("VITE_VAPT_APP_ENDPOINT_SECRET", PUBLIC_DEFAULTS.vaptAppEndpointSecret),
+  vaptWebhookSetupSecret: readEnv("VITE_VAPT_WEBHOOK_SETUP_SECRET", PUBLIC_DEFAULTS.vaptWebhookSetupSecret),
+  vaptAdminEndpointSecret: readEnv("VITE_VAPT_ADMIN_ENDPOINT_SECRET", PUBLIC_DEFAULTS.vaptAdminEndpointSecret),
   vapidPublicKey: readEnv("VITE_VAPID_PUBLIC_KEY"),
-  pushSubscribeWebhook: readEnv("VITE_PUSH_SUBSCRIBE_WEBHOOK_URL"),
 } as const;
 
 export const buildSupabaseStoragePublicUrl = (bucket: string, path: string): string =>

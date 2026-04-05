@@ -1,23 +1,23 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, Check, Loader2, X } from "lucide-react";
+import { ArrowLeft, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlan } from "@/hooks/use-plan";
 import { PLANS } from "@/lib/plans";
-import { N8N_CHECKOUT_WEBHOOK_URL } from "@/lib/constants";
 import { toast } from "@/hooks/use-toast";
+import StripeCheckoutModal from "@/components/dashboard/StripeCheckoutModal";
 
 const PricingPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { planType, planStatus, restaurantId } = usePlan();
-  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
-  const handleSubscribe = async (priceId: string, planId: string) => {
+  const handleSubscribe = async (planId: string) => {
     if (!user) {
       navigate(`/login?redirect=/pricing`);
       return;
@@ -29,41 +29,11 @@ const PricingPage = () => {
       return;
     }
 
-    setCheckoutLoading(planId);
-
-    try {
-      if (!N8N_CHECKOUT_WEBHOOK_URL) throw new Error("Webhook de checkout não configurado");
-
-      const res = await fetch(N8N_CHECKOUT_WEBHOOK_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          restaurant_id: restaurantId,
-          email: user.email,
-          price_id: priceId,
-          success_url: `${window.location.origin}/dashboard?checkout=success`,
-          cancel_url: `${window.location.origin}/pricing`,
-        }),
-      });
-
-      const data = await res.json();
-      if (data?.url) {
-        window.location.href = data.url;
-      } else {
-        throw new Error("URL de checkout não retornada");
-      }
-    } catch (err: any) {
-      toast({
-        title: "Erro ao iniciar checkout",
-        description: err.message || "Tente novamente.",
-        variant: "destructive",
-      });
-    } finally {
-      setCheckoutLoading(null);
-    }
+    setSelectedPlanId(planId);
   };
 
   const isCurrentPlan = (planId: string) => user && planStatus === "active" && planType === planId;
+  const selectedPlan = PLANS.find((plan) => plan.id === selectedPlanId) ?? null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -86,7 +56,7 @@ const PricingPage = () => {
             Escolha o plano ideal para seu restaurante
           </h1>
           <p className="mx-auto max-w-2xl text-base text-muted-foreground">
-            Comece com 3 dias de teste grátis. Sem compromisso, cancele quando quiser.
+            Comece com 3 dias de teste gr�tis. Sem compromisso, cancele quando quiser.
           </p>
         </motion.div>
 
@@ -125,7 +95,7 @@ const PricingPage = () => {
                     <span className={`font-mono text-3xl font-semibold ${plan.highlighted ? "text-primary-foreground" : ""}`}>
                       R$ {plan.price}
                     </span>
-                    <span className={`text-sm ${plan.highlighted ? "text-primary-foreground/72" : "text-muted-foreground"}`}>/mês</span>
+                    <span className={`text-sm ${plan.highlighted ? "text-primary-foreground/72" : "text-muted-foreground"}`}>/m�s</span>
                   </div>
                 </CardHeader>
 
@@ -154,19 +124,10 @@ const PricingPage = () => {
                   <Button
                     className="w-full"
                     variant={plan.highlighted ? "default" : "outline"}
-                    disabled={!!isCurrentPlan(plan.id) || !!checkoutLoading}
-                    onClick={() => handleSubscribe(plan.priceId, plan.id)}
+                    disabled={!!isCurrentPlan(plan.id)}
+                    onClick={() => handleSubscribe(plan.id)}
                   >
-                    {checkoutLoading === plan.id ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Processando...
-                      </>
-                    ) : isCurrentPlan(plan.id) ? (
-                      "Plano Atual"
-                    ) : (
-                      "Assinar Agora"
-                    )}
+                    {isCurrentPlan(plan.id) ? "Plano Atual" : "Assinar Agora"}
                   </Button>
                 </CardContent>
               </Card>
@@ -175,12 +136,22 @@ const PricingPage = () => {
         </div>
 
         <p className="mt-12 text-center text-sm text-muted-foreground">
-          Todos os planos incluem 3 dias grátis de teste. Cancele a qualquer momento.
+          Todos os planos incluem 3 dias gr�tis de teste. Cancele a qualquer momento.
         </p>
+
+        <StripeCheckoutModal
+          open={!!selectedPlan}
+          onOpenChange={(open) => !open && setSelectedPlanId(null)}
+          plan={selectedPlan}
+          onAutoCharged={() => {
+            setSelectedPlanId(null);
+            toast({ title: "Plano atualizado com sucesso!" });
+            navigate("/dashboard");
+          }}
+        />
       </div>
     </div>
   );
 };
 
 export default PricingPage;
-

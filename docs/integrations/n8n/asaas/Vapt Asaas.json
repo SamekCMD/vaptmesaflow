@@ -1,0 +1,2254 @@
+﻿{
+    "name":  "Vapt Asaas",
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "width":  420,
+                                         "height":  220,
+                                         "content":  "## Setup\nValidate the restaurant key, ensure the Asaas webhook exists, and persist operational state."
+                                     },
+                      "id":  "note-setup",
+                      "name":  "Setup Section",
+                      "type":  "n8n-nodes-base.stickyNote",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -1600,
+                                       -860
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "path":  "asaas/setup",
+                                         "httpMethod":  "POST",
+                                         "responseMode":  "lastNode",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "setup-trigger",
+                      "name":  "Setup Request",
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -1380,
+                                       -760
+                                   ],
+                      "webhookId":  "vapt-asaas-setup"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const req=$input.first().json;return [{json:{route_key:\u0027asaas.setup\u0027,request:req,request_headers:req.headers??{},request_query:req.query??{},request_body:req.body??req}}];"
+                                     },
+                      "id":  "route-setup",
+                      "name":  "Route Setup Request",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -1160,
+                                       -760
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;const expected=$env.VAPT_WEBHOOK_SETUP_SECRET??$env.VAPT_APP_ENDPOINT_SECRET;const provided=input.request_headers[\u0027x-vapt-webhook-key\u0027]??input.request_headers[\u0027X-Vapt-Webhook-Key\u0027];if(!expected||provided!==expected){return [{json:{...input,body:{error:\u0027unauthorized\u0027,message:\u0027Invalid x-vapt-webhook-key\u0027}}}];}return $input.all();"
+                                     },
+                      "id":  "authorize-setup",
+                      "name":  "Authorize Setup Request",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -940,
+                                       -760
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;const restaurantId=input.request_body.restaurant_id;const asaasApiKey=input.request_body.asaas_api_key;if(!restaurantId||!asaasApiKey){return [{json:{...input,body:{error:\u0027invalid_configuration\u0027,message:\u0027restaurant_id and asaas_api_key are required\u0027}}}];}return [{json:{...input,restaurant_id:restaurantId,asaas_api_key:asaasApiKey,request_origin:\u0027setup\u0027}}];"
+                                     },
+                      "id":  "validate-setup",
+                      "name":  "Validate Setup Request",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -720,
+                                       -760
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "if-setup-error-condition",
+                                                                                   "leftValue":  "={{ !!$json.body?.error }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "if-setup-error",
+                      "name":  "If Setup Error",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       -500,
+                                       -760
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "get",
+                                         "tableId":  "restaurants",
+                                         "filters":  {
+                                                         "conditions":  [
+                                                                            {
+                                                                                "keyName":  "id",
+                                                                                "condition":  "eq",
+                                                                                "keyValue":  "={{ $json.restaurant_id }}"
+                                                                            }
+                                                                        ]
+                                                     }
+                                     },
+                      "id":  "get-setup-restaurant",
+                      "name":  "Get Setup Restaurant",
+                      "type":  "n8n-nodes-base.supabase",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -260,
+                                       -760
+                                   ],
+                      "credentials":  {
+                                          "supabaseApi":  {
+                                                              "id":  "amnDaggR6cwPHYRa",
+                                                              "name":  "Supabase account"
+                                                          }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;if(input.body?.error){return $input.all();}const restaurant=input; if(!restaurant?.id){return [{json:{...$(\u0027Validate Setup Request\u0027).first().json,body:{error:\u0027not_found\u0027,message:\u0027Restaurant not found\u0027}}}];}return [{json:{...$(\u0027Validate Setup Request\u0027).first().json,restaurant,asaas_api_key:$(\u0027Validate Setup Request\u0027).first().json.asaas_api_key}}];"
+                                     },
+                      "id":  "normalize-setup-restaurant",
+                      "name":  "Normalize Setup Restaurant",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -40,
+                                       -760
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "GET",
+                                         "url":  "https://api.asaas.com/v3/myAccount",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "access_token",
+                                                                                         "value":  "={{ $json.asaas_api_key }}"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "http-validate-asaas-key",
+                      "name":  "Validate Asaas Key",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       180,
+                                       -760
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;let base;try{base=$(\u0027Normalize Setup Restaurant\u0027).first().json;}catch{try{base=$(\u0027Build Refresh Context\u0027).first().json;}catch{base=input;}}return [{json:{...base,asaas_account:input}}];"
+                                     },
+                      "id":  "normalize-asaas-account",
+                      "name":  "Normalize Asaas Account",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       400,
+                                       -760
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "GET",
+                                         "url":  "https://api.asaas.com/v3/webhooks?offset=0\u0026limit=100",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "access_token",
+                                                                                         "value":  "={{ $json.asaas_api_key }}"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "http-list-webhooks",
+                      "name":  "List Existing Webhooks",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       620,
+                                       -760
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;const list=Array.isArray(input)?input:(input.data??input.items??input.webhooks??[]);const webhookList=Array.isArray(list)?list:(list.data??list.items??list.webhooks??[]);const requiredWebhookUrl=($env.VAPT_N8N_WEBHOOK_BASE_URL??\u0027https://replace-me.example.com/webhook\u0027).replace(/\\/$/,\u0027\u0027) + \u0027/asaas/webhook\u0027;const existingWebhook=webhookList.find((entry)=\u003eentry.url===requiredWebhookUrl)??null;const token=$(\u0027Normalize Asaas Account\u0027).first().json.restaurant?.asaas_webhook_token??globalThis.crypto?.randomUUID?.()??`${$(\u0027Normalize Asaas Account\u0027).first().json.restaurant.id}-${Date.now()}`;return [{json:{...$(\u0027Normalize Asaas Account\u0027).first().json,required_webhook_url:requiredWebhookUrl,required_webhook_token:token,existing_webhook,existing_webhook_id:existingWebhook?.id??null}}];"
+                                     },
+                      "id":  "normalize-webhook-list",
+                      "name":  "Normalize Existing Webhooks",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       840,
+                                       -760
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "if-existing-webhook-condition",
+                                                                                   "leftValue":  "={{ !!$json.existing_webhook_id }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "if-existing-webhook",
+                      "name":  "If Existing Webhook",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       1060,
+                                       -760
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "https://api.asaas.com/v3/webhooks",
+                                         "sendHeaders":  true,
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={{ { name: \u0027Vapt \u0027 + $json.restaurant.name + \u0027 Pix Webhook\u0027, url: $json.required_webhook_url, enabled: true, interrupted: false, authToken: $json.required_webhook_token, events: [\u0027PAYMENT_RECEIVED\u0027, \u0027PAYMENT_CONFIRMED\u0027] } }}",
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "access_token",
+                                                                                         "value":  "={{ $json.asaas_api_key }}"
+                                                                                     },
+                                                                                     {
+                                                                                         "name":  "Content-Type",
+                                                                                         "value":  "application/json"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "http-create-webhook",
+                      "name":  "Create Required Webhook",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       1280,
+                                       -620
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;return [{json:{...$(\u0027Normalize Existing Webhooks\u0027).first().json,resolved_webhook_id:input.id??input.data?.id??null,webhook_registered:true}}];"
+                                     },
+                      "id":  "normalize-created-webhook",
+                      "name":  "Normalize Created Webhook",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1500,
+                                       -620
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "update",
+                                         "tableId":  "restaurants",
+                                         "filters":  {
+                                                         "conditions":  [
+                                                                            {
+                                                                                "keyName":  "id",
+                                                                                "condition":  "eq",
+                                                                                "keyValue":  "={{ $json.restaurant.id }}"
+                                                                            }
+                                                                        ]
+                                                     },
+                                         "fieldsUi":  {
+                                                          "fieldValues":  [
+                                                                              {
+                                                                                  "fieldId":  "asaas_api_key",
+                                                                                  "fieldValue":  "={{ $json.asaas_api_key }}"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "asaas_setup_status",
+                                                                                  "fieldValue":  "=ready"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "asaas_webhook_id",
+                                                                                  "fieldValue":  "={{ $json.resolved_webhook_id ?? $json.existing_webhook_id }}"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "asaas_webhook_url",
+                                                                                  "fieldValue":  "={{ $json.required_webhook_url }}"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "asaas_webhook_token",
+                                                                                  "fieldValue":  "={{ $json.required_webhook_token }}"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "asaas_last_validated_at",
+                                                                                  "fieldValue":  "={{ new Date().toISOString() }}"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "asaas_last_error",
+                                                                                  "fieldValue":  "=null"
+                                                                              }
+                                                                          ]
+                                                      }
+                                     },
+                      "id":  "persist-setup-state",
+                      "name":  "Persist Setup State",
+                      "type":  "n8n-nodes-base.supabase",
+                      "typeVersion":  1,
+                      "position":  [
+                                       1720,
+                                       -760
+                                   ],
+                      "credentials":  {
+                                          "supabaseApi":  {
+                                                              "id":  "amnDaggR6cwPHYRa",
+                                                              "name":  "Supabase account"
+                                                          }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;if(input.body?.error){return [{json:input.body}];}let origin=\u0027setup\u0027;try{origin=$(\u0027Validate Setup Request\u0027).first().json.request_origin??origin;}catch{try{origin=$(\u0027Build Refresh Context\u0027).first().json.request_origin??origin;}catch{}}let webhookId=null;try{webhookId=$(\u0027Normalize Created Webhook\u0027).first().json.resolved_webhook_id??null;}catch{try{webhookId=$(\u0027Normalize Existing Webhooks\u0027).first().json.existing_webhook_id??null;}catch{}}return [{json:{valid:true,webhook_registered:true,webhook_id:webhookId,setup_status:\u0027ready\u0027,message:origin===\u0027admin_refresh\u0027?\u0027Asaas revalidado com sucesso\u0027:\u0027Asaas configurado com sucesso\u0027}}];"
+                                     },
+                      "id":  "respond-setup",
+                      "name":  "Respond Setup Flow",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1940,
+                                       -760
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "width":  420,
+                                         "height":  220,
+                                         "content":  "## Admin Refresh\nInternal rerun of the setup contract using the stored restaurant key."
+                                     },
+                      "id":  "note-refresh",
+                      "name":  "Admin Refresh Section",
+                      "type":  "n8n-nodes-base.stickyNote",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -1600,
+                                       -360
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "path":  "asaas/setup/refresh",
+                                         "httpMethod":  "POST",
+                                         "responseMode":  "lastNode",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "refresh-trigger",
+                      "name":  "Admin Refresh Request",
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -1380,
+                                       -220
+                                   ],
+                      "webhookId":  "vapt-asaas-refresh"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const req=$input.first().json;return [{json:{route_key:\u0027asaas.setup.refresh\u0027,request:req,request_headers:req.headers??{},request_query:req.query??{},request_body:req.body??req}}];"
+                                     },
+                      "id":  "route-refresh",
+                      "name":  "Route Admin Refresh Request",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -1160,
+                                       -220
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;const expected=$env.VAPT_ADMIN_ENDPOINT_SECRET;const provided=input.request_headers[\u0027x-vapt-admin-key\u0027]??input.request_headers[\u0027X-Vapt-Admin-Key\u0027];if(!expected||provided!==expected){return [{json:{...input,body:{error:\u0027unauthorized\u0027,message:\u0027Invalid admin secret\u0027}}}];}return $input.all();"
+                                     },
+                      "id":  "authorize-refresh",
+                      "name":  "Authorize Admin Refresh Request",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -940,
+                                       -220
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;const restaurantId=input.request_body.restaurant_id??input.request_query.restaurant_id;if(!restaurantId){return [{json:{...input,body:{error:\u0027invalid_configuration\u0027,message:\u0027restaurant_id is required\u0027}}}];}return [{json:{...input,restaurant_id:restaurantId}}];"
+                                     },
+                      "id":  "validate-refresh",
+                      "name":  "Validate Refresh Request",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -720,
+                                       -220
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "if-refresh-error-condition",
+                                                                                   "leftValue":  "={{ !!$json.body?.error }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "if-refresh-error",
+                      "name":  "If Refresh Error",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       -500,
+                                       -220
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "get",
+                                         "tableId":  "restaurants",
+                                         "filters":  {
+                                                         "conditions":  [
+                                                                            {
+                                                                                "keyName":  "id",
+                                                                                "condition":  "eq",
+                                                                                "keyValue":  "={{ $json.restaurant_id }}"
+                                                                            }
+                                                                        ]
+                                                     }
+                                     },
+                      "id":  "load-refresh-restaurant",
+                      "name":  "Load Refresh Restaurant",
+                      "type":  "n8n-nodes-base.supabase",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -260,
+                                       -220
+                                   ],
+                      "credentials":  {
+                                          "supabaseApi":  {
+                                                              "id":  "amnDaggR6cwPHYRa",
+                                                              "name":  "Supabase account"
+                                                          }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const restaurant=$input.first().json;if(!restaurant?.id){return [{json:{...$(\u0027Validate Refresh Request\u0027).first().json,body:{error:\u0027not_found\u0027,message:\u0027Restaurant not found\u0027}}}];}return [{json:{...$(\u0027Validate Refresh Request\u0027).first().json,restaurant,asaas_api_key:restaurant.asaas_api_key,request_origin:\u0027admin_refresh\u0027}}];"
+                                     },
+                      "id":  "build-refresh-context",
+                      "name":  "Build Refresh Context",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -40,
+                                       -220
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "width":  420,
+                                         "height":  220,
+                                         "content":  "## Pix Create\nAuthenticated app flow that creates the Pix payment, fetches the QR payload, and stores order payment metadata."
+                                     },
+                      "id":  "note-pix",
+                      "name":  "Pix Create Section",
+                      "type":  "n8n-nodes-base.stickyNote",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -1600,
+                                       260
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "path":  "asaas/pix/create",
+                                         "httpMethod":  "POST",
+                                         "responseMode":  "lastNode",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "pix-trigger",
+                      "name":  "Pix Create Request",
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -1380,
+                                       420
+                                   ],
+                      "webhookId":  "vapt-asaas-pix-create"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const req=$input.first().json;return [{json:{route_key:\u0027asaas.pix.create\u0027,request:req,request_headers:req.headers??{},request_query:req.query??{},request_body:req.body??req}}];"
+                                     },
+                      "id":  "route-pix",
+                      "name":  "Route Pix Create Request",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -1160,
+                                       420
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;const expected=$env.VAPT_APP_ENDPOINT_SECRET;const provided=input.request_headers[\u0027x-vapt-app-key\u0027]??input.request_headers[\u0027X-Vapt-App-Key\u0027];if(!expected||provided!==expected){return [{json:{...input,body:{error:\u0027unauthorized\u0027,message:\u0027Invalid app endpoint secret\u0027}}}];}return $input.all();"
+                                     },
+                      "id":  "authorize-pix",
+                      "name":  "Authorize Pix Create Request",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -940,
+                                       420
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;const restaurantId=input.request_body.restaurant_id??input.request_query.restaurant_id;const orderId=input.request_body.order_id??input.request_query.order_id;if(!restaurantId||!orderId){return [{json:{...input,body:{error:\u0027invalid_configuration\u0027,message:\u0027restaurant_id and order_id are required\u0027}}}];}return [{json:{...input,restaurant_id:restaurantId,order_id:orderId}}];"
+                                     },
+                      "id":  "validate-pix",
+                      "name":  "Validate Pix Create Request",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -720,
+                                       420
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "if-pix-error-condition",
+                                                                                   "leftValue":  "={{ !!$json.body?.error }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "if-pix-error",
+                      "name":  "If Pix Error",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       -500,
+                                       420
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "get",
+                                         "tableId":  "restaurants",
+                                         "filters":  {
+                                                         "conditions":  [
+                                                                            {
+                                                                                "keyName":  "id",
+                                                                                "condition":  "eq",
+                                                                                "keyValue":  "={{ $json.restaurant_id }}"
+                                                                            }
+                                                                        ]
+                                                     }
+                                     },
+                      "id":  "get-pix-restaurant",
+                      "name":  "Get Pix Restaurant",
+                      "type":  "n8n-nodes-base.supabase",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -260,
+                                       420
+                                   ],
+                      "credentials":  {
+                                          "supabaseApi":  {
+                                                              "id":  "amnDaggR6cwPHYRa",
+                                                              "name":  "Supabase account"
+                                                          }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "get",
+                                         "tableId":  "orders",
+                                         "filters":  {
+                                                         "conditions":  [
+                                                                            {
+                                                                                "keyName":  "id",
+                                                                                "condition":  "eq",
+                                                                                "keyValue":  "={{ $json.order_id }}"
+                                                                            },
+                                                                            {
+                                                                                "keyName":  "restaurant_id",
+                                                                                "condition":  "eq",
+                                                                                "keyValue":  "={{ $json.restaurant_id }}"
+                                                                            }
+                                                                        ]
+                                                     }
+                                     },
+                      "id":  "get-pix-order",
+                      "name":  "Get Pix Order",
+                      "type":  "n8n-nodes-base.supabase",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -40,
+                                       420
+                                   ],
+                      "credentials":  {
+                                          "supabaseApi":  {
+                                                              "id":  "amnDaggR6cwPHYRa",
+                                                              "name":  "Supabase account"
+                                                          }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const order=$input.first().json;const pixInput=$(\u0027Validate Pix Create Request\u0027).first().json;const restaurant=$(\u0027Get Pix Restaurant\u0027).first().json;if(!restaurant?.id||!order?.id){return [{json:{...pixInput,body:{error:\u0027not_found\u0027,message:\u0027Restaurant or order not found\u0027}}}];}if(restaurant.asaas_setup_status!==\u0027ready\u0027||!restaurant.asaas_api_key){return [{json:{...pixInput,body:{error:\u0027invalid_configuration\u0027,message:\u0027Asaas is not configured for this restaurant\u0027}}}];}return [{json:{...pixInput,restaurant,order,asaas_api_key:restaurant.asaas_api_key}}];"
+                                     },
+                      "id":  "normalize-pix-context",
+                      "name":  "Normalize Pix Context",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       180,
+                                       420
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "GET",
+                                         "url":  "={{ \u0027https://api.asaas.com/v3/customers?externalReference=\u0027 + encodeURIComponent(\u0027vapt-restaurant-\u0027 + $json.restaurant.id) }}",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "access_token",
+                                                                                         "value":  "={{ $json.asaas_api_key }}"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "http-list-customers",
+                      "name":  "List Asaas Customers",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       400,
+                                       420
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;const list=Array.isArray(input)?input:(input.data??input.items??input.customers??[]);const customers=Array.isArray(list)?list:(list.data??list.items??list.customers??[]);const existingCustomer=customers.find((entry)=\u003eentry.externalReference===`vapt-restaurant-${$(\u0027Normalize Pix Context\u0027).first().json.restaurant.id}`)??customers[0]??null;return [{json:{...$(\u0027Normalize Pix Context\u0027).first().json,asaas_customer:existingCustomer,needs_create_customer:!existingCustomer}}];"
+                                     },
+                      "id":  "normalize-customer-lookup",
+                      "name":  "Normalize Customer Lookup",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       620,
+                                       420
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "if-create-customer-condition",
+                                                                                   "leftValue":  "={{ !!$json.needs_create_customer }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "if-create-customer",
+                      "name":  "If Create Customer",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       840,
+                                       420
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "https://api.asaas.com/v3/customers",
+                                         "sendHeaders":  true,
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={{ { name: \u0027Vapt \u0027 + $json.restaurant.name + \u0027 Pix Operacional\u0027, email: \u0027pix+\u0027 + $json.restaurant.id + \u0027@vapt.local\u0027, externalReference: \u0027vapt-restaurant-\u0027 + $json.restaurant.id } }}",
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "access_token",
+                                                                                         "value":  "={{ $json.asaas_api_key }}"
+                                                                                     },
+                                                                                     {
+                                                                                         "name":  "Content-Type",
+                                                                                         "value":  "application/json"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "http-create-customer",
+                      "name":  "Create Asaas Customer",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       1060,
+                                       560
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const created=$input.first().json;const base=$(\u0027Normalize Customer Lookup\u0027).first().json;return [{json:{...base,asaas_customer:created,needs_create_customer:false}}];"
+                                     },
+                      "id":  "normalize-created-customer",
+                      "name":  "Normalize Created Customer",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1280,
+                                       560
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "https://api.asaas.com/v3/payments",
+                                         "sendHeaders":  true,
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={{ { customer: $json.asaas_customer.id, billingType: \u0027PIX\u0027, value: Number($json.order.total_price ?? 0), dueDate: new Date().toISOString().slice(0, 10), description: \u0027Pedido \u0027 + ($json.order.display_id ?? $json.order.id), externalReference: $json.order.id } }}",
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "access_token",
+                                                                                         "value":  "={{ $json.asaas_api_key }}"
+                                                                                     },
+                                                                                     {
+                                                                                         "name":  "Content-Type",
+                                                                                         "value":  "application/json"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "http-create-pix-payment",
+                      "name":  "Create Pix Payment",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       1500,
+                                       420
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "GET",
+                                         "url":  "=https://api.asaas.com/v3/payments/{{ $json.id }}/pixQrCode",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "access_token",
+                                                                                         "value":  "={{ $json.asaas_api_key }}"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "http-fetch-pix-qr",
+                      "name":  "Fetch Pix QR",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       1720,
+                                       420
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;const base=$(\u0027Normalize Customer Lookup\u0027).first().json;const qr=input;const orderPatch={payment_status:\u0027PENDING\u0027};if(Object.prototype.hasOwnProperty.call(base.order,\u0027payment_id\u0027)){orderPatch.payment_id=base.order.payment_id??base.payment?.id??input.id;}if(Object.prototype.hasOwnProperty.call(base.order,\u0027pix_payload\u0027)){orderPatch.pix_payload=qr.payload??qr.encodedPayload??null;}if(Object.prototype.hasOwnProperty.call(base.order,\u0027qr_code_base64\u0027)){orderPatch.qr_code_base64=qr.encodedImage??qr.base64Image??null;}const eventPayload={provider:\u0027asaas\u0027,provider_event_id:`pix_create:${input.id}`,event_type:\u0027PIX_CREATED\u0027,restaurant_id:base.restaurant.id,order_id:base.order.id,payload:{payment:input,pix_qr:qr}};return [{json:{...base,payment:input,pix_qr:qr,order_patch:orderPatch,event_payload:eventPayload}}];"
+                                     },
+                      "id":  "prepare-pix-persist",
+                      "name":  "Prepare Pix Persist Payload",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1940,
+                                       420
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "PATCH",
+                                         "url":  "={{ $env.VAPT_SUPABASE_URL.replace(//$/, \u0027\u0027) + \u0027/rest/v1/orders?id=eq.\u0027 + encodeURIComponent($json.order.id) }}",
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={{ $json.order_patch }}",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "apikey",
+                                                                                         "value":  "={{ $env.VAPT_SUPABASE_SERVICE_KEY }}"
+                                                                                     },
+                                                                                     {
+                                                                                         "name":  "Authorization",
+                                                                                         "value":  "={{ \u0027Bearer \u0027 + $env.VAPT_SUPABASE_SERVICE_KEY }}"
+                                                                                     },
+                                                                                     {
+                                                                                         "name":  "Content-Type",
+                                                                                         "value":  "application/json"
+                                                                                     },
+                                                                                     {
+                                                                                         "name":  "Prefer",
+                                                                                         "value":  "return=minimal"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "http-persist-pix-order",
+                      "name":  "Persist Pix Order",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       2160,
+                                       420
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "={{ $env.VAPT_SUPABASE_URL.replace(//$/, \u0027\u0027) + \u0027/rest/v1/payment_provider_events?on_conflict=provider,provider_event_id\u0027 }}",
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={{ $(\u0027Prepare Pix Persist Payload\u0027).first().json.event_payload }}",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "apikey",
+                                                                                         "value":  "={{ $env.VAPT_SUPABASE_SERVICE_KEY }}"
+                                                                                     },
+                                                                                     {
+                                                                                         "name":  "Authorization",
+                                                                                         "value":  "={{ \u0027Bearer \u0027 + $env.VAPT_SUPABASE_SERVICE_KEY }}"
+                                                                                     },
+                                                                                     {
+                                                                                         "name":  "Content-Type",
+                                                                                         "value":  "application/json"
+                                                                                     },
+                                                                                     {
+                                                                                         "name":  "Prefer",
+                                                                                         "value":  "resolution=merge-duplicates,return=minimal"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "http-persist-pix-event",
+                      "name":  "Persist Pix Event",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       2380,
+                                       420
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const current=$input.first().json;if(current.body?.error){return [{json:current.body}];}const input=$(\u0027Prepare Pix Persist Payload\u0027).first().json;return [{json:{payment_id:input.payment.id,qr_code_base64:input.pix_qr.encodedImage??input.pix_qr.base64Image??null,pix_payload:input.pix_qr.payload??input.pix_qr.encodedPayload??null,expiration:input.pix_qr.expirationDate??input.payment.dueDate,status:\u0027pending\u0027}}];"
+                                     },
+                      "id":  "respond-pix",
+                      "name":  "Respond Pix Create",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       2600,
+                                       420
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "width":  420,
+                                         "height":  220,
+                                         "content":  "## Webhook\nValidate the stored token, persist a deduplicated event audit row, and update the order idempotently."
+                                     },
+                      "id":  "note-webhook",
+                      "name":  "Webhook Section",
+                      "type":  "n8n-nodes-base.stickyNote",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -1600,
+                                       980
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "path":  "asaas/webhook",
+                                         "httpMethod":  "POST",
+                                         "responseMode":  "lastNode",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "webhook-trigger",
+                      "name":  "Asaas Provider Webhook",
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -1380,
+                                       1120
+                                   ],
+                      "webhookId":  "vapt-asaas-provider-webhook"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const req=$input.first().json;return [{json:{route_key:\u0027asaas.webhook\u0027,request:req,request_headers:req.headers??{},request_body:req.body??req}}];"
+                                     },
+                      "id":  "route-webhook",
+                      "name":  "Route Asaas Webhook",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -1160,
+                                       1120
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;const payment=input.request_body.payment??input.request_body.paymentData??input.request_body??{};const externalReference=payment.externalReference??input.request_body.externalReference??null;if(!externalReference){return [{json:{...input,body:{error:\u0027invalid_configuration\u0027,message:\u0027Webhook payload is missing externalReference\u0027}}}];}return [{json:{...input,external_reference:externalReference,asaas_event:input.request_body.event??input.request_body.type??null,payment_payload:payment}}];"
+                                     },
+                      "id":  "normalize-webhook-payload",
+                      "name":  "Normalize Asaas Webhook Payload",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -940,
+                                       1120
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "if-webhook-error-condition",
+                                                                                   "leftValue":  "={{ !!$json.body?.error }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "if-webhook-error",
+                      "name":  "If Webhook Error",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       -720,
+                                       1120
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "get",
+                                         "tableId":  "orders",
+                                         "filters":  {
+                                                         "conditions":  [
+                                                                            {
+                                                                                "keyName":  "id",
+                                                                                "condition":  "eq",
+                                                                                "keyValue":  "={{ $json.external_reference }}"
+                                                                            }
+                                                                        ]
+                                                     }
+                                     },
+                      "id":  "get-webhook-order",
+                      "name":  "Get Webhook Order",
+                      "type":  "n8n-nodes-base.supabase",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -500,
+                                       1120
+                                   ],
+                      "credentials":  {
+                                          "supabaseApi":  {
+                                                              "id":  "amnDaggR6cwPHYRa",
+                                                              "name":  "Supabase account"
+                                                          }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "get",
+                                         "tableId":  "restaurants",
+                                         "filters":  {
+                                                         "conditions":  [
+                                                                            {
+                                                                                "keyName":  "id",
+                                                                                "condition":  "eq",
+                                                                                "keyValue":  "={{ $json.restaurant_id }}"
+                                                                            }
+                                                                        ]
+                                                     }
+                                     },
+                      "id":  "get-webhook-restaurant",
+                      "name":  "Get Webhook Restaurant",
+                      "type":  "n8n-nodes-base.supabase",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -280,
+                                       1120
+                                   ],
+                      "credentials":  {
+                                          "supabaseApi":  {
+                                                              "id":  "amnDaggR6cwPHYRa",
+                                                              "name":  "Supabase account"
+                                                          }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const order=$(\u0027Get Webhook Order\u0027).first().json;const restaurant=$(\u0027Get Webhook Restaurant\u0027).first().json;const input=$(\u0027Normalize Asaas Webhook Payload\u0027).first().json;const provided=input.request_headers[\u0027asaas-access-token\u0027]??input.request_headers[\u0027Asaas-Access-Token\u0027];if(!restaurant?.asaas_webhook_token||provided!==restaurant.asaas_webhook_token){return [{json:{body:{error:\u0027unauthorized\u0027,message:\u0027Invalid Asaas webhook token\u0027}}}];}return [{json:{...input,order,restaurant,event_type:input.asaas_event,payment:input.payment_payload,provider_event_id:`asaas:${input.external_reference}:${input.asaas_event??\u0027payment\u0027}`}}];"
+                                     },
+                      "id":  "validate-stored-webhook-token",
+                      "name":  "Validate Stored Webhook Token",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -60,
+                                       1120
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "if-webhook-skip-condition",
+                                                                                   "leftValue":  "={{ $json.body?.handled === false || $json.skip === true }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "if-webhook-skip",
+                      "name":  "If Webhook Skip",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       160,
+                                       1120
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "return [{json:$input.first().json.body}];"
+                                     },
+                      "id":  "respond-webhook-skip",
+                      "name":  "Respond Unsupported Webhook Event",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       380,
+                                       980
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;if(input.body?.error){return $input.all();}const supported=new Set([\u0027PAYMENT_RECEIVED\u0027,\u0027PAYMENT_CONFIRMED\u0027]);if(!supported.has(input.event_type)){return [{json:{...input,skip:true,body:{received:true,handled:false,reason:\u0027unsupported_event\u0027,event_type:input.event_type}}}];}return [{json:{...input,mark_paid:true}}];"
+                                     },
+                      "id":  "filter-payment-event",
+                      "name":  "Filter Relevant Payment Event",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       380,
+                                       1120
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "={{ $env.VAPT_SUPABASE_URL.replace(//$/, \u0027\u0027) + \u0027/rest/v1/payment_provider_events?on_conflict=provider,provider_event_id\u0027 }}",
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={{ { provider: \u0027asaas\u0027, provider_event_id: $json.provider_event_id, event_type: $json.event_type, restaurant_id: $json.restaurant.id, order_id: $json.order.id, payload: $json.payment } }}",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "apikey",
+                                                                                         "value":  "={{ $env.VAPT_SUPABASE_SERVICE_KEY }}"
+                                                                                     },
+                                                                                     {
+                                                                                         "name":  "Authorization",
+                                                                                         "value":  "={{ \u0027Bearer \u0027 + $env.VAPT_SUPABASE_SERVICE_KEY }}"
+                                                                                     },
+                                                                                     {
+                                                                                         "name":  "Content-Type",
+                                                                                         "value":  "application/json"
+                                                                                     },
+                                                                                     {
+                                                                                         "name":  "Prefer",
+                                                                                         "value":  "resolution=merge-duplicates,return=minimal"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "http-persist-payment-event",
+                      "name":  "Persist Payment Event",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       620,
+                                       1120
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$(\u0027Filter Relevant Payment Event\u0027).first().json;if(input.body?.error){return $input.all();}if(input.order.payment_status===\u0027CONFIRMED\u0027\u0026\u0026input.order.status===\u0027paid\u0027){return [{json:{received:true,handled:true,duplicate:true,order_id:input.order.id,provider_event_id:input.provider_event_id}}];}const patch={payment_status:\u0027CONFIRMED\u0027,status:\u0027paid\u0027,payment_confirmed_at:input.order.payment_confirmed_at??new Date().toISOString()};if(Object.prototype.hasOwnProperty.call(input.order,\u0027payment_id\u0027)\u0026\u0026input.payment?.id){patch.payment_id=input.payment.id;}return [{json:{...input,order_patch:patch}}];"
+                                     },
+                      "id":  "prepare-paid-order",
+                      "name":  "Prepare Paid Order",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       840,
+                                       1120
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "PATCH",
+                                         "url":  "={{ $env.VAPT_SUPABASE_URL.replace(/\\/$/, \u0027\u0027) + \u0027/rest/v1/orders?id=eq.\u0027 + encodeURIComponent($(\u0027Prepare Paid Order\u0027).first().json.order.id) }}",
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={{ $json.order_patch }}",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "apikey",
+                                                                                         "value":  "={{ $env.VAPT_SUPABASE_SERVICE_KEY }}"
+                                                                                     },
+                                                                                     {
+                                                                                         "name":  "Authorization",
+                                                                                         "value":  "={{ \u0027Bearer \u0027 + $env.VAPT_SUPABASE_SERVICE_KEY }}"
+                                                                                     },
+                                                                                     {
+                                                                                         "name":  "Content-Type",
+                                                                                         "value":  "application/json"
+                                                                                     },
+                                                                                     {
+                                                                                         "name":  "Prefer",
+                                                                                         "value":  "return=minimal"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "http-patch-paid-order",
+                      "name":  "Patch Paid Order",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       1060,
+                                       1120
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$(\u0027Prepare Paid Order\u0027).first().json;if(input.body?.error){return [{json:input.body}];}if(input.body?.handled===false){return [{json:input.body}];}if(input.duplicate){return [{json:{received:true,handled:true,duplicate:true,order_id:input.order_id,provider_event_id:input.provider_event_id}}];}return [{json:{received:true,handled:true,order_id:input.order.id,restaurant_id:input.restaurant.id,provider_event_id:input.provider_event_id,payment_status:\u0027CONFIRMED\u0027,status:\u0027paid\u0027}}];"
+                                     },
+                      "id":  "respond-webhook",
+                      "name":  "Respond Asaas Webhook",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1280,
+                                       1120
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "width":  420,
+                                         "height":  220,
+                                         "content":  "## Admin Status\nRead-only branch for the current persisted Asaas metadata."
+                                     },
+                      "id":  "note-status",
+                      "name":  "Admin Status Section",
+                      "type":  "n8n-nodes-base.stickyNote",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -1600,
+                                       1540
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "path":  "asaas/setup/status",
+                                         "httpMethod":  "GET",
+                                         "responseMode":  "lastNode",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "status-trigger",
+                      "name":  "Admin Status Request",
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -1380,
+                                       1680
+                                   ],
+                      "webhookId":  "vapt-asaas-status"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const req=$input.first().json;return [{json:{route_key:\u0027asaas.setup.status\u0027,request:req,request_headers:req.headers??{},request_query:req.query??{},request_body:req.body??req}}];"
+                                     },
+                      "id":  "route-status",
+                      "name":  "Route Admin Status Request",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -1160,
+                                       1680
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;const expected=$env.VAPT_ADMIN_ENDPOINT_SECRET;const provided=input.request_headers[\u0027x-vapt-admin-key\u0027]??input.request_headers[\u0027X-Vapt-Admin-Key\u0027];if(!expected||provided!==expected){return [{json:{body:{error:\u0027unauthorized\u0027,message:\u0027Invalid admin secret\u0027}}}];}return $input.all();"
+                                     },
+                      "id":  "authorize-status",
+                      "name":  "Authorize Admin Status Request",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -940,
+                                       1680
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;const restaurantId=input.request_query.restaurant_id??input.request_body.restaurant_id;if(!restaurantId){return [{json:{...input,body:{error:\u0027invalid_configuration\u0027,message:\u0027restaurant_id is required\u0027}}}];}return [{json:{...input,restaurant_id:restaurantId}}];"
+                                     },
+                      "id":  "validate-status",
+                      "name":  "Validate Status Request",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -720,
+                                       1680
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "if-status-error-condition",
+                                                                                   "leftValue":  "={{ !!$json.body?.error }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "if-status-error",
+                      "name":  "If Status Error",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       -500,
+                                       1680
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "get",
+                                         "tableId":  "restaurants",
+                                         "filters":  {
+                                                         "conditions":  [
+                                                                            {
+                                                                                "keyName":  "id",
+                                                                                "condition":  "eq",
+                                                                                "keyValue":  "={{ $json.restaurant_id }}"
+                                                                            }
+                                                                        ]
+                                                     }
+                                     },
+                      "id":  "get-status-restaurant",
+                      "name":  "Get Status Restaurant",
+                      "type":  "n8n-nodes-base.supabase",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -260,
+                                       1680
+                                   ],
+                      "credentials":  {
+                                          "supabaseApi":  {
+                                                              "id":  "amnDaggR6cwPHYRa",
+                                                              "name":  "Supabase account"
+                                                          }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const input=$input.first().json;if(input.body?.error){return [{json:input.body}];}const restaurant=input; if(!restaurant?.id){return [{json:{error:\u0027not_found\u0027,message:\u0027Restaurant not found\u0027}}];}return [{json:{restaurant_id:restaurant.id,name:restaurant.name,setup_status:restaurant.asaas_setup_status,webhook_id:restaurant.asaas_webhook_id,webhook_url:restaurant.asaas_webhook_url,last_validated_at:restaurant.asaas_last_validated_at,last_error:restaurant.asaas_last_error,has_api_key:Boolean(restaurant.asaas_api_key)}}];"
+                                     },
+                      "id":  "respond-status",
+                      "name":  "Respond Admin Status",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -40,
+                                       1680
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "if-paid-order-patch-condition",
+                                                                                   "leftValue":  "={{ !!$json.order_patch }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "if-paid-order-patch",
+                      "name":  "If Paid Order Patch Needed",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       1000,
+                                       1120
+                                   ]
+                  }
+              ],
+    "connections":  {
+                        "Setup Request":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Route Setup Request",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               }
+                                                           ]
+                                                       ]
+                                          },
+                        "Route Setup Request":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "Authorize Setup Request",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "Authorize Setup Request":  {
+                                                        "main":  [
+                                                                     [
+                                                                         {
+                                                                             "node":  "Validate Setup Request",
+                                                                             "type":  "main",
+                                                                             "index":  0
+                                                                         }
+                                                                     ]
+                                                                 ]
+                                                    },
+                        "If Setup Error":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "Respond Setup Flow",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ],
+                                                            [
+                                                                {
+                                                                    "node":  "Get Setup Restaurant",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           },
+                        "Validate Setup Request":  {
+                                                       "main":  [
+                                                                    [
+                                                                        {
+                                                                            "node":  "If Setup Error",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ]
+                                                                ]
+                                                   },
+                        "Get Setup Restaurant":  {
+                                                     "main":  [
+                                                                  [
+                                                                      {
+                                                                          "node":  "Normalize Setup Restaurant",
+                                                                          "type":  "main",
+                                                                          "index":  0
+                                                                      }
+                                                                  ]
+                                                              ]
+                                                 },
+                        "Normalize Setup Restaurant":  {
+                                                           "main":  [
+                                                                        [
+                                                                            {
+                                                                                "node":  "Validate Asaas Key",
+                                                                                "type":  "main",
+                                                                                "index":  0
+                                                                            }
+                                                                        ]
+                                                                    ]
+                                                       },
+                        "Validate Asaas Key":  {
+                                                   "main":  [
+                                                                [
+                                                                    {
+                                                                        "node":  "Normalize Asaas Account",
+                                                                        "type":  "main",
+                                                                        "index":  0
+                                                                    }
+                                                                ]
+                                                            ]
+                                               },
+                        "Normalize Asaas Account":  {
+                                                        "main":  [
+                                                                     [
+                                                                         {
+                                                                             "node":  "List Existing Webhooks",
+                                                                             "type":  "main",
+                                                                             "index":  0
+                                                                         }
+                                                                     ]
+                                                                 ]
+                                                    },
+                        "List Existing Webhooks":  {
+                                                       "main":  [
+                                                                    [
+                                                                        {
+                                                                            "node":  "Normalize Existing Webhooks",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ]
+                                                                ]
+                                                   },
+                        "If Existing Webhook":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "Persist Setup State",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ],
+                                                                 [
+                                                                     {
+                                                                         "node":  "Create Required Webhook",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "Normalize Existing Webhooks":  {
+                                                            "main":  [
+                                                                         [
+                                                                             {
+                                                                                 "node":  "If Existing Webhook",
+                                                                                 "type":  "main",
+                                                                                 "index":  0
+                                                                             }
+                                                                         ]
+                                                                     ]
+                                                        },
+                        "Create Required Webhook":  {
+                                                        "main":  [
+                                                                     [
+                                                                         {
+                                                                             "node":  "Normalize Created Webhook",
+                                                                             "type":  "main",
+                                                                             "index":  0
+                                                                         }
+                                                                     ]
+                                                                 ]
+                                                    },
+                        "Normalize Created Webhook":  {
+                                                          "main":  [
+                                                                       [
+                                                                           {
+                                                                               "node":  "Persist Setup State",
+                                                                               "type":  "main",
+                                                                               "index":  0
+                                                                           }
+                                                                       ]
+                                                                   ]
+                                                      },
+                        "Persist Setup State":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "Respond Setup Flow",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "Admin Refresh Request":  {
+                                                      "main":  [
+                                                                   [
+                                                                       {
+                                                                           "node":  "Route Admin Refresh Request",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ]
+                                                               ]
+                                                  },
+                        "Route Admin Refresh Request":  {
+                                                            "main":  [
+                                                                         [
+                                                                             {
+                                                                                 "node":  "Authorize Admin Refresh Request",
+                                                                                 "type":  "main",
+                                                                                 "index":  0
+                                                                             }
+                                                                         ]
+                                                                     ]
+                                                        },
+                        "Authorize Admin Refresh Request":  {
+                                                                "main":  [
+                                                                             [
+                                                                                 {
+                                                                                     "node":  "Validate Refresh Request",
+                                                                                     "type":  "main",
+                                                                                     "index":  0
+                                                                                 }
+                                                                             ]
+                                                                         ]
+                                                            },
+                        "Validate Refresh Request":  {
+                                                         "main":  [
+                                                                      [
+                                                                          {
+                                                                              "node":  "If Refresh Error",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          }
+                                                                      ]
+                                                                  ]
+                                                     },
+                        "If Refresh Error":  {
+                                                 "main":  [
+                                                              [
+                                                                  {
+                                                                      "node":  "Respond Setup Flow",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ],
+                                                              [
+                                                                  {
+                                                                      "node":  "Load Refresh Restaurant",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ]
+                                                          ]
+                                             },
+                        "Load Refresh Restaurant":  {
+                                                        "main":  [
+                                                                     [
+                                                                         {
+                                                                             "node":  "Build Refresh Context",
+                                                                             "type":  "main",
+                                                                             "index":  0
+                                                                         }
+                                                                     ]
+                                                                 ]
+                                                    },
+                        "Build Refresh Context":  {
+                                                      "main":  [
+                                                                   [
+                                                                       {
+                                                                           "node":  "Validate Asaas Key",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ]
+                                                               ]
+                                                  },
+                        "Pix Create Request":  {
+                                                   "main":  [
+                                                                [
+                                                                    {
+                                                                        "node":  "Route Pix Create Request",
+                                                                        "type":  "main",
+                                                                        "index":  0
+                                                                    }
+                                                                ]
+                                                            ]
+                                               },
+                        "Route Pix Create Request":  {
+                                                         "main":  [
+                                                                      [
+                                                                          {
+                                                                              "node":  "Authorize Pix Create Request",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          }
+                                                                      ]
+                                                                  ]
+                                                     },
+                        "Authorize Pix Create Request":  {
+                                                             "main":  [
+                                                                          [
+                                                                              {
+                                                                                  "node":  "Validate Pix Create Request",
+                                                                                  "type":  "main",
+                                                                                  "index":  0
+                                                                              }
+                                                                          ]
+                                                                      ]
+                                                         },
+                        "Validate Pix Create Request":  {
+                                                            "main":  [
+                                                                         [
+                                                                             {
+                                                                                 "node":  "If Pix Error",
+                                                                                 "type":  "main",
+                                                                                 "index":  0
+                                                                             }
+                                                                         ]
+                                                                     ]
+                                                        },
+                        "If Pix Error":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Respond Pix Create",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ],
+                                                          [
+                                                              {
+                                                                  "node":  "Get Pix Restaurant",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "Get Pix Restaurant":  {
+                                                   "main":  [
+                                                                [
+                                                                    {
+                                                                        "node":  "Get Pix Order",
+                                                                        "type":  "main",
+                                                                        "index":  0
+                                                                    }
+                                                                ]
+                                                            ]
+                                               },
+                        "Get Pix Order":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Normalize Pix Context",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               }
+                                                           ]
+                                                       ]
+                                          },
+                        "Normalize Pix Context":  {
+                                                      "main":  [
+                                                                   [
+                                                                       {
+                                                                           "node":  "List Asaas Customers",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ]
+                                                               ]
+                                                  },
+                        "List Asaas Customers":  {
+                                                     "main":  [
+                                                                  [
+                                                                      {
+                                                                          "node":  "Normalize Customer Lookup",
+                                                                          "type":  "main",
+                                                                          "index":  0
+                                                                      }
+                                                                  ]
+                                                              ]
+                                                 },
+                        "If Create Customer":  {
+                                                   "main":  [
+                                                                [
+                                                                    {
+                                                                        "node":  "Create Asaas Customer",
+                                                                        "type":  "main",
+                                                                        "index":  0
+                                                                    }
+                                                                ],
+                                                                [
+                                                                    {
+                                                                        "node":  "HTTP Create Pix Payment",
+                                                                        "type":  "main",
+                                                                        "index":  0
+                                                                    }
+                                                                ]
+                                                            ]
+                                               },
+                        "Normalize Customer Lookup":  {
+                                                          "main":  [
+                                                                       [
+                                                                           {
+                                                                               "node":  "If Create Customer",
+                                                                               "type":  "main",
+                                                                               "index":  0
+                                                                           }
+                                                                       ]
+                                                                   ]
+                                                      },
+                        "Create Asaas Customer":  {
+                                                      "main":  [
+                                                                   [
+                                                                       {
+                                                                           "node":  "Normalize Created Customer",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ]
+                                                               ]
+                                                  },
+                        "Normalize Created Customer":  {
+                                                           "main":  [
+                                                                        [
+                                                                            {
+                                                                                "node":  "HTTP Create Pix Payment",
+                                                                                "type":  "main",
+                                                                                "index":  0
+                                                                            }
+                                                                        ]
+                                                                    ]
+                                                       },
+                        "HTTP Create Pix Payment":  {
+                                                        "main":  [
+                                                                     [
+                                                                         {
+                                                                             "node":  "Fetch Pix QR",
+                                                                             "type":  "main",
+                                                                             "index":  0
+                                                                         }
+                                                                     ]
+                                                                 ]
+                                                    },
+                        "Fetch Pix QR":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Prepare Pix Persist Payload",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "Prepare Pix Persist Payload":  {
+                                                            "main":  [
+                                                                         [
+                                                                             {
+                                                                                 "node":  "Persist Pix Order",
+                                                                                 "type":  "main",
+                                                                                 "index":  0
+                                                                             }
+                                                                         ]
+                                                                     ]
+                                                        },
+                        "Persist Pix Order":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Persist Pix Event",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Persist Pix Event":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Respond Pix Create",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Asaas Provider Webhook":  {
+                                                       "main":  [
+                                                                    [
+                                                                        {
+                                                                            "node":  "Route Asaas Webhook",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ]
+                                                                ]
+                                                   },
+                        "Route Asaas Webhook":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "Normalize Asaas Webhook Payload",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "Normalize Asaas Webhook Payload":  {
+                                                                "main":  [
+                                                                             [
+                                                                                 {
+                                                                                     "node":  "If Webhook Error",
+                                                                                     "type":  "main",
+                                                                                     "index":  0
+                                                                                 }
+                                                                             ]
+                                                                         ]
+                                                            },
+                        "If Webhook Error":  {
+                                                 "main":  [
+                                                              [
+                                                                  {
+                                                                      "node":  "Respond Unsupported Webhook Event",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ],
+                                                              [
+                                                                  {
+                                                                      "node":  "Get Webhook Order",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ]
+                                                          ]
+                                             },
+                        "Get Webhook Order":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Get Webhook Restaurant",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Get Webhook Restaurant":  {
+                                                       "main":  [
+                                                                    [
+                                                                        {
+                                                                            "node":  "Validate Stored Webhook Token",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ]
+                                                                ]
+                                                   },
+                        "Validate Stored Webhook Token":  {
+                                                              "main":  [
+                                                                           [
+                                                                               {
+                                                                                   "node":  "If Webhook Skip",
+                                                                                   "type":  "main",
+                                                                                   "index":  0
+                                                                               }
+                                                                           ]
+                                                                       ]
+                                                          },
+                        "If Webhook Skip":  {
+                                                "main":  [
+                                                             [
+                                                                 {
+                                                                     "node":  "Respond Unsupported Webhook Event",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ],
+                                                             [
+                                                                 {
+                                                                     "node":  "Filter Relevant Payment Event",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ]
+                                                         ]
+                                            },
+                        "Filter Relevant Payment Event":  {
+                                                              "main":  [
+                                                                           [
+                                                                               {
+                                                                                   "node":  "Persist Payment Event",
+                                                                                   "type":  "main",
+                                                                                   "index":  0
+                                                                               }
+                                                                           ]
+                                                                       ]
+                                                          },
+                        "Persist Payment Event":  {
+                                                      "main":  [
+                                                                   [
+                                                                       {
+                                                                           "node":  "Prepare Paid Order",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ]
+                                                               ]
+                                                  },
+                        "Prepare Paid Order":  {
+                                                   "main":  [
+                                                                {
+                                                                    "node":  "If Paid Order Patch Needed",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                               },
+                        "Patch Paid Order":  {
+                                                 "main":  [
+                                                              {
+                                                                  "node":  "Respond Asaas Webhook",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                             },
+                        "Admin Status Request":  {
+                                                     "main":  [
+                                                                  [
+                                                                      {
+                                                                          "node":  "Route Admin Status Request",
+                                                                          "type":  "main",
+                                                                          "index":  0
+                                                                      }
+                                                                  ]
+                                                              ]
+                                                 },
+                        "Route Admin Status Request":  {
+                                                           "main":  [
+                                                                        [
+                                                                            {
+                                                                                "node":  "Authorize Admin Status Request",
+                                                                                "type":  "main",
+                                                                                "index":  0
+                                                                            }
+                                                                        ]
+                                                                    ]
+                                                       },
+                        "Authorize Admin Status Request":  {
+                                                               "main":  [
+                                                                            [
+                                                                                {
+                                                                                    "node":  "Validate Status Request",
+                                                                                    "type":  "main",
+                                                                                    "index":  0
+                                                                                }
+                                                                            ]
+                                                                        ]
+                                                           },
+                        "Validate Status Request":  {
+                                                        "main":  [
+                                                                     [
+                                                                         {
+                                                                             "node":  "If Status Error",
+                                                                             "type":  "main",
+                                                                             "index":  0
+                                                                         }
+                                                                     ]
+                                                                 ]
+                                                    },
+                        "If Status Error":  {
+                                                "main":  [
+                                                             [
+                                                                 {
+                                                                     "node":  "Respond Admin Status",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ],
+                                                             [
+                                                                 {
+                                                                     "node":  "Get Status Restaurant",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ]
+                                                         ]
+                                            },
+                        "Get Status Restaurant":  {
+                                                      "main":  [
+                                                                   [
+                                                                       {
+                                                                           "node":  "Respond Admin Status",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ]
+                                                               ]
+                                                  },
+                        "If Paid Order Patch Needed":  {
+                                                           "main":  [
+                                                                        [
+                                                                            {
+                                                                                "node":  "Patch Paid Order",
+                                                                                "type":  "main",
+                                                                                "index":  0
+                                                                            }
+                                                                        ],
+                                                                        [
+                                                                            {
+                                                                                "node":  "Respond Asaas Webhook",
+                                                                                "type":  "main",
+                                                                                "index":  0
+                                                                            }
+                                                                        ]
+                                                                    ]
+                                                       }
+                    },
+    "pinData":  {
+
+                },
+    "active":  false,
+    "settings":  {
+                     "executionOrder":  "v1"
+                 },
+    "versionId":  "2026-04-04-vapt-asaas-recovery",
+    "meta":  {
+                 "templateCredsSetupCompleted":  false
+             },
+    "id":  "vapt-asaas-recovery",
+    "tags":  [
+
+             ]
+}

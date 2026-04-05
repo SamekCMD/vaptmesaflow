@@ -13,7 +13,8 @@ import { Loader2, Lock, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import type { PlanDefinition } from "@/lib/plans";
-import { STRIPE_PUBLISHABLE_KEY, N8N_CHECKOUT_WEBHOOK_URL } from "@/lib/constants";
+import { STRIPE_PUBLISHABLE_KEY } from "@/lib/constants";
+import { n8nClient, N8nClientError } from "@/lib/n8n-client";
 
 const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
 
@@ -50,20 +51,18 @@ function CheckoutForm({ planName, loading, setLoading }: CheckoutFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <PaymentElement />
-      {error && (
-        <p className="text-sm text-destructive bg-destructive/10 rounded-md p-3">{error}</p>
-      )}
+      {error && <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
       <Button type="submit" className="w-full" disabled={!stripe || loading}>
         {loading ? (
           <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             Processando...
           </>
         ) : (
           `Assinar plano ${planName}`
         )}
       </Button>
-      <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1.5">
+      <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
         <ShieldCheck className="h-3.5 w-3.5" />
         Pagamento seguro via Stripe. Cancele quando quiser.
       </p>
@@ -80,7 +79,7 @@ interface StripeCheckoutModalProps {
 
 export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCharged }: StripeCheckoutModalProps) {
   const { user } = useAuth();
-  const { restaurantId } = useSubscription();
+  const { restaurantId, planStatus } = useSubscription();
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [fetchingSecret, setFetchingSecret] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -96,22 +95,23 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
     const createSession = async () => {
       setFetchingSecret(true);
       setFetchError(null);
+
       try {
-        const response = await fetch(N8N_CHECKOUT_WEBHOOK_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "create_checkout_session",
-            restaurant_id: restaurantId,
-            email: user.email,
-            price_id: plan.priceId,
-            plan_type: plan.id,
-          }),
-        });
-        const data = await response.json();
+        const data =
+          planStatus === "active"
+            ? await n8nClient.stripe.changeSubscription({
+                restaurantId,
+                targetPlanType: plan.id,
+                targetPriceId: plan.priceId,
+              })
+            : await n8nClient.stripe.createSubscription({
+                restaurantId,
+                email: user.email || "",
+                planType: plan.id,
+                priceId: plan.priceId,
+              });
 
         if (data.autoCharged === true || !data.clientSecret) {
-          // Plan was auto-charged or no payment needed
           onAutoCharged?.();
           onOpenChange(false);
         } else if (
@@ -120,17 +120,21 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
         ) {
           setClientSecret(data.clientSecret);
         } else {
-          setFetchError("NÃ£o foi possÃ­vel iniciar o checkout. Tente novamente.");
+          setFetchError("Não foi possível iniciar o checkout. Tente novamente.");
         }
-      } catch {
-        setFetchError("Erro de conexÃ£o. Tente novamente.");
+      } catch (error) {
+        if (error instanceof N8nClientError) {
+          setFetchError(error.message);
+        } else {
+          setFetchError("Erro de conexão. Tente novamente.");
+        }
       } finally {
         setFetchingSecret(false);
       }
     };
 
     createSession();
-  }, [open, plan, user, restaurantId]);
+  }, [open, plan, user, restaurantId, planStatus, onAutoCharged, onOpenChange]);
 
   if (!plan) return null;
 
@@ -139,14 +143,12 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Assinar plano {plan.name}</DialogTitle>
-          <DialogDescription>
-            R$ {plan.price},00/mÃªs
-          </DialogDescription>
+          <DialogDescription>R$ {plan.price},00/mês</DialogDescription>
         </DialogHeader>
 
         <div className="py-2">
           {fetchingSecret && (
-            <div className="flex flex-col items-center justify-center py-12 gap-3">
+            <div className="flex flex-col items-center justify-center gap-3 py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <p className="text-sm text-muted-foreground">Preparando checkout...</p>
             </div>
@@ -155,7 +157,7 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
           {fetchError && (
             <div className="flex flex-col items-center gap-3 py-8">
               <Lock className="h-8 w-8 text-destructive" />
-              <p className="text-sm text-destructive text-center">{fetchError}</p>
+              <p className="text-center text-sm text-destructive">{fetchError}</p>
               <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
                 Fechar
               </Button>
@@ -176,11 +178,7 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
                 },
               }}
             >
-              <CheckoutForm
-                planName={plan.name}
-                loading={submitting}
-                setLoading={setSubmitting}
-              />
+              <CheckoutForm planName={plan.name} loading={submitting} setLoading={setSubmitting} />
             </Elements>
           )}
         </div>

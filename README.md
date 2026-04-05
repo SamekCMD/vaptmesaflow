@@ -1,27 +1,27 @@
-# Vapt
+﻿# Vapt
 
-Operação mais clara para restaurantes.
+OperaÃ§Ã£o mais clara para restaurantes.
 
-O Vapt é uma plataforma para restaurantes, padarias e hamburguerias brasileiras que centraliza salão, cardápio, cozinha, caixa e visão operacional em um só produto. A proposta da marca é reduzir ruído entre etapas do atendimento e dar contexto suficiente para decidir antes do atraso aparecer.
+O Vapt Ã© uma plataforma para restaurantes, padarias e hamburguerias brasileiras que centraliza salÃ£o, cardÃ¡pio, cozinha, caixa e visÃ£o operacional em um sÃ³ produto. A proposta da marca Ã© reduzir ruÃ­do entre etapas do atendimento e dar contexto suficiente para decidir antes do atraso aparecer.
 
 ## O que o produto resolve
 
-- Cardápio digital com fluxo público para pedidos na mesa
-- Gestão de cozinha com monitor de preparo em tempo real
-- Caixa com visão das mesas e fechamento operacional
-- Dashboard com leitura rápida da operação
-- Onboarding guiado para tirar o restaurante do zero até a primeira operação
-- Aparência personalizável para o cardápio público
+- CardÃ¡pio digital com fluxo pÃºblico para pedidos na mesa
+- GestÃ£o de cozinha com monitor de preparo em tempo real
+- Caixa com visÃ£o das mesas e fechamento operacional
+- Dashboard com leitura rÃ¡pida da operaÃ§Ã£o
+- Onboarding guiado para tirar o restaurante do zero atÃ© a primeira operaÃ§Ã£o
+- AparÃªncia personalizÃ¡vel para o cardÃ¡pio pÃºblico
 
 ## Identidade da marca
 
-O Vapt não se posiciona como um “app bonito para restaurante”. O foco é clareza operacional.
+O Vapt nÃ£o se posiciona como um â€œapp bonito para restauranteâ€. O foco Ã© clareza operacional.
 
 - Direto ao ponto
 - Profissional sem ser frio
-- Rápido para operar
-- Legível no pico
-- Útil para dono, salão e cozinha
+- RÃ¡pido para operar
+- LegÃ­vel no pico
+- Ãštil para dono, salÃ£o e cozinha
 
 ## Stack principal
 
@@ -36,21 +36,21 @@ O Vapt não se posiciona como um “app bonito para restaurante”. O foco é cl
 ## Estrutura do produto
 
 - `src/pages/dashboard`
-  - áreas internas como visão geral, caixa, cardápio, cozinha, aparência e configurações
+  - Ã¡reas internas como visÃ£o geral, caixa, cardÃ¡pio, cozinha, aparÃªncia e configuraÃ§Ãµes
 - `src/pages/menu`
-  - experiência pública do cardápio
+  - experiÃªncia pÃºblica do cardÃ¡pio
 - `src/pages/onboarding`
-  - fluxo de ativação inicial
+  - fluxo de ativaÃ§Ã£o inicial
 - `src/components/landing`
   - landing page e blocos comerciais
 - `src/lib`
-  - utilitários de negócio, configuração e integrações
+  - utilitÃ¡rios de negÃ³cio, configuraÃ§Ã£o e integraÃ§Ãµes
 - `supabase/migrations`
   - migrations SQL do projeto
 
 ## Como rodar localmente
 
-### 1. Instale as dependências
+### 1. Instale as dependÃªncias
 
 ```bash
 npm install
@@ -60,7 +60,7 @@ npm install
 
 Crie um arquivo `.env.local` a partir de `.env.example`.
 
-Variáveis esperadas:
+VariÃ¡veis esperadas:
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
@@ -68,10 +68,11 @@ Variáveis esperadas:
 - `VITE_STRIPE_PRICE_STARTER`
 - `VITE_STRIPE_PRICE_PRO`
 - `VITE_STRIPE_PRICE_BUSINESS`
-- `VITE_N8N_CHECKOUT_WEBHOOK_URL`
-- `VITE_N8N_WEBHOOK_URL`
+- `VITE_N8N_WEBHOOK_BASE_URL`
+- `VITE_VAPT_APP_ENDPOINT_SECRET`
+- `VITE_VAPT_WEBHOOK_SETUP_SECRET`
+- `VITE_VAPT_ADMIN_ENDPOINT_SECRET`
 - `VITE_VAPID_PUBLIC_KEY`
-- `VITE_PUSH_SUBSCRIBE_WEBHOOK_URL`
 
 ### 3. Inicie o projeto
 
@@ -81,7 +82,7 @@ npm run dev
 
 O app sobe em ambiente local pelo Vite.
 
-## Scripts úteis
+## Scripts Ãºteis
 
 ```bash
 npm run dev
@@ -92,55 +93,57 @@ npx tsc --noEmit
 
 ## Banco e migrations
 
-As mudanças de banco ficam em `supabase/migrations`.
+As mudanÃ§as de banco ficam em `supabase/migrations`.
 
 Se uma feature depender de tabela nova, rode a migration correspondente no Supabase antes de validar o fluxo em ambiente real.
 
 Exemplo recente:
 
 - `20260403_create_order_feedback.sql`
-  - cria a base para avaliações de pedidos e resumo de satisfação
+  - cria a base para avaliaÃ§Ãµes de pedidos e resumo de satisfaÃ§Ã£o
 
 ## Fluxos importantes do produto
 
 ### Landing
 
-A landing apresenta o Vapt como cockpit operacional, não como vitrine genérica de SaaS.
+A landing apresenta o Vapt como cockpit operacional, nÃ£o como vitrine genÃ©rica de SaaS.
 
 ### Onboarding
 
-O onboarding foi desenhado para levar o restaurante até a primeira operação e depois oferecer um guia contextual dentro dos módulos reais.
+O onboarding foi desenhado para levar o restaurante atÃ© a primeira operaÃ§Ã£o e depois oferecer um guia contextual dentro dos mÃ³dulos reais.
 
-### Cardápio público
+### CardÃ¡pio pÃºblico
 
-O cardápio público é o ponto de contato do cliente final com o restaurante. Ele precisa manter clareza de navegação, contexto do pedido e consistência visual com a identidade configurada.
+O cardÃ¡pio pÃºblico Ã© o ponto de contato do cliente final com o restaurante. Ele precisa manter clareza de navegaÃ§Ã£o, contexto do pedido e consistÃªncia visual com a identidade configurada.
 
 ### Overview
 
-A visão geral do dashboard existe para responder rapidamente:
+A visÃ£o geral do dashboard existe para responder rapidamente:
 
-- como está a operação agora
-- se existe alguma pendência real
-- o que merece atenção sem forçar leitura excessiva
+- como estÃ¡ a operaÃ§Ã£o agora
+- se existe alguma pendÃªncia real
+- o que merece atenÃ§Ã£o sem forÃ§ar leitura excessiva
 
-## Qualidade e manutenção
+## Qualidade e manutenÃ§Ã£o
 
-Este projeto já passou por refactors importantes de:
+Este projeto jÃ¡ passou por refactors importantes de:
 
 - onboarding
 - landing page
-- fluxo público de avaliação de pedidos
-- configuração via variáveis de ambiente
-- preview visual da aparência
+- fluxo pÃºblico de avaliaÃ§Ã£o de pedidos
+- configuraÃ§Ã£o via variÃ¡veis de ambiente
+- preview visual da aparÃªncia
 
-Ao continuar evoluindo o produto, a regra deve ser manter commits separados por assunto, com escopo claro e sem misturar feature com ruído de workspace.
+Ao continuar evoluindo o produto, a regra deve ser manter commits separados por assunto, com escopo claro e sem misturar feature com ruÃ­do de workspace.
 
-## Observações
+## ObservaÃ§Ãµes
 
-- `.env` e variações locais não devem ir para o git
-- artefatos locais de skills, planos e tooling auxiliar também ficam ignorados
-- o projeto ainda depende de configurações externas reais para Stripe, Supabase, webhooks e push
+- `.env` e variaÃ§Ãµes locais nÃ£o devem ir para o git
+- artefatos locais de skills, planos e tooling auxiliar tambÃ©m ficam ignorados
+- o projeto ainda depende de configuraÃ§Ãµes externas reais para Stripe, Supabase, webhooks e push
 
 ## Resumo
 
-O Vapt é um sistema de operação para restaurantes que troca improviso por visibilidade. A ideia central do produto é simples: menos ruído entre salão, cozinha e caixa, mais clareza para agir no tempo certo.
+O Vapt Ã© um sistema de operaÃ§Ã£o para restaurantes que troca improviso por visibilidade. A ideia central do produto Ã© simples: menos ruÃ­do entre salÃ£o, cozinha e caixa, mais clareza para agir no tempo certo.
+
+

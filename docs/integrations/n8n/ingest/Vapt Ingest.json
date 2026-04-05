@@ -1,0 +1,371 @@
+{
+  "name": "Vapt Ingest",
+  "nodes": [
+    {
+      "parameters": {
+        "width": 420,
+        "height": 220,
+        "content": "## Route Request\\n## Authorize App Request\\n## Validate Payload\\n## Upsert Supabase Row\\n## Respond\\n\\nOperational ingest workflow for lightweight app-originated writes."
+      },
+      "id": "note-ingest",
+      "name": "Ingest Section",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1600,
+        -900
+      ]
+    },
+    {
+      "parameters": {
+        "path": "ingest/push-subscription",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "push-trigger",
+      "name": "Push Subscription Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1380,
+        -760
+      ],
+      "webhookId": "vapt-ingest-push-subscription"
+    },
+    {
+      "parameters": {
+        "jsCode": "const req=$input.first().json;return [{json:{route_key:'ingest.push-subscription',request:req,request_headers:req.headers??{},request_query:req.query??{},request_body:req.body??req}}];"
+      },
+      "id": "route-push",
+      "name": "Route Push Subscription Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1160,
+        -760
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$input.first().json;const expected=$env.VAPT_APP_ENDPOINT_SECRET;const provided=input.request_headers['x-vapt-app-key']??input.request_headers['X-Vapt-App-Key'];if(!expected||provided!==expected){return [{json:{...input,halt:true,statusCode:401,body:{error:'unauthorized',message:'Invalid app endpoint secret'}}}];}return $input.all();"
+      },
+      "id": "authorize-push",
+      "name": "Authorize Push Subscription Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -940,
+        -760
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$input.first().json;if(input.halt||input.body?.error){return $input.all();}const body=input.request_body??{};if(body.action!=='subscribe'||!body.restaurant_id||!body.subscription||typeof body.subscription!=='object'||!body.endpoint){return [{json:{...input,halt:true,statusCode:400,body:{error:'invalid_configuration',message:'action, restaurant_id, subscription, and endpoint are required'}}}];}return [{json:{...input,restaurant_id:body.restaurant_id,subscription:body.subscription,endpoint:body.endpoint,origin:body.origin??null,user_agent:body.user_agent??null,created_at:body.created_at??new Date().toISOString()}}];"
+      },
+      "id": "validate-push-subscription",
+      "name": "Validate Push Subscription Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        -760
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+      "url": "={{ $env.VAPT_SUPABASE_URL.replace(/\\/$/, '') + '/rest/v1/push_subscriptions?on_conflict=endpoint' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { restaurant_id: $json.restaurant_id, endpoint: $json.endpoint, subscription: $json.subscription, origin: $json.origin, user_agent: $json.user_agent, created_at: $json.created_at, updated_at: $json.created_at } }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.VAPT_SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.VAPT_SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "persist-push-subscription",
+      "name": "Persist Push Subscription",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -500,
+        -760
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst payload = Array.isArray(input) ? input[0] : input;\nreturn [{ json: { success: true, route: 'ingest.push-subscription', restaurant_id: payload?.restaurant_id ?? null, endpoint: payload?.endpoint ?? null, status: 'saved' } }];"
+      },
+      "id": "respond-push",
+      "name": "Respond Push Subscription",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -280,
+        -760
+      ]
+    },
+    {
+      "parameters": {
+        "path": "ingest/order-feedback",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "feedback-trigger",
+      "name": "Order Feedback Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1380,
+        -360
+      ],
+      "webhookId": "vapt-ingest-order-feedback"
+    },
+    {
+      "parameters": {
+        "jsCode": "const req=$input.first().json;return [{json:{route_key:'ingest.order-feedback',request:req,request_headers:req.headers??{},request_query:req.query??{},request_body:req.body??req}}];"
+      },
+      "id": "route-feedback",
+      "name": "Route Order Feedback Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1160,
+        -360
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$input.first().json;const expected=$env.VAPT_APP_ENDPOINT_SECRET;const provided=input.request_headers['x-vapt-app-key']??input.request_headers['X-Vapt-App-Key'];if(!expected||provided!==expected){return [{json:{...input,halt:true,statusCode:401,body:{error:'unauthorized',message:'Invalid app endpoint secret'}}}];}return $input.all();"
+      },
+      "id": "authorize-feedback",
+      "name": "Authorize Order Feedback Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -940,
+        -360
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$input.first().json;if(input.halt||input.body?.error){return $input.all();}const body=input.request_body??{};const rating=Number(body.rating);const reasons=Array.isArray(body.reasons)?body.reasons:[];if(!body.order_id||!body.restaurant_id||!Number.isInteger(rating)||rating<1||rating>5){return [{json:{...input,halt:true,statusCode:400,body:{error:'invalid_configuration',message:'order_id, restaurant_id, and a rating between 1 and 5 are required'}}}];}return [{json:{...input,order_id:body.order_id,restaurant_id:body.restaurant_id,rating,reasons,comment:body.comment??null,created_at:body.created_at??new Date().toISOString()}}];"
+      },
+      "id": "validate-order-feedback",
+      "name": "Validate Order Feedback Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        -360
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+      "url": "={{ $env.VAPT_SUPABASE_URL.replace(/\\/$/, '') + '/rest/v1/order_feedback?on_conflict=order_id' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { order_id: $json.order_id, restaurant_id: $json.restaurant_id, rating: $json.rating, reasons: $json.reasons, comment: $json.comment, created_at: $json.created_at } }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.VAPT_SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.VAPT_SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "persist-order-feedback",
+      "name": "Persist Order Feedback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -500,
+        -360
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst payload = Array.isArray(input) ? input[0] : input;\nreturn [{ json: { success: true, route: 'ingest.order-feedback', order_id: payload?.order_id ?? null, restaurant_id: payload?.restaurant_id ?? null, rating: payload?.rating ?? null, status: 'saved' } }];"
+      },
+      "id": "respond-feedback",
+      "name": "Respond Order Feedback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -280,
+        -360
+      ]
+    }
+  ],
+  "connections": {
+    "Push Subscription Request": {
+      "main": [
+        [
+          {
+            "node": "Route Push Subscription Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Push Subscription Request": {
+      "main": [
+        [
+          {
+            "node": "Authorize Push Subscription Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Authorize Push Subscription Request": {
+      "main": [
+        [
+          {
+            "node": "Validate Push Subscription Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Push Subscription Payload": {
+      "main": [
+        [
+          {
+            "node": "Persist Push Subscription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persist Push Subscription": {
+      "main": [
+        [
+          {
+            "node": "Respond Push Subscription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Order Feedback Request": {
+      "main": [
+        [
+          {
+            "node": "Route Order Feedback Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Order Feedback Request": {
+      "main": [
+        [
+          {
+            "node": "Authorize Order Feedback Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Authorize Order Feedback Request": {
+      "main": [
+        [
+          {
+            "node": "Validate Order Feedback Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Order Feedback Payload": {
+      "main": [
+        [
+          {
+            "node": "Persist Order Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persist Order Feedback": {
+      "main": [
+        [
+          {
+            "node": "Respond Order Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2026-04-04-vapt-ingest-redesign",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "vapt-ingest-redesign",
+  "tags": []
+}

@@ -1,0 +1,1779 @@
+{
+  "name": "Vapt Stripe",
+  "nodes": [
+    {
+      "parameters": {
+        "width": 420,
+        "height": 220,
+        "content": "## Create subscription\\nAuthorize, load restaurant, resolve customer, create subscription, persist billing state, respond."
+      },
+      "id": "note-create",
+      "name": "Create Section",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1800,
+        -900
+      ]
+    },
+    {
+      "parameters": {
+        "path": "stripe/subscription/create",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "create-trigger",
+      "name": "Create Subscription Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1580,
+        -760
+      ],
+      "webhookId": "vapt-stripe-subscription-create"
+    },
+    {
+      "parameters": {
+        "jsCode": "const req=$input.first().json;return [{json:{request:req,request_headers:req.headers??{},request_query:req.query??{},request_body:req.body??req}}];"
+      },
+      "id": "route-create",
+      "name": "Route Create Subscription Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1360,
+        -760
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$input.first().json;const expected=$env.VAPT_APP_ENDPOINT_SECRET;const provided=input.request_headers['x-vapt-app-key']??input.request_headers['X-Vapt-App-Key'];if(!expected||provided!==expected){return [{json:{...input,halt:true,body:{error:'unauthorized',message:'Invalid app endpoint secret'}}}];}return $input.all();"
+      },
+      "id": "authorize-create",
+      "name": "Authorize Create Subscription Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1140,
+        -760
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$input.first().json;if(input.halt){return $input.all();}const restaurantId=input.request_body.restaurant_id??input.request_query.restaurant_id;const email=input.request_body.email;const planType=input.request_body.plan_type;const priceMap={starter:$env.STRIPE_PRICE_STARTER,pro:$env.STRIPE_PRICE_PRO,business:$env.STRIPE_PRICE_BUSINESS};const priceId=input.request_body.price_id??priceMap[planType];const allowedPlans=new Set(['starter','pro','business']);if(!restaurantId||!email||!planType||!allowedPlans.has(planType)||!priceId){return [{json:{...input,halt:true,restaurant_id:restaurantId??null,body:{error:'invalid_configuration',message:'restaurant_id, email, plan_type, and price_id are required'}}}];}return [{json:{...input,restaurant_id:restaurantId,email,plan_type:planType,price_id:priceId}}];"
+      },
+      "id": "validate-create",
+      "name": "Validate Create Subscription Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -920,
+        -760
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "restaurants",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.restaurant_id }}"
+            }
+          ]
+        }
+      },
+      "id": "get-create-restaurant",
+      "name": "Get Create Subscription Restaurant",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        -760
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "amnDaggR6cwPHYRa",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$('Validate Create Subscription Request').first().json;if(input.body?.error){return [{json:input}];}const restaurant=$input.first().json;if(!restaurant?.id){return [{json:{...input,body:{error:'not_found',message:'Restaurant not found'}}}];}return [{json:{...input,restaurant}}];"
+      },
+      "id": "normalize-create-restaurant",
+      "name": "Normalize Create Subscription Restaurant",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        -760
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "if-create-customer-exists-condition",
+              "leftValue": "={{ !!$json.restaurant.stripe_customer_id }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-create-customer-exists",
+      "name": "If Create Customer Exists",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -260,
+        -760
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$input.first().json;return [{json:{...input,stripe_customer_id:input.restaurant.stripe_customer_id}}];"
+      },
+      "id": "use-existing-customer",
+      "name": "Use Existing Stripe Customer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -40,
+        -900
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "customer",
+        "operation": "create",
+        "name": "={{ $json.restaurant.name ?? $json.request_body.restaurant_name ?? 'Vapt Restaurant' }}",
+        "additionalFields": {
+          "email": "={{ $json.email }}"
+        }
+      },
+      "id": "create-stripe-customer",
+      "name": "Create Stripe Customer",
+      "type": "n8n-nodes-base.stripe",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -620
+      ],
+      "credentials": {
+        "stripeApi": {
+          "id": "ARWK14f7zUMgt5m0",
+          "name": "Stripe VAPT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$('Normalize Create Subscription Restaurant').first().json;const customer=$input.first().json;return [{json:{...input,stripe_customer_id:customer.id}}];"
+      },
+      "id": "normalize-created-customer",
+      "name": "Normalize Created Stripe Customer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        -620
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.stripe.com/v1/subscriptions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "stripeApi",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "customer",
+              "value": "={{ $json.stripe_customer_id }}"
+            },
+            {
+              "name": "items[0][price]",
+              "value": "={{ $json.price_id }}"
+            },
+            {
+              "name": "payment_behavior",
+              "value": "default_incomplete"
+            },
+            {
+              "name": "collection_method",
+              "value": "charge_automatically"
+            },
+            {
+              "name": "payment_settings[save_default_payment_method]",
+              "value": "on_subscription"
+            },
+            {
+              "name": "metadata[restaurant_id]",
+              "value": "={{ $json.restaurant.id }}"
+            },
+            {
+              "name": "metadata[plan_type]",
+              "value": "={{ $json.plan_type }}"
+            },
+            {
+              "name": "expand[]",
+              "value": "latest_invoice.confirmation_secret"
+            },
+            {
+              "name": "expand[]",
+              "value": "pending_setup_intent"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-create-subscription",
+      "name": "HTTP Create Stripe Subscription",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        400,
+        -760
+      ],
+      "credentials": {
+        "stripeApi": {
+          "id": "ARWK14f7zUMgt5m0",
+          "name": "Stripe VAPT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "restaurants",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.restaurant_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "stripe_customer_id",
+              "fieldValue": "={{ $json.stripe_customer_id }}"
+            },
+            {
+              "fieldId": "stripe_subscription_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldId": "plan_type",
+              "fieldValue": "={{ $json.plan_type }}"
+            },
+            {
+              "fieldId": "plan_status",
+              "fieldValue": "={{ $json.status === 'active' ? 'active' : ($json.status === 'trialing' ? 'trialing' : ($json.restaurant.plan_status ?? 'trialing')) }}"
+            },
+            {
+              "fieldId": "trial_ends_at",
+              "fieldValue": "={{ $json.trial_end ? new Date(Number($json.trial_end) * 1000).toISOString() : ($json.restaurant.trial_ends_at ?? null) }}"
+            },
+            {
+              "fieldId": "billing_last_error",
+              "fieldValue": "=null"
+            },
+            {
+              "fieldId": "subscription_canceled_at",
+              "fieldValue": "=null"
+            }
+          ]
+        }
+      },
+      "id": "update-created-subscription-restaurant",
+      "name": "Update Created Subscription Restaurant",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        620,
+        -760
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "amnDaggR6cwPHYRa",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const subscription=$('HTTP Create Stripe Subscription').first().json;const createContext=$('HTTP Create Stripe Subscription').item.json;const clientSecret=subscription.latest_invoice?.confirmation_secret?.client_secret??subscription.pending_setup_intent?.client_secret??subscription.latest_invoice?.payment_intent?.client_secret??null;const autoCharged=!clientSecret&&['active','trialing'].includes(subscription.status);return [{json:{clientSecret,subscriptionId:subscription.id,customerId:createContext.stripe_customer_id,autoCharged}}];"
+      },
+      "id": "respond-create",
+      "name": "Respond Create Subscription",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        -760
+      ]
+    },
+    {
+      "parameters": {
+        "width": 420,
+        "height": 220,
+        "content": "## Change subscription\\nAuthorize, load restaurant, read current subscription, change price, persist, respond."
+      },
+      "id": "note-change",
+      "name": "Change Section",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1800,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "path": "stripe/subscription/change",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "change-trigger",
+      "name": "Change Subscription Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1580,
+        -140
+      ],
+      "webhookId": "vapt-stripe-subscription-change"
+    },
+    {
+      "parameters": {
+        "jsCode": "const req=$input.first().json;return [{json:{request:req,request_headers:req.headers??{},request_query:req.query??{},request_body:req.body??req}}];"
+      },
+      "id": "route-change",
+      "name": "Route Change Subscription Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1360,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$input.first().json;const expected=$env.VAPT_APP_ENDPOINT_SECRET;const provided=input.request_headers['x-vapt-app-key']??input.request_headers['X-Vapt-App-Key'];if(!expected||provided!==expected){return [{json:{...input,halt:true,body:{error:'unauthorized',message:'Invalid app endpoint secret'}}}];}return $input.all();"
+      },
+      "id": "authorize-change",
+      "name": "Authorize Change Subscription Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1140,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$input.first().json;if(input.halt){return $input.all();}const restaurantId=input.request_body.restaurant_id??input.request_query.restaurant_id;const targetPlanType=input.request_body.target_plan_type??input.request_body.plan_type;const priceMap={starter:$env.STRIPE_PRICE_STARTER,pro:$env.STRIPE_PRICE_PRO,business:$env.STRIPE_PRICE_BUSINESS};const targetPriceId=input.request_body.target_price_id??input.request_body.price_id??priceMap[targetPlanType];const allowedPlans=new Set(['starter','pro','business']);if(!restaurantId||!targetPlanType||!allowedPlans.has(targetPlanType)||!targetPriceId){return [{json:{...input,halt:true,restaurant_id:restaurantId??null,body:{error:'invalid_configuration',message:'restaurant_id, target_plan_type, and target_price_id are required'}}}];}return [{json:{...input,restaurant_id:restaurantId,target_plan_type:targetPlanType,target_price_id:targetPriceId}}];"
+      },
+      "id": "validate-change",
+      "name": "Validate Change Subscription Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -920,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "restaurants",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.restaurant_id }}"
+            }
+          ]
+        }
+      },
+      "id": "get-change-restaurant",
+      "name": "Get Change Subscription Restaurant",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        -140
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "amnDaggR6cwPHYRa",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$('Validate Change Subscription Request').first().json;if(input.body?.error){return [{json:input}];}const restaurant=$input.first().json;if(!restaurant?.id){return [{json:{...input,body:{error:'not_found',message:'Restaurant not found'}}}];}if(!restaurant.stripe_subscription_id){return [{json:{...input,body:{error:'invalid_configuration',message:'Restaurant does not have an active Stripe subscription'}}}];}return [{json:{...input,restaurant}}];"
+      },
+      "id": "normalize-change-restaurant",
+      "name": "Normalize Change Subscription Restaurant",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.stripe.com/v1/subscriptions/{{ $json.restaurant.stripe_subscription_id }}?expand[]=items.data.price",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "stripeApi",
+        "options": {}
+      },
+      "id": "get-current-subscription",
+      "name": "Get Current Stripe Subscription",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -260,
+        -140
+      ],
+      "credentials": {
+        "stripeApi": {
+          "id": "ARWK14f7zUMgt5m0",
+          "name": "Stripe VAPT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.stripe.com/v1/subscriptions/{{ $('Normalize Change Subscription Restaurant').first().json.restaurant.stripe_subscription_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "stripeApi",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "items[0][id]",
+              "value": "={{ $json.items.data[0].id }}"
+            },
+            {
+              "name": "items[0][price]",
+              "value": "={{ $('Normalize Change Subscription Restaurant').first().json.target_price_id }}"
+            },
+            {
+              "name": "proration_behavior",
+              "value": "create_prorations"
+            },
+            {
+              "name": "metadata[plan_type]",
+              "value": "={{ $('Normalize Change Subscription Restaurant').first().json.target_plan_type }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-change-subscription",
+      "name": "HTTP Change Stripe Subscription",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -40,
+        -140
+      ],
+      "credentials": {
+        "stripeApi": {
+          "id": "ARWK14f7zUMgt5m0",
+          "name": "Stripe VAPT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "restaurants",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Normalize Change Subscription Restaurant').first().json.restaurant_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "plan_type",
+              "fieldValue": "={{ $('Normalize Change Subscription Restaurant').first().json.target_plan_type }}"
+            },
+            {
+              "fieldId": "plan_status",
+              "fieldValue": "={{ $json.status === 'canceled' ? 'canceled' : ($json.status === 'trialing' ? 'trialing' : 'active') }}"
+            },
+            {
+              "fieldId": "trial_ends_at",
+              "fieldValue": "={{ $json.trial_end ? new Date(Number($json.trial_end) * 1000).toISOString() : ($('Normalize Change Subscription Restaurant').first().json.restaurant.trial_ends_at ?? null) }}"
+            },
+            {
+              "fieldId": "stripe_customer_id",
+              "fieldValue": "={{ $json.customer ?? $('Normalize Change Subscription Restaurant').first().json.restaurant.stripe_customer_id }}"
+            },
+            {
+              "fieldId": "stripe_subscription_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldId": "billing_last_error",
+              "fieldValue": "=null"
+            },
+            {
+              "fieldId": "subscription_canceled_at",
+              "fieldValue": "=null"
+            }
+          ]
+        }
+      },
+      "id": "update-changed-subscription-restaurant",
+      "name": "Update Changed Subscription Restaurant",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        180,
+        -140
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "amnDaggR6cwPHYRa",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const subscription=$('HTTP Change Stripe Subscription').first().json;const context=$('Normalize Change Subscription Restaurant').first().json;return [{json:{subscriptionId:subscription.id,plan_type:context.target_plan_type,status:'updated',autoCharged:true}}];"
+      },
+      "id": "respond-change",
+      "name": "Respond Change Subscription",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "width": 420,
+        "height": 220,
+        "content": "## Cancel subscription\\nAuthorize, load restaurant, cancel in Stripe, persist cancellation, respond."
+      },
+      "id": "note-cancel",
+      "name": "Cancel Section",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1800,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "path": "stripe/subscription/cancel",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "cancel-trigger",
+      "name": "Cancel Subscription Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1580,
+        460
+      ],
+      "webhookId": "vapt-stripe-subscription-cancel"
+    },
+    {
+      "parameters": {
+        "jsCode": "const req=$input.first().json;return [{json:{request:req,request_headers:req.headers??{},request_query:req.query??{},request_body:req.body??req}}];"
+      },
+      "id": "route-cancel",
+      "name": "Route Cancel Subscription Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1360,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$input.first().json;const expected=$env.VAPT_APP_ENDPOINT_SECRET;const provided=input.request_headers['x-vapt-app-key']??input.request_headers['X-Vapt-App-Key'];if(!expected||provided!==expected){return [{json:{...input,halt:true,body:{error:'unauthorized',message:'Invalid app endpoint secret'}}}];}return $input.all();"
+      },
+      "id": "authorize-cancel",
+      "name": "Authorize Cancel Subscription Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1140,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$input.first().json;if(input.halt){return $input.all();}const restaurantId=input.request_body.restaurant_id??input.request_query.restaurant_id;if(!restaurantId){return [{json:{...input,body:{error:'invalid_configuration',message:'restaurant_id is required'}}}];}return [{json:{...input,restaurant_id:restaurantId}}];"
+      },
+      "id": "validate-cancel",
+      "name": "Validate Cancel Subscription Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -920,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "restaurants",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.restaurant_id }}"
+            }
+          ]
+        }
+      },
+      "id": "get-cancel-restaurant",
+      "name": "Get Cancel Subscription Restaurant",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        460
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "amnDaggR6cwPHYRa",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$('Validate Cancel Subscription Request').first().json;if(input.body?.error){return [{json:input}];}const restaurant=$input.first().json;if(!restaurant?.id){return [{json:{...input,body:{error:'not_found',message:'Restaurant not found'}}}];}if(!restaurant.stripe_subscription_id){return [{json:{...input,body:{error:'invalid_configuration',message:'Restaurant does not have a Stripe subscription to cancel'}}}];}return [{json:{...input,restaurant}}];"
+      },
+      "id": "normalize-cancel-restaurant",
+      "name": "Normalize Cancel Subscription Restaurant",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=https://api.stripe.com/v1/subscriptions/{{ $json.restaurant.stripe_subscription_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "stripeApi",
+        "options": {}
+      },
+      "id": "http-cancel-subscription",
+      "name": "HTTP Cancel Stripe Subscription",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -260,
+        460
+      ],
+      "credentials": {
+        "stripeApi": {
+          "id": "ARWK14f7zUMgt5m0",
+          "name": "Stripe VAPT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "restaurants",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Normalize Cancel Subscription Restaurant').first().json.restaurant_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "plan_status",
+              "fieldValue": "=canceled"
+            },
+            {
+              "fieldId": "subscription_canceled_at",
+              "fieldValue": "={{ $json.canceled_at ? new Date(Number($json.canceled_at) * 1000).toISOString() : new Date().toISOString() }}"
+            },
+            {
+              "fieldId": "billing_last_error",
+              "fieldValue": "=null"
+            }
+          ]
+        }
+      },
+      "id": "update-canceled-subscription-restaurant",
+      "name": "Update Canceled Subscription Restaurant",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        460
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "amnDaggR6cwPHYRa",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const subscription=$('HTTP Cancel Stripe Subscription').first().json;return [{json:{subscriptionId:subscription.id ?? $('Normalize Cancel Subscription Restaurant').first().json.restaurant.stripe_subscription_id,status:'canceled'}}];"
+      },
+      "id": "respond-cancel",
+      "name": "Respond Cancel Subscription",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "width": 420,
+        "height": 220,
+        "content": "## Subscription status\\nAuthorize, load restaurant, return current billing state."
+      },
+      "id": "note-status",
+      "name": "Status Section",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1800,
+        920
+      ]
+    },
+    {
+      "parameters": {
+        "path": "stripe/subscription/status",
+        "httpMethod": "GET",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "status-trigger",
+      "name": "Subscription Status Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1580,
+        1060
+      ],
+      "webhookId": "vapt-stripe-subscription-status"
+    },
+    {
+      "parameters": {
+        "jsCode": "const req=$input.first().json;return [{json:{request:req,request_headers:req.headers??{},request_query:req.query??{},request_body:req.body??req}}];"
+      },
+      "id": "route-status",
+      "name": "Route Subscription Status Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1360,
+        1060
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$input.first().json;const expected=$env.VAPT_APP_ENDPOINT_SECRET;const provided=input.request_headers['x-vapt-app-key']??input.request_headers['X-Vapt-App-Key'];if(!expected||provided!==expected){return [{json:{...input,halt:true,body:{error:'unauthorized',message:'Invalid app endpoint secret'}}}];}return $input.all();"
+      },
+      "id": "authorize-status",
+      "name": "Authorize Subscription Status Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1140,
+        1060
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$input.first().json;if(input.halt){return $input.all();}const restaurantId=input.request_query.restaurant_id??input.request_body.restaurant_id;if(!restaurantId){return [{json:{...input,body:{error:'invalid_configuration',message:'restaurant_id is required'}}}];}return [{json:{...input,restaurant_id:restaurantId}}];"
+      },
+      "id": "validate-status",
+      "name": "Validate Subscription Status Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -920,
+        1060
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "restaurants",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.restaurant_id }}"
+            }
+          ]
+        }
+      },
+      "id": "get-status-restaurant",
+      "name": "Get Subscription Status Restaurant",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        1060
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "amnDaggR6cwPHYRa",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$('Validate Subscription Status Request').first().json;if(input.body?.error){return [{json:input.body}];}const restaurant=$input.first().json;if(!restaurant?.id){return [{json:{error:'not_found',message:'Restaurant not found'}}];}return [{json:{plan_type:restaurant.plan_type,plan_status:restaurant.plan_status,trial_ends_at:restaurant.trial_ends_at,stripe_customer_id:restaurant.stripe_customer_id,stripe_subscription_id:restaurant.stripe_subscription_id,billing_last_error:restaurant.billing_last_error,subscription_canceled_at:restaurant.subscription_canceled_at}}];"
+      },
+      "id": "respond-status",
+      "name": "Respond Subscription Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        1060
+      ]
+    },
+    {
+      "parameters": {
+        "width": 420,
+        "height": 220,
+        "content": "## Stripe webhook\\nVerify signature, normalize event, load restaurant, persist audit event, update restaurant billing state, respond."
+      },
+      "id": "note-webhook",
+      "name": "Webhook Section",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1800,
+        1520
+      ]
+    },
+    {
+      "parameters": {
+        "path": "stripe/webhook",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "stripe-webhook-trigger",
+      "name": "Stripe Provider Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1580,
+        1660
+      ],
+      "webhookId": "stripe-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const req=$input.first().json;const rawBody=req.rawBody??req.bodyRaw??(typeof req.body==='string'?req.body:JSON.stringify(req.body??req));return [{json:{request:req,request_headers:req.headers??{},request_body:req.body??req,raw_body:rawBody}}];"
+      },
+      "id": "route-stripe-webhook",
+      "name": "Route Stripe Webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1360,
+        1660
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$input.first().json;const webhookSecret=$env.STRIPE_WEBHOOK_SIGNING_SECRET;const signatureHeader=input.request_headers['stripe-signature']??input.request_headers['Stripe-Signature'];const rawBody=typeof input.raw_body==='string'?input.raw_body:JSON.stringify(input.request_body??{});if(!webhookSecret){return [{json:{body:{error:'invalid_configuration',message:'Missing Stripe webhook signing secret'}}}];}if(!signatureHeader){return [{json:{body:{error:'unauthorized',message:'Missing Stripe signature header'}}}];}const crypto=require('crypto');const signatureParts={};for(const segment of String(signatureHeader).split(',')){const [key,...rest]=segment.split('=');if(key&&rest.length){signatureParts[key]=signatureParts[key]??[];signatureParts[key].push(rest.join('='));}}const timestamp=signatureParts.t?.[0];const signatures=signatureParts.v1??[];if(!timestamp||signatures.length===0){return [{json:{body:{error:'unauthorized',message:'Malformed Stripe signature header'}}}];}const toleranceSeconds=Number($env.STRIPE_WEBHOOK_TOLERANCE_SECONDS??300);const ageSeconds=Math.abs(Math.floor(Date.now()/1000)-Number(timestamp));const expected=crypto.createHmac('sha256',webhookSecret).update(`${timestamp}.${rawBody}`,'utf8').digest('hex');const expectedBuffer=Buffer.from(expected,'utf8');const valid=signatures.some((signature)=>{const receivedBuffer=Buffer.from(signature,'utf8');return receivedBuffer.length===expectedBuffer.length&&crypto.timingSafeEqual(receivedBuffer,expectedBuffer);});if(!valid||ageSeconds>toleranceSeconds){return [{json:{body:{error:'unauthorized',message:'Invalid Stripe signature'}}}];}let event;try{event=JSON.parse(rawBody);}catch{return [{json:{body:{error:'invalid_configuration',message:'Unable to parse Stripe webhook payload'}}}];}const supported=new Set(['invoice.paid','customer.subscription.updated','customer.subscription.deleted']);if(!supported.has(event.type)){return [{json:{skip:true,body:{received:true,handled:false,reason:'unsupported_event',event_type:event.type,event_id:event.id}}}];}const object=event.data?.object??{};return [{json:{event,event_type:event.type,provider_event_id:event.id,stripe_customer_id:object.customer??null,stripe_subscription_id:object.subscription??object.id??null,payload:event}}];"
+      },
+      "id": "verify-stripe-webhook",
+      "name": "Verify Stripe Webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1140,
+        1660
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "if-skip-webhook-condition",
+              "leftValue": "={{ !!$json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-skip-webhook",
+      "name": "If Skip Stripe Webhook",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -920,
+        1660
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:$input.first().json.body}];"
+      },
+      "id": "respond-webhook-skip",
+      "name": "Respond Unsupported Stripe Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -700,
+        1520
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VAPT_SUPABASE_URL.replace(/\\/$/, '') + '/rest/v1/restaurants?select=id,name,plan_type,plan_status,trial_ends_at,stripe_customer_id,stripe_subscription_id,billing_last_error,subscription_canceled_at&or=' + encodeURIComponent('(' + ($json.stripe_customer_id ? 'stripe_customer_id.eq.' + $json.stripe_customer_id : 'stripe_subscription_id.eq.' + $json.stripe_subscription_id) + ($json.stripe_customer_id && $json.stripe_subscription_id ? ',stripe_subscription_id.eq.' + $json.stripe_subscription_id : '') + ')') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.VAPT_SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.VAPT_SUPABASE_SERVICE_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-get-webhook-restaurant",
+      "name": "HTTP Get Stripe Webhook Restaurant",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -700,
+        1800
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const context=$('Verify Stripe Webhook').first().json;const rows=$input.first().json;const restaurant=Array.isArray(rows)?rows[0]:(rows?.data?.[0]??rows?.[0]??null);if(!restaurant?.id){return [{json:{body:{error:'not_found',message:'Restaurant not found for Stripe event'}}}];}const object=context.event.data?.object??{};const latestPriceId=object.items?.data?.[0]?.price?.id??object.lines?.data?.[0]?.price?.id??null;const priceMap=new Map([[$env.STRIPE_PRICE_STARTER,'starter'],[$env.STRIPE_PRICE_PRO,'pro'],[$env.STRIPE_PRICE_BUSINESS,'business']].filter(([priceId])=>Boolean(priceId)));const resolvedPlanType=object.metadata?.plan_type??(latestPriceId?priceMap.get(latestPriceId):undefined)??restaurant.plan_type;const sourceStatus=object.status??(context.event_type==='invoice.paid'?'active':restaurant.plan_status);const normalizedPlanStatus=sourceStatus==='active'?'active':sourceStatus==='trialing'?'trialing':sourceStatus==='canceled'?'canceled':sourceStatus==='unpaid'||sourceStatus==='incomplete_expired'?'expired':sourceStatus==='past_due'?'active':sourceStatus==='incomplete'?(restaurant.plan_status??'trialing'):restaurant.plan_status;const trialEndsAt=object.trial_end?new Date(Number(object.trial_end)*1000).toISOString():restaurant.trial_ends_at??null;const canceledAt=sourceStatus==='canceled'?(object.canceled_at?new Date(Number(object.canceled_at)*1000).toISOString():restaurant.subscription_canceled_at??new Date().toISOString()):null;return [{json:{...context,restaurant,resolved_plan_type:resolvedPlanType,normalized_plan_status:normalizedPlanStatus,resolved_trial_ends_at:trialEndsAt,resolved_subscription_canceled_at:canceledAt}}];"
+      },
+      "id": "normalize-webhook-restaurant",
+      "name": "Normalize Stripe Webhook Restaurant",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        1800
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VAPT_SUPABASE_URL.replace(/\\/$/, '') + '/rest/v1/billing_provider_events?on_conflict=provider,provider_event_id' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { provider: 'stripe', provider_event_id: $json.provider_event_id, event_type: $json.event_type, restaurant_id: $json.restaurant.id, stripe_customer_id: $json.stripe_customer_id, stripe_subscription_id: $json.stripe_subscription_id, payload: $json.payload } }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.VAPT_SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.VAPT_SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=minimal"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "persist-billing-event",
+      "name": "Persist Stripe Billing Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -260,
+        1800
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "restaurants",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Normalize Stripe Webhook Restaurant').first().json.restaurant.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "stripe_customer_id",
+              "fieldValue": "={{ $('Normalize Stripe Webhook Restaurant').first().json.stripe_customer_id ?? $('Normalize Stripe Webhook Restaurant').first().json.restaurant.stripe_customer_id }}"
+            },
+            {
+              "fieldId": "stripe_subscription_id",
+              "fieldValue": "={{ $('Normalize Stripe Webhook Restaurant').first().json.stripe_subscription_id ?? $('Normalize Stripe Webhook Restaurant').first().json.restaurant.stripe_subscription_id }}"
+            },
+            {
+              "fieldId": "plan_type",
+              "fieldValue": "={{ $('Normalize Stripe Webhook Restaurant').first().json.resolved_plan_type ?? $('Normalize Stripe Webhook Restaurant').first().json.restaurant.plan_type }}"
+            },
+            {
+              "fieldId": "plan_status",
+              "fieldValue": "={{ $('Normalize Stripe Webhook Restaurant').first().json.event_type === 'invoice.paid' ? 'active' : $('Normalize Stripe Webhook Restaurant').first().json.normalized_plan_status }}"
+            },
+            {
+              "fieldId": "trial_ends_at",
+              "fieldValue": "={{ $('Normalize Stripe Webhook Restaurant').first().json.resolved_trial_ends_at }}"
+            },
+            {
+              "fieldId": "billing_last_error",
+              "fieldValue": "=null"
+            },
+            {
+              "fieldId": "subscription_canceled_at",
+              "fieldValue": "={{ $('Normalize Stripe Webhook Restaurant').first().json.event_type === 'invoice.paid' ? null : $('Normalize Stripe Webhook Restaurant').first().json.resolved_subscription_canceled_at }}"
+            }
+          ]
+        }
+      },
+      "id": "update-webhook-restaurant",
+      "name": "Update Stripe Webhook Restaurant",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        1800
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "amnDaggR6cwPHYRa",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$('Normalize Stripe Webhook Restaurant').first().json;return [{json:{received:true,handled:true,event_type:input.event_type,provider_event_id:input.provider_event_id,restaurant_id:input.restaurant.id,plan_type:input.resolved_plan_type,plan_status:input.event_type==='invoice.paid'?'active':input.normalized_plan_status,subscription_id:input.stripe_subscription_id??input.restaurant.stripe_subscription_id}}];"
+      },
+      "id": "respond-webhook",
+      "name": "Respond Stripe Webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        1800
+      ]
+    },
+    {
+      "parameters": {
+        "width": 420,
+        "height": 220,
+        "content": "## Stripe health\\nAuthorize admin request, call Stripe balance endpoint, return config and provider health."
+      },
+      "id": "note-health",
+      "name": "Health Section",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1800,
+        2340
+      ]
+    },
+    {
+      "parameters": {
+        "path": "stripe/health",
+        "httpMethod": "GET",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "health-trigger",
+      "name": "Stripe Health Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1580,
+        2480
+      ],
+      "webhookId": "vapt-stripe-health"
+    },
+    {
+      "parameters": {
+        "jsCode": "const req=$input.first().json;return [{json:{request:req,request_headers:req.headers??{},request_query:req.query??{},request_body:req.body??req}}];"
+      },
+      "id": "route-health",
+      "name": "Route Stripe Health Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1360,
+        2480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$input.first().json;const expected=$env.VAPT_ADMIN_ENDPOINT_SECRET;const provided=input.request_headers['x-vapt-admin-key']??input.request_headers['X-Vapt-Admin-Key'];if(!expected||provided!==expected){return [{json:{...input,body:{error:'unauthorized',message:'Invalid admin secret'}}}];}return $input.all();"
+      },
+      "id": "authorize-health",
+      "name": "Authorize Stripe Health Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1140,
+        2480
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "get-stripe-balance",
+      "name": "Get Stripe Balance",
+      "type": "n8n-nodes-base.stripe",
+      "typeVersion": 1,
+      "position": [
+        -920,
+        2480
+      ],
+      "credentials": {
+        "stripeApi": {
+          "id": "ARWK14f7zUMgt5m0",
+          "name": "Stripe VAPT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const original=$('Authorize Stripe Health Request').first().json;if(original.body?.error){return [{json:original.body}];}const balance=$input.first().json;return [{json:{ok:Boolean($env.STRIPE_SECRET_KEY&&$env.STRIPE_WEBHOOK_SIGNING_SECRET),stripeReachable:true,hasStripeSecret:Boolean($env.STRIPE_SECRET_KEY),hasWebhookSecret:Boolean($env.STRIPE_WEBHOOK_SIGNING_SECRET),hasSupabaseCredentials:Boolean($env.VAPT_SUPABASE_URL&&$env.VAPT_SUPABASE_SERVICE_KEY),providerStatus:200,checked_at:new Date().toISOString(),restaurant_id:original.request_query.restaurant_id??original.request_body.restaurant_id??null,balance_object:balance.object??null}}];"
+      },
+      "id": "respond-health",
+      "name": "Respond Stripe Health",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -700,
+        2480
+      ]
+    }
+  ],
+  "connections": {
+    "Create Subscription Request": {
+      "main": [
+        [
+          {
+            "node": "Route Create Subscription Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Create Subscription Request": {
+      "main": [
+        [
+          {
+            "node": "Authorize Create Subscription Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Authorize Create Subscription Request": {
+      "main": [
+        [
+          {
+            "node": "Validate Create Subscription Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Create Subscription Request": {
+      "main": [
+        [
+          {
+            "node": "Get Create Subscription Restaurant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Create Subscription Restaurant": {
+      "main": [
+        [
+          {
+            "node": "Normalize Create Subscription Restaurant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Create Subscription Restaurant": {
+      "main": [
+        [
+          {
+            "node": "If Create Customer Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Create Customer Exists": {
+      "main": [
+        [
+          {
+            "node": "Use Existing Stripe Customer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Stripe Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Stripe Customer": {
+      "main": [
+        [
+          {
+            "node": "Normalize Created Stripe Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Existing Stripe Customer": {
+      "main": [
+        [
+          {
+            "node": "HTTP Create Stripe Subscription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Created Stripe Customer": {
+      "main": [
+        [
+          {
+            "node": "HTTP Create Stripe Subscription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Create Stripe Subscription": {
+      "main": [
+        [
+          {
+            "node": "Update Created Subscription Restaurant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Created Subscription Restaurant": {
+      "main": [
+        [
+          {
+            "node": "Respond Create Subscription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Change Subscription Request": {
+      "main": [
+        [
+          {
+            "node": "Route Change Subscription Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Change Subscription Request": {
+      "main": [
+        [
+          {
+            "node": "Authorize Change Subscription Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Authorize Change Subscription Request": {
+      "main": [
+        [
+          {
+            "node": "Validate Change Subscription Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Change Subscription Request": {
+      "main": [
+        [
+          {
+            "node": "Get Change Subscription Restaurant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Change Subscription Restaurant": {
+      "main": [
+        [
+          {
+            "node": "Normalize Change Subscription Restaurant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Change Subscription Restaurant": {
+      "main": [
+        [
+          {
+            "node": "Get Current Stripe Subscription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Current Stripe Subscription": {
+      "main": [
+        [
+          {
+            "node": "HTTP Change Stripe Subscription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Change Stripe Subscription": {
+      "main": [
+        [
+          {
+            "node": "Update Changed Subscription Restaurant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Changed Subscription Restaurant": {
+      "main": [
+        [
+          {
+            "node": "Respond Change Subscription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel Subscription Request": {
+      "main": [
+        [
+          {
+            "node": "Route Cancel Subscription Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Cancel Subscription Request": {
+      "main": [
+        [
+          {
+            "node": "Authorize Cancel Subscription Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Authorize Cancel Subscription Request": {
+      "main": [
+        [
+          {
+            "node": "Validate Cancel Subscription Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Cancel Subscription Request": {
+      "main": [
+        [
+          {
+            "node": "Get Cancel Subscription Restaurant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Cancel Subscription Restaurant": {
+      "main": [
+        [
+          {
+            "node": "Normalize Cancel Subscription Restaurant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Cancel Subscription Restaurant": {
+      "main": [
+        [
+          {
+            "node": "HTTP Cancel Stripe Subscription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Cancel Stripe Subscription": {
+      "main": [
+        [
+          {
+            "node": "Update Canceled Subscription Restaurant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Canceled Subscription Restaurant": {
+      "main": [
+        [
+          {
+            "node": "Respond Cancel Subscription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subscription Status Request": {
+      "main": [
+        [
+          {
+            "node": "Route Subscription Status Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Subscription Status Request": {
+      "main": [
+        [
+          {
+            "node": "Authorize Subscription Status Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Authorize Subscription Status Request": {
+      "main": [
+        [
+          {
+            "node": "Validate Subscription Status Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Subscription Status Request": {
+      "main": [
+        [
+          {
+            "node": "Get Subscription Status Restaurant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Subscription Status Restaurant": {
+      "main": [
+        [
+          {
+            "node": "Respond Subscription Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stripe Provider Webhook": {
+      "main": [
+        [
+          {
+            "node": "Route Stripe Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Stripe Webhook": {
+      "main": [
+        [
+          {
+            "node": "Verify Stripe Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Stripe Webhook": {
+      "main": [
+        [
+          {
+            "node": "If Skip Stripe Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Skip Stripe Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond Unsupported Stripe Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Get Stripe Webhook Restaurant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Get Stripe Webhook Restaurant": {
+      "main": [
+        [
+          {
+            "node": "Normalize Stripe Webhook Restaurant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Stripe Webhook Restaurant": {
+      "main": [
+        [
+          {
+            "node": "Persist Stripe Billing Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persist Stripe Billing Event": {
+      "main": [
+        [
+          {
+            "node": "Update Stripe Webhook Restaurant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Stripe Webhook Restaurant": {
+      "main": [
+        [
+          {
+            "node": "Respond Stripe Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stripe Health Request": {
+      "main": [
+        [
+          {
+            "node": "Route Stripe Health Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Stripe Health Request": {
+      "main": [
+        [
+          {
+            "node": "Authorize Stripe Health Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Authorize Stripe Health Request": {
+      "main": [
+        [
+          {
+            "node": "Get Stripe Balance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Stripe Balance": {
+      "main": [
+        [
+          {
+            "node": "Respond Stripe Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2026-04-04-vapt-stripe-recovery",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "vapt-stripe-recovery",
+  "tags": []
+}

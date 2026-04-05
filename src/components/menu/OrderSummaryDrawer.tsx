@@ -14,6 +14,7 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 import type { CartItem } from "@/hooks/use-cart";
 import PixPaymentModal from "@/components/menu/PixPaymentModal";
+import { n8nClient, N8nClientError } from "@/lib/n8n-client";
 
 interface OrderSummaryDrawerProps {
   open: boolean;
@@ -172,26 +173,10 @@ const OrderSummaryDrawer = ({
       onOrderPlaced?.(orderData.id);
 
       if (paymentMode === "prepaid") {
-        const { N8N_WEBHOOK_URL } = await import('@/lib/constants');
-        if (!N8N_WEBHOOK_URL) {
-          throw new Error("Webhook de pagamento não configurado");
-        }
-
-        const res = await fetch(N8N_WEBHOOK_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            restaurant_id: restaurantId,
-            order_id: orderData.id,
-            table_number: tableNumber,
-          }),
+        const pixResult = await n8nClient.asaas.createPix({
+          restaurantId,
+          orderId: orderData.id,
         });
-
-        if (!res.ok) {
-          throw new Error("Erro ao gerar pagamento Pix");
-        }
-
-        const pixResult = await res.json();
 
         if (!pixResult?.payment_id) {
           throw new Error("Resposta inválida do servidor de pagamento");
@@ -223,9 +208,11 @@ const OrderSummaryDrawer = ({
       }
     } catch (err: any) {
       setSending(false);
+      const description =
+        err instanceof N8nClientError ? err.message : err?.message || "Tente novamente.";
       toast({
         title: "Erro ao enviar pedido",
-        description: err?.message || "Tente novamente.",
+        description,
         variant: "destructive",
       });
     }

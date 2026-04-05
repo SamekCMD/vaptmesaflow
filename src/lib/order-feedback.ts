@@ -1,5 +1,5 @@
-import { ENV } from "@/lib/env";
 import { supabase } from "@/lib/supabase";
+import { n8nClient } from "@/lib/n8n-client";
 
 const STORAGE_KEY = "rated_orders";
 
@@ -82,7 +82,6 @@ export const fetchOrderFeedbackRecords = async ({
   restaurantId: string;
   periodStart: Date;
 }): Promise<StoredOrderFeedbackRecord[]> => {
-  // O overview usa a base compartilhada do restaurante, não dados locais do navegador.
   const { data, error } = await supabase
     .from("order_feedback")
     .select("order_id, restaurant_id, rating, reasons, comment, created_at")
@@ -104,12 +103,11 @@ export const fetchOrderFeedbackRecords = async ({
 };
 
 export const submitOrderFeedback = async ({
-  feedbackWebhookUrl,
+  feedbackWebhookUrl: _feedbackWebhookUrl,
   ...input
 }: SubmitOrderFeedbackInput): Promise<OrderFeedbackPayload> => {
   const payload = buildOrderFeedbackPayload(input);
 
-  // Primeiro persistimos no Supabase para garantir que o dashboard leia um dado comum a todos os dispositivos.
   const { error } = await supabase
     .from("order_feedback")
     .upsert(payload, { onConflict: "order_id" });
@@ -118,20 +116,7 @@ export const submitOrderFeedback = async ({
     throw new Error("feedback_persist_failed");
   }
 
-  const webhookUrl = feedbackWebhookUrl ?? ENV.n8nWebhookUrl;
-
-  if (webhookUrl) {
-    // O webhook é complementar: espelha o evento para automações sem ser a única fonte de verdade.
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      throw new Error("feedback_submit_failed");
-    }
-  }
+  await n8nClient.ingest.orderFeedback(payload);
 
   return payload;
 };

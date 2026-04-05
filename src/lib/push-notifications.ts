@@ -1,7 +1,7 @@
-ï»¿import { ENV } from "@/lib/env";
+import { ENV } from "@/lib/env";
+import { n8nClient } from "@/lib/n8n-client";
 
 const VAPID_PUBLIC_KEY = ENV.vapidPublicKey;
-const PUSH_SUBSCRIBE_WEBHOOK = ENV.pushSubscribeWebhook;
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -73,25 +73,14 @@ export async function subscribeToPush(
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
       }));
 
-    if (PUSH_SUBSCRIBE_WEBHOOK) {
-      const response = await fetch(PUSH_SUBSCRIBE_WEBHOOK, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "save_push_subscription",
-          restaurant_id: restaurantId,
-          subscription: subscription.toJSON(),
-          endpoint: subscription.endpoint,
-          origin: window.location.origin,
-          user_agent: navigator.userAgent,
-          created_at: new Date().toISOString(),
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Subscription webhook rejected the push registration");
-      }
-    }
+    await n8nClient.ingest.pushSubscription({
+      restaurant_id: restaurantId,
+      subscription: subscription.toJSON(),
+      endpoint: subscription.endpoint,
+      origin: window.location.origin,
+      user_agent: navigator.userAgent,
+      created_at: new Date().toISOString(),
+    });
 
     localStorage.setItem("push_subscribed", "true");
     dismissPushBanner();
@@ -107,14 +96,14 @@ export async function subscribeToPush(
       return {
         success: false,
         error:
-          "O navegador nÃ£o conseguiu registrar notificaÃ§Ãµes push. No Brave, ative o uso de serviÃ§os do Google para push ou teste no Chrome.",
+          "O navegador não conseguiu registrar notificações push. No Brave, ative o uso de serviços do Google para push ou teste no Chrome.",
       };
     }
 
     if (name === "NotSupportedError") {
       return {
         success: false,
-        error: "Este navegador nÃ£o oferece suporte completo a notificaÃ§Ãµes push neste contexto.",
+        error: "Este navegador não oferece suporte completo a notificações push neste contexto.",
       };
     }
 
