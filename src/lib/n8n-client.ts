@@ -55,6 +55,7 @@ type AsaasSetupInput = {
 type PixCreateInput = {
   restaurantId: string;
   orderId: string;
+  totalPrice?: number;
 };
 
 type FeedbackInput = {
@@ -265,6 +266,7 @@ export const n8nClient = {
         body: {
           restaurant_id: input.restaurantId,
           order_id: input.orderId,
+          total_price: input.totalPrice,
         },
       }),
   },

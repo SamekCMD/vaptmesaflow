@@ -176,6 +176,7 @@ const OrderSummaryDrawer = ({
         const pixResult = await n8nClient.asaas.createPix({
           restaurantId,
           orderId: orderData.id,
+          totalPrice,
         });
 
         if (!pixResult?.payment_id) {

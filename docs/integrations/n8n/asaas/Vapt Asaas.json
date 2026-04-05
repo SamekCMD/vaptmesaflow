@@ -271,7 +271,7 @@
                                          "sendHeaders":  true,
                                          "sendBody":  true,
                                          "specifyBody":  "json",
-                                         "jsonBody":  "={{ { name: \u0027Vapt \u0027 + $json.restaurant.name + \u0027 Pix Webhook\u0027, url: $json.required_webhook_url, enabled: true, interrupted: false, authToken: $json.required_webhook_token, events: [\u0027PAYMENT_RECEIVED\u0027, \u0027PAYMENT_CONFIRMED\u0027] } }}",
+                                         "jsonBody":  "={{ { name: \u0027Vapt \u0027 + $json.restaurant.name + \u0027 Pix Webhook\u0027, url: $json.required_webhook_url, email: \u0027cliente-vapt@vapt.com.br\u0027, sendType: \u0027SEQUENTIALLY\u0027, enabled: true, interrupted: false, authToken: $json.required_webhook_token, events: [\u0027PAYMENT_RECEIVED\u0027, \u0027PAYMENT_CONFIRMED\u0027] } }}",
                                          "headerParameters":  {
                                                                   "parameters":  [
                                                                                      {
@@ -849,7 +849,7 @@
                                          "sendHeaders":  true,
                                          "sendBody":  true,
                                          "specifyBody":  "json",
-                                         "jsonBody":  "={{ { customer: $json.asaas_customer.id, billingType: \u0027PIX\u0027, value: Number($json.order.total_price ?? 0), dueDate: new Date().toISOString().slice(0, 10), description: \u0027Pedido \u0027 + ($json.order.display_id ?? $json.order.id), externalReference: $json.order.id } }}",
+                                         "jsonBody":  "={{ (() => { const rawValue = $json.order?.total_price ?? $json.request_body?.total_price ?? $json.total_price ?? $json.order?.totalPrice ?? $json.request_body?.totalPrice ?? $json.totalPrice; const value = Number.parseFloat(String(rawValue ?? \u0027\u0027).replace(\u0027,\u0027, \u0027.\u0027)); return { customer: $json.asaas_customer?.id ?? $json.customer?.id ?? $json.customer_id, billingType: \u0027PIX\u0027, value, dueDate: new Date().toISOString().slice(0, 10), description: \u0027Pedido \u0027 + ($json.order?.display_id ?? $json.order?.id ?? $json.order_id), externalReference: $json.order?.id ?? $json.order_id }; })() }}",
                                          "headerParameters":  {
                                                                   "parameters":  [
                                                                                      {
@@ -1852,6 +1852,11 @@
                                                                   "node":  "Get Pix Restaurant",
                                                                   "type":  "main",
                                                                   "index":  0
+                                                              },
+                                                              {
+                                                                  "node":  "Get Pix Order",
+                                                                  "type":  "main",
+                                                                  "index":  0
                                                               }
                                                           ]
                                                       ]
@@ -1860,7 +1865,7 @@
                                                    "main":  [
                                                                 [
                                                                     {
-                                                                        "node":  "Get Pix Order",
+                                                                        "node":  "Normalize Pix Context",
                                                                         "type":  "main",
                                                                         "index":  0
                                                                     }
@@ -1911,7 +1916,7 @@
                                                                 ],
                                                                 [
                                                                     {
-                                                                        "node":  "HTTP Create Pix Payment",
+                                                                        "node":  "Create Pix Payment",
                                                                         "type":  "main",
                                                                         "index":  0
                                                                     }
@@ -1944,14 +1949,14 @@
                                                            "main":  [
                                                                         [
                                                                             {
-                                                                                "node":  "HTTP Create Pix Payment",
+                                                                                "node":  "Create Pix Payment",
                                                                                 "type":  "main",
                                                                                 "index":  0
                                                                             }
                                                                         ]
                                                                     ]
                                                        },
-                        "HTTP Create Pix Payment":  {
+                        "Create Pix Payment":  {
                                                         "main":  [
                                                                      [
                                                                          {
