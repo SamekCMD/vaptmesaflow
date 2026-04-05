@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+ï»¿import { useState, useEffect } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import {
@@ -120,13 +120,13 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
         ) {
           setClientSecret(data.clientSecret);
         } else {
-          setFetchError("Não foi possível iniciar o checkout. Tente novamente.");
+          setFetchError("NÃ£o foi possÃ­vel iniciar o checkout. Tente novamente.");
         }
       } catch (error) {
         if (error instanceof N8nClientError) {
           setFetchError(error.message);
         } else {
-          setFetchError("Erro de conexão. Tente novamente.");
+          setFetchError("Erro de conexÃ£o. Tente novamente.");
         }
       } finally {
         setFetchingSecret(false);
@@ -143,7 +143,7 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Assinar plano {plan.name}</DialogTitle>
-          <DialogDescription>R$ {plan.price},00/mês</DialogDescription>
+          <DialogDescription>R$ {plan.price},00/mÃªs</DialogDescription>
         </DialogHeader>
 
         <div className="py-2">
@@ -186,3 +186,4 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
     </Dialog>
   );
 }
+

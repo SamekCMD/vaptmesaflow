@@ -49,6 +49,7 @@ type StripeCancelInput = {
 type AsaasSetupInput = {
   restaurantId: string;
   asaasApiKey: string;
+  asaasEnvironment?: "production" | "sandbox";
 };
 
 type PixCreateInput = {
@@ -223,6 +224,7 @@ export const n8nClient = {
         body: {
           restaurant_id: input.restaurantId,
           asaas_api_key: input.asaasApiKey,
+          asaas_environment: input.asaasEnvironment ?? "production",
         },
       }),
 
@@ -236,6 +238,7 @@ export const n8nClient = {
         last_validated_at: string | null;
         last_error: string | null;
         has_api_key: boolean;
+        asaas_environment: "production" | "sandbox" | null;
       }>({
         method: "GET",
         route: "asaas/setup/status",

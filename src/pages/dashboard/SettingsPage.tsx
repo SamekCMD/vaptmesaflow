@@ -36,6 +36,7 @@ const SettingsPage = () => {
   const [paymentForm, setPaymentForm] = useState({
     payment_mode: "open_tab" as "open_tab" | "prepaid",
     has_asaas_key: false,
+    asaas_environment: "production" as "production" | "sandbox",
     new_asaas_api_key: "",
     max_pending_orders: 3,
   });
@@ -64,6 +65,7 @@ const SettingsPage = () => {
       const result = await n8nClient.asaas.setup({
         restaurantId,
         asaasApiKey: keyToTest,
+        asaasEnvironment: paymentForm.asaas_environment,
       });
       setTestResult({
         type: result.valid ? "success" : "warning",
@@ -75,7 +77,7 @@ const SettingsPage = () => {
       } else {
         setTestResult({
           type: "warning",
-          message: "Nao foi possivel validar agora. Tente novamente em instantes.",
+          message: "Não foi possível validar agora. Tente novamente em instantes.",
         });
       }
     } finally {
@@ -90,7 +92,7 @@ const SettingsPage = () => {
       try {
         const { data, error } = await supabase
           .from("restaurants")
-          .select("id, name, address, phone, hours, description, payment_mode, max_pending_orders, max_tables, asaas_api_key")
+          .select("id, name, address, phone, hours, description, payment_mode, max_pending_orders, max_tables, asaas_api_key, asaas_environment")
           .eq("owner_id", user.id)
           .single();
 
@@ -109,6 +111,7 @@ const SettingsPage = () => {
           setPaymentForm({
             payment_mode: (data as any).payment_mode || "open_tab",
             has_asaas_key: !!(data as any).asaas_api_key,
+            asaas_environment: ((data as any).asaas_environment || "production") as "production" | "sandbox",
             new_asaas_api_key: "",
             max_pending_orders: (data as any).max_pending_orders || 3,
           });
@@ -124,7 +127,7 @@ const SettingsPage = () => {
         if (import.meta.env.DEV) console.error("Error fetching restaurant data:", error);
         toast({
           title: "Erro ao carregar dados",
-          description: error.message || "NÃ£o foi possÃ­vel carregar as configuraÃ§Ãµes",
+          description: error.message || "Não foi possível carregar as configurações",
           variant: "destructive",
         });
       } finally {
@@ -160,7 +163,7 @@ const SettingsPage = () => {
         .eq("owner_id", user.id);
 
       if (error) throw error;
-      toast({ title: "ConfiguraÃ§Ãµes salvas", description: "As alteraÃ§Ãµes foram aplicadas com sucesso." });
+      toast({ title: "Configurações salvas", description: "As alterações foram aplicadas com sucesso." });
     } catch (error: any) {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
     } finally {
@@ -176,6 +179,7 @@ const SettingsPage = () => {
       const updatePayload: any = {
         payment_mode: paymentForm.payment_mode,
         max_pending_orders: paymentForm.max_pending_orders,
+        asaas_environment: paymentForm.asaas_environment,
       };
 
       const pendingAsaasKey = paymentForm.new_asaas_api_key.trim();
@@ -196,6 +200,7 @@ const SettingsPage = () => {
         const setupResult = await n8nClient.asaas.setup({
           restaurantId,
           asaasApiKey: pendingAsaasKey,
+          asaasEnvironment: paymentForm.asaas_environment,
         });
 
         setPaymentForm(prev => ({ ...prev, has_asaas_key: true, new_asaas_api_key: "" }));
@@ -205,10 +210,10 @@ const SettingsPage = () => {
         });
       }
 
-      toast({ title: "Configuracoes de pagamento salvas", description: "Modo de operacao atualizado." });
+      toast({ title: "Configurações de pagamento salvas", description: "Modo de operação atualizado." });
     } catch (error: any) {
       const description =
-        error instanceof N8nClientError ? error.message : error.message || "Nao foi possivel salvar agora.";
+        error instanceof N8nClientError ? error.message : error.message || "Não foi possível salvar agora.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
       setSettingUpAsaas(false);
@@ -231,12 +236,12 @@ const SettingsPage = () => {
       // Update password if provided
       if (accountForm.new_password) {
         if (accountForm.new_password !== accountForm.confirm_password) {
-          toast({ title: "As senhas nÃ£o coincidem", variant: "destructive" });
+          toast({ title: "As senhas não coincidem", variant: "destructive" });
           setSavingAccount(false);
           return;
         }
         if (accountForm.new_password.length < 6) {
-          toast({ title: "A senha deve ter no mÃ­nimo 6 caracteres", variant: "destructive" });
+          toast({ title: "A senha deve ter no mínimo 6 caracteres", variant: "destructive" });
           setSavingAccount(false);
           return;
         }
@@ -247,7 +252,7 @@ const SettingsPage = () => {
         setAccountForm(prev => ({ ...prev, new_password: "", confirm_password: "" }));
       }
 
-      toast({ title: "Conta atualizada", description: "Suas informaÃ§Ãµes foram salvas." });
+      toast({ title: "Conta atualizada", description: "Suas informações foram salvas." });
     } catch (error: any) {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
     } finally {
@@ -271,7 +276,7 @@ const SettingsPage = () => {
         />
       )}
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">ConfiguraÃ§Ãµes</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Configurações</h1>
         <p className="text-muted-foreground text-sm">
           Gerencie seu restaurante e sua conta
         </p>
@@ -305,7 +310,7 @@ const SettingsPage = () => {
                 <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               </div>
               <div>
-                <Label>EndereÃ§o</Label>
+                <Label>Endereço</Label>
                 <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
               </div>
               <div>
@@ -313,15 +318,15 @@ const SettingsPage = () => {
                 <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
               </div>
               <div>
-                <Label>HorÃ¡rio de Funcionamento</Label>
+                <Label>Horário de Funcionamento</Label>
                 <Input value={form.hours} onChange={(e) => setForm({ ...form, hours: e.target.value })} />
               </div>
               <div>
-                <Label>DescriÃ§Ã£o</Label>
+                <Label>Descrição</Label>
                 <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
               </div>
               <div>
-                <Label>NÃºmero de mesas do seu restaurante</Label>
+                <Label>Número de mesas do seu restaurante</Label>
                 <Input
                   type="number"
                   min={1}
@@ -333,7 +338,7 @@ const SettingsPage = () => {
               </div>
 
               <Button onClick={handleSave} disabled={saving}>
-                {saving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</>) : "Salvar AlteraÃ§Ãµes"}
+                {saving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</>) : "Salvar Alterações"}
               </Button>
             </CardContent>
           </Card>
@@ -344,8 +349,8 @@ const SettingsPage = () => {
               <div className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5 text-primary" />
                 <div>
-                  <CardTitle className="text-base">ConfiguraÃ§Ãµes de Pagamento</CardTitle>
-                  <CardDescription>Defina o modo de operaÃ§Ã£o do seu restaurante</CardDescription>
+                  <CardTitle className="text-base">Configurações de Pagamento</CardTitle>
+                  <CardDescription>Defina o modo de operação do seu restaurante</CardDescription>
                 </div>
               </div>
             </CardHeader>
@@ -353,11 +358,11 @@ const SettingsPage = () => {
               {/* Payment Mode Toggle */}
               <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-muted/30">
                 <div className="space-y-1">
-                  <Label className="font-semibold">Modo de OperaÃ§Ã£o</Label>
+                  <Label className="font-semibold">Modo de Operação</Label>
                   <p className="text-xs text-muted-foreground">
                     {paymentForm.payment_mode === "prepaid"
-                      ? "Pagamento Antecipado â€” Cliente paga via Pix antes do pedido ir para a cozinha. Ideal para balcÃ£o e fast-food."
-                      : "Comanda Aberta â€” Pedido vai direto para a cozinha, cliente paga depois. Ideal para mesas e consumo no local."}
+                      ? "Pagamento Antecipado - Cliente paga via Pix antes do pedido ir para a cozinha. Ideal para balcão e fast-food."
+                      : "Comanda Aberta - Pedido vai direto para a cozinha, cliente paga depois. Ideal para mesas e consumo no local."}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
@@ -378,7 +383,27 @@ const SettingsPage = () => {
                 <div className="space-y-3 p-4 rounded-lg border border-border">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4 text-primary" />
-                    <Label className="font-semibold">IntegraÃ§Ã£o Asaas</Label>
+                    <Label className="font-semibold">Integração Asaas</Label>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Ambiente da API</Label>
+                    <select
+                      value={paymentForm.asaas_environment}
+                      onChange={(e) =>
+                        setPaymentForm({
+                          ...paymentForm,
+                          asaas_environment: e.target.value as "production" | "sandbox",
+                        })
+                      }
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                    >
+                      <option value="production">Produção</option>
+                      <option value="sandbox">Sandbox</option>
+                    </select>
+                    <p className="text-xs text-muted-foreground">
+                      Use Sandbox para chaves de teste do Asaas e Produção para chaves reais.
+                    </p>
                   </div>
 
                   <div className="flex items-center gap-2 text-sm">
@@ -422,7 +447,7 @@ const SettingsPage = () => {
                       disabled={testingKey || !paymentForm.new_asaas_api_key.trim()}
                       onClick={handleTestAsaasKey}
                     >
-                      {testingKey ? (<><Loader2 className="mr-2 h-3 w-3 animate-spin" />Testando...</>) : "Testar ConexÃ£o"}
+                      {testingKey ? (<><Loader2 className="mr-2 h-3 w-3 animate-spin" />Testando...</>) : "Testar Conexão"}
                     </Button>
                     {testResult && (
                       <span className={`text-xs font-medium ${
@@ -436,7 +461,7 @@ const SettingsPage = () => {
                   </div>
 
                   <p className="text-xs text-muted-foreground">
-                    Sua chave sera validada imediatamente e o webhook sera configurado automaticamente.
+                    Sua chave será validada imediatamente e o webhook será configurado automaticamente.
                   </p>
                 </div>
               )}
@@ -446,7 +471,7 @@ const SettingsPage = () => {
                 <div className="space-y-2">
                   <Label>Limite de Pedidos Pendentes (Anti-fraude)</Label>
                   <p className="text-xs text-muted-foreground">
-                    MÃ¡ximo de pedidos que um cliente pode ter pendentes antes que novos sejam bloqueados.
+                    Máximo de pedidos que um cliente pode ter pendentes antes que novos sejam bloqueados.
                   </p>
                   <Input
                     type="number"
@@ -460,7 +485,7 @@ const SettingsPage = () => {
               )}
 
               <Button onClick={handleSavePayment} disabled={savingPayment || settingUpAsaas}>
-                {savingPayment ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</>) : "Salvar ConfiguraÃ§Ãµes de Pagamento"}
+                {savingPayment ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</>) : "Salvar Configurações de Pagamento"}
               </Button>
             </CardContent>
           </Card>
@@ -469,7 +494,7 @@ const SettingsPage = () => {
         <TabsContent value="account" className="pt-6 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">InformaÃ§Ãµes da Conta</CardTitle>
+              <CardTitle className="text-base">Informações da Conta</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -482,7 +507,7 @@ const SettingsPage = () => {
               <div>
                 <Label>E-mail</Label>
                 <Input value={accountForm.email} disabled className="bg-muted/50" />
-                <p className="text-[11px] text-muted-foreground mt-1">O e-mail nÃ£o pode ser alterado.</p>
+                <p className="text-[11px] text-muted-foreground mt-1">O e-mail não pode ser alterado.</p>
               </div>
 
               <Button onClick={handleSaveAccount} disabled={savingAccount}>
@@ -502,7 +527,7 @@ const SettingsPage = () => {
                   type="password"
                   value={accountForm.new_password}
                   onChange={(e) => setAccountForm({ ...accountForm, new_password: e.target.value })}
-                  placeholder="MÃ­nimo 6 caracteres"
+                  placeholder="Mínimo 6 caracteres"
                 />
               </div>
               <div>
@@ -531,4 +556,5 @@ const SettingsPage = () => {
 };
 
 export default SettingsPage;
+
 

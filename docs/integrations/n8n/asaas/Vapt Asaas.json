@@ -63,7 +63,7 @@
                   },
                   {
                       "parameters":  {
-                                         "jsCode":  "const input=$input.first().json;const restaurantId=input.request_body.restaurant_id;const asaasApiKey=input.request_body.asaas_api_key;if(!restaurantId||!asaasApiKey){return [{json:{...input,body:{error:\u0027invalid_configuration\u0027,message:\u0027restaurant_id and asaas_api_key are required\u0027}}}];}return [{json:{...input,restaurant_id:restaurantId,asaas_api_key:asaasApiKey,request_origin:\u0027setup\u0027}}];"
+                                         "jsCode":  "const input=$input.first().json;const restaurantId=input.request_body.restaurant_id;const asaasApiKey=input.request_body.asaas_api_key;const asaasEnvironment=input.request_body.asaas_environment===\u0027sandbox\u0027?\u0027sandbox\u0027:\u0027production\u0027;const asaasBaseUrl=asaasEnvironment===\u0027sandbox\u0027?\u0027https://api-sandbox.asaas.com/v3\u0027:\u0027https://api.asaas.com/v3\u0027;if(!restaurantId||!asaasApiKey){return [{json:{...input,body:{error:\u0027invalid_configuration\u0027,message:\u0027restaurant_id and asaas_api_key are required\u0027}}}];}return [{json:{...input,restaurant_id:restaurantId,asaas_api_key:asaasApiKey,asaas_environment:asaasEnvironment,asaas_base_url:asaasBaseUrl,request_origin:\u0027setup\u0027}}];"
                                      },
                       "id":  "validate-setup",
                       "name":  "Validate Setup Request",
@@ -140,7 +140,7 @@
                   },
                   {
                       "parameters":  {
-                                         "jsCode":  "const input=$input.first().json;if(input.body?.error){return $input.all();}const restaurant=input; if(!restaurant?.id){return [{json:{...$(\u0027Validate Setup Request\u0027).first().json,body:{error:\u0027not_found\u0027,message:\u0027Restaurant not found\u0027}}}];}return [{json:{...$(\u0027Validate Setup Request\u0027).first().json,restaurant,asaas_api_key:$(\u0027Validate Setup Request\u0027).first().json.asaas_api_key}}];"
+                                         "jsCode":  "const input=$input.first().json;if(input.body?.error){return $input.all();}const restaurant=input;if(!restaurant?.id){return [{json:{...$(\u0027Validate Setup Request\u0027).first().json,body:{error:\u0027not_found\u0027,message:\u0027Restaurant not found\u0027}}}];}const setup=$(\u0027Validate Setup Request\u0027).first().json;return [{json:{...setup,restaurant,asaas_api_key:setup.asaas_api_key,asaas_environment:setup.asaas_environment,asaas_base_url:setup.asaas_base_url}}];"
                                      },
                       "id":  "normalize-setup-restaurant",
                       "name":  "Normalize Setup Restaurant",
@@ -154,7 +154,7 @@
                   {
                       "parameters":  {
                                          "method":  "GET",
-                                         "url":  "https://api.asaas.com/v3/myAccount",
+                                         "url":  "={{ $json.asaas_base_url + \u0027/myAccount\u0027 }}",
                                          "sendHeaders":  true,
                                          "headerParameters":  {
                                                                   "parameters":  [
@@ -193,7 +193,7 @@
                   {
                       "parameters":  {
                                          "method":  "GET",
-                                         "url":  "https://api.asaas.com/v3/webhooks?offset=0\u0026limit=100",
+                                         "url":  "={{ $json.asaas_base_url + \u0027/webhooks?offset=0&limit=100\u0027 }}",
                                          "sendHeaders":  true,
                                          "headerParameters":  {
                                                                   "parameters":  [
@@ -267,7 +267,7 @@
                   {
                       "parameters":  {
                                          "method":  "POST",
-                                         "url":  "https://api.asaas.com/v3/webhooks",
+                                         "url":  "={{ $json.asaas_base_url + \u0027/webhooks\u0027 }}",
                                          "sendHeaders":  true,
                                          "sendBody":  true,
                                          "specifyBody":  "json",
@@ -330,6 +330,10 @@
                                                                                   "fieldValue":  "={{ $json.asaas_api_key }}"
                                                                               },
                                                                               {
+                                                                                  "fieldId":  "asaas_environment",
+                                                                                  "fieldValue":  "={{ $json.asaas_environment }}"
+                                                                              },
+                                                                              {
                                                                                   "fieldId":  "asaas_setup_status",
                                                                                   "fieldValue":  "=ready"
                                                                               },
@@ -351,7 +355,7 @@
                                                                               },
                                                                               {
                                                                                   "fieldId":  "asaas_last_error",
-                                                                                  "fieldValue":  "=null"
+                                                                                  "fieldValue":  "={{ null }}"
                                                                               }
                                                                           ]
                                                       }
@@ -523,7 +527,7 @@
                   },
                   {
                       "parameters":  {
-                                         "jsCode":  "const restaurant=$input.first().json;if(!restaurant?.id){return [{json:{...$(\u0027Validate Refresh Request\u0027).first().json,body:{error:\u0027not_found\u0027,message:\u0027Restaurant not found\u0027}}}];}return [{json:{...$(\u0027Validate Refresh Request\u0027).first().json,restaurant,asaas_api_key:restaurant.asaas_api_key,request_origin:\u0027admin_refresh\u0027}}];"
+                                         "jsCode":  "const restaurant=$input.first().json;if(!restaurant?.id){return [{json:{...$(\u0027Validate Refresh Request\u0027).first().json,body:{error:\u0027not_found\u0027,message:\u0027Restaurant not found\u0027}}}];}const asaasEnvironment=restaurant.asaas_environment===\u0027sandbox\u0027?\u0027sandbox\u0027:\u0027production\u0027;const asaasBaseUrl=asaasEnvironment===\u0027sandbox\u0027?\u0027https://api-sandbox.asaas.com/v3\u0027:\u0027https://api.asaas.com/v3\u0027;return [{json:{...$(\u0027Validate Refresh Request\u0027).first().json,restaurant,asaas_api_key:restaurant.asaas_api_key,asaas_environment:asaasEnvironment,asaas_base_url:asaasBaseUrl,request_origin:\u0027admin_refresh\u0027}}];"
                                      },
                       "id":  "build-refresh-context",
                       "name":  "Build Refresh Context",
@@ -707,7 +711,7 @@
                   },
                   {
                       "parameters":  {
-                                         "jsCode":  "const order=$input.first().json;const pixInput=$(\u0027Validate Pix Create Request\u0027).first().json;const restaurant=$(\u0027Get Pix Restaurant\u0027).first().json;if(!restaurant?.id||!order?.id){return [{json:{...pixInput,body:{error:\u0027not_found\u0027,message:\u0027Restaurant or order not found\u0027}}}];}if(restaurant.asaas_setup_status!==\u0027ready\u0027||!restaurant.asaas_api_key){return [{json:{...pixInput,body:{error:\u0027invalid_configuration\u0027,message:\u0027Asaas is not configured for this restaurant\u0027}}}];}return [{json:{...pixInput,restaurant,order,asaas_api_key:restaurant.asaas_api_key}}];"
+                                         "jsCode":  "const order=$input.first().json;const pixInput=$(\u0027Validate Pix Create Request\u0027).first().json;const restaurant=$(\u0027Get Pix Restaurant\u0027).first().json;if(!restaurant?.id||!order?.id){return [{json:{...pixInput,body:{error:\u0027not_found\u0027,message:\u0027Restaurant or order not found\u0027}}}];}if(restaurant.asaas_setup_status!==\u0027ready\u0027||!restaurant.asaas_api_key){return [{json:{...pixInput,body:{error:\u0027invalid_configuration\u0027,message:\u0027Asaas is not configured for this restaurant\u0027}}}];}const asaasEnvironment=restaurant.asaas_environment===\u0027sandbox\u0027?\u0027sandbox\u0027:\u0027production\u0027;const asaasBaseUrl=asaasEnvironment===\u0027sandbox\u0027?\u0027https://api-sandbox.asaas.com/v3\u0027:\u0027https://api.asaas.com/v3\u0027;return [{json:{...pixInput,restaurant,order,asaas_api_key:restaurant.asaas_api_key,asaas_environment:asaasEnvironment,asaas_base_url:asaasBaseUrl}}];"
                                      },
                       "id":  "normalize-pix-context",
                       "name":  "Normalize Pix Context",
@@ -721,7 +725,7 @@
                   {
                       "parameters":  {
                                          "method":  "GET",
-                                         "url":  "={{ \u0027https://api.asaas.com/v3/customers?externalReference=\u0027 + encodeURIComponent(\u0027vapt-restaurant-\u0027 + $json.restaurant.id) }}",
+                                         "url":  "={{ $json.asaas_base_url + \u0027/customers?externalReference=\u0027 + encodeURIComponent(\u0027vapt-restaurant-\u0027 + $json.restaurant.id) }}",
                                          "sendHeaders":  true,
                                          "headerParameters":  {
                                                                   "parameters":  [
@@ -795,7 +799,7 @@
                   {
                       "parameters":  {
                                          "method":  "POST",
-                                         "url":  "https://api.asaas.com/v3/customers",
+                                         "url":  "={{ $json.asaas_base_url + \u0027/customers\u0027 }}",
                                          "sendHeaders":  true,
                                          "sendBody":  true,
                                          "specifyBody":  "json",
@@ -841,7 +845,7 @@
                   {
                       "parameters":  {
                                          "method":  "POST",
-                                         "url":  "https://api.asaas.com/v3/payments",
+                                         "url":  "={{ $json.asaas_base_url + \u0027/payments\u0027 }}",
                                          "sendHeaders":  true,
                                          "sendBody":  true,
                                          "specifyBody":  "json",
@@ -874,7 +878,7 @@
                   {
                       "parameters":  {
                                          "method":  "GET",
-                                         "url":  "=https://api.asaas.com/v3/payments/{{ $json.id }}/pixQrCode",
+                                         "url":  "={{ $json.asaas_base_url + \u0027/payments/\u0027 + $json.id + \u0027/pixQrCode\u0027 }}",
                                          "sendHeaders":  true,
                                          "headerParameters":  {
                                                                   "parameters":  [
@@ -1479,7 +1483,7 @@
                   },
                   {
                       "parameters":  {
-                                         "jsCode":  "const input=$input.first().json;if(input.body?.error){return [{json:input.body}];}const restaurant=input; if(!restaurant?.id){return [{json:{error:\u0027not_found\u0027,message:\u0027Restaurant not found\u0027}}];}return [{json:{restaurant_id:restaurant.id,name:restaurant.name,setup_status:restaurant.asaas_setup_status,webhook_id:restaurant.asaas_webhook_id,webhook_url:restaurant.asaas_webhook_url,last_validated_at:restaurant.asaas_last_validated_at,last_error:restaurant.asaas_last_error,has_api_key:Boolean(restaurant.asaas_api_key)}}];"
+                                         "jsCode":  "const input=$input.first().json;if(input.body?.error){return [{json:input.body}];}const restaurant=input; if(!restaurant?.id){return [{json:{error:\u0027not_found\u0027,message:\u0027Restaurant not found\u0027}}];}return [{json:{restaurant_id:restaurant.id,name:restaurant.name,setup_status:restaurant.asaas_setup_status,webhook_id:restaurant.asaas_webhook_id,webhook_url:restaurant.asaas_webhook_url,last_validated_at:restaurant.asaas_last_validated_at,last_error:restaurant.asaas_last_error,has_api_key:Boolean(restaurant.asaas_api_key),asaas_environment:restaurant.asaas_environment??\u0027production\u0027}}];"
                                      },
                       "id":  "respond-status",
                       "name":  "Respond Admin Status",
@@ -2252,3 +2256,4 @@
 
              ]
 }
+

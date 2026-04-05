@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "Vapt Stripe",
   "nodes": [
     {
@@ -299,11 +299,11 @@
             },
             {
               "fieldId": "billing_last_error",
-              "fieldValue": "=null"
+              "fieldValue": "={{ null }}"
             },
             {
               "fieldId": "subscription_canceled_at",
-              "fieldValue": "=null"
+              "fieldValue": "={{ null }}"
             }
           ]
         }
@@ -553,11 +553,11 @@
             },
             {
               "fieldId": "billing_last_error",
-              "fieldValue": "=null"
+              "fieldValue": "={{ null }}"
             },
             {
               "fieldId": "subscription_canceled_at",
-              "fieldValue": "=null"
+              "fieldValue": "={{ null }}"
             }
           ]
         }
@@ -751,7 +751,7 @@
             },
             {
               "fieldId": "billing_last_error",
-              "fieldValue": "=null"
+              "fieldValue": "={{ null }}"
             }
           ]
         }
@@ -1117,7 +1117,7 @@
             },
             {
               "fieldId": "billing_last_error",
-              "fieldValue": "=null"
+              "fieldValue": "={{ null }}"
             },
             {
               "fieldId": "subscription_canceled_at",
@@ -1777,3 +1777,4 @@
   "id": "vapt-stripe-recovery",
   "tags": []
 }
+
