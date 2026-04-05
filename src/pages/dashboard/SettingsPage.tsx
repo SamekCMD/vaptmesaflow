@@ -37,6 +37,7 @@ const SettingsPage = () => {
     payment_mode: "open_tab" as "open_tab" | "prepaid",
     has_asaas_key: false,
     asaas_environment: "production" as "production" | "sandbox",
+    asaas_billing_document: "",
     new_asaas_api_key: "",
     max_pending_orders: 3,
   });
@@ -66,6 +67,7 @@ const SettingsPage = () => {
         restaurantId,
         asaasApiKey: keyToTest,
         asaasEnvironment: paymentForm.asaas_environment,
+        asaasBillingDocument: paymentForm.asaas_billing_document,
       });
       setTestResult({
         type: result.valid ? "success" : "warning",
@@ -92,7 +94,7 @@ const SettingsPage = () => {
       try {
         const { data, error } = await supabase
           .from("restaurants")
-          .select("id, name, address, phone, hours, description, payment_mode, max_pending_orders, max_tables, asaas_api_key, asaas_environment")
+          .select("id, name, cnpj, address, phone, hours, description, payment_mode, max_pending_orders, max_tables, asaas_api_key, asaas_environment, asaas_billing_document")
           .eq("owner_id", user.id)
           .single();
 
@@ -112,6 +114,7 @@ const SettingsPage = () => {
             payment_mode: (data as any).payment_mode || "open_tab",
             has_asaas_key: !!(data as any).asaas_api_key,
             asaas_environment: ((data as any).asaas_environment || "production") as "production" | "sandbox",
+            asaas_billing_document: (data as any).asaas_billing_document || (data as any).cnpj || "",
             new_asaas_api_key: "",
             max_pending_orders: (data as any).max_pending_orders || 3,
           });
@@ -176,10 +179,15 @@ const SettingsPage = () => {
     setSavingPayment(true);
     setSettingUpAsaas(false);
     try {
+      if (paymentForm.payment_mode === "prepaid" && !paymentForm.asaas_billing_document.trim()) {
+        throw new Error("Informe um CPF ou CNPJ para o cliente operacional do Asaas.");
+      }
+
       const updatePayload: any = {
         payment_mode: paymentForm.payment_mode,
         max_pending_orders: paymentForm.max_pending_orders,
         asaas_environment: paymentForm.asaas_environment,
+        asaas_billing_document: paymentForm.asaas_billing_document.trim() || null,
       };
 
       const pendingAsaasKey = paymentForm.new_asaas_api_key.trim();
@@ -201,6 +209,7 @@ const SettingsPage = () => {
           restaurantId,
           asaasApiKey: pendingAsaasKey,
           asaasEnvironment: paymentForm.asaas_environment,
+          asaasBillingDocument: paymentForm.asaas_billing_document,
         });
 
         setPaymentForm(prev => ({ ...prev, has_asaas_key: true, new_asaas_api_key: "" }));
@@ -406,6 +415,23 @@ const SettingsPage = () => {
                     </p>
                   </div>
 
+                  <div className="space-y-2">
+                    <Label>CPF ou CNPJ para cobrança operacional</Label>
+                    <Input
+                      placeholder="Documento usado no cliente operacional do Asaas"
+                      value={paymentForm.asaas_billing_document}
+                      onChange={(e) =>
+                        setPaymentForm({
+                          ...paymentForm,
+                          asaas_billing_document: e.target.value,
+                        })
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Esse documento é usado no cliente operacional do Asaas para permitir a criação do Pix sem pedir CPF do cliente final.
+                    </p>
+                  </div>
+
                   <div className="flex items-center gap-2 text-sm">
                     {paymentForm.has_asaas_key ? (
                       <>
@@ -444,7 +470,11 @@ const SettingsPage = () => {
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={testingKey || !paymentForm.new_asaas_api_key.trim()}
+                      disabled={
+                        testingKey ||
+                        !paymentForm.new_asaas_api_key.trim() ||
+                        !paymentForm.asaas_billing_document.trim()
+                      }
                       onClick={handleTestAsaasKey}
                     >
                       {testingKey ? (<><Loader2 className="mr-2 h-3 w-3 animate-spin" />Testando...</>) : "Testar Conexão"}

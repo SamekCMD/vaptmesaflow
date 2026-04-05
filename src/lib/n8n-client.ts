@@ -50,6 +50,7 @@ type AsaasSetupInput = {
   restaurantId: string;
   asaasApiKey: string;
   asaasEnvironment?: "production" | "sandbox";
+  asaasBillingDocument?: string;
 };
 
 type PixCreateInput = {
@@ -226,6 +227,7 @@ export const n8nClient = {
           restaurant_id: input.restaurantId,
           asaas_api_key: input.asaasApiKey,
           asaas_environment: input.asaasEnvironment ?? "production",
+          asaas_billing_document: input.asaasBillingDocument?.trim() || undefined,
         },
       }),
 
