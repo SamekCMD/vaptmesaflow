@@ -10,20 +10,36 @@ import {
 } from "@/lib/order-feedback";
 import InlineOrderRatingCard from "@/components/menu/InlineOrderRatingCard";
 
-const upsertMock = vi.fn();
+const { upsertMock, ingestMock } = vi.hoisted(() => ({
+  upsertMock: vi.fn(),
+  ingestMock: vi.fn(),
+}));
 
-vi.mock("@/integrations/supabase/client", () => ({
+vi.mock("@/lib/supabase", () => ({
   supabase: {
     from: vi.fn(() => ({
       upsert: upsertMock,
     })),
+    auth: {
+      getSession: vi.fn(async () => ({ data: { session: null } })),
+    },
   },
+}));
+
+vi.mock("@/lib/n8n-client", () => ({
+  n8nClient: {
+    ingest: {
+      orderFeedback: ingestMock,
+    },
+  },
+  N8nClientError: class extends Error {},
 }));
 
 afterEach(() => {
   sessionStorage.clear();
   vi.unstubAllGlobals();
   upsertMock.mockReset();
+  ingestMock.mockReset();
   upsertMock.mockResolvedValue({ error: null });
 });
 
@@ -96,8 +112,7 @@ describe("order feedback rules", () => {
 
   it("submits the structured payload to the configured webhook", async () => {
     upsertMock.mockResolvedValue({ error: null });
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
-    vi.stubGlobal("fetch", fetchMock);
+    ingestMock.mockResolvedValue({ success: true });
 
     const payload = await submitOrderFeedback({
       orderId: "ord-11",
@@ -106,7 +121,6 @@ describe("order feedback rules", () => {
       reasons: ["Muito bom"],
       comment: "Muito rápido",
       createdAt: "2026-04-03T12:10:00.000Z",
-      feedbackWebhookUrl: "https://example.com/feedback",
     });
 
     expect(payload).toEqual({
@@ -117,21 +131,13 @@ describe("order feedback rules", () => {
       comment: "Muito rápido",
       created_at: "2026-04-03T12:10:00.000Z",
     });
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://example.com/feedback",
-      expect.objectContaining({
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual(payload);
+    expect(ingestMock).toHaveBeenCalledWith(payload);
     expect(upsertMock).toHaveBeenCalledWith(payload, { onConflict: "order_id" });
   });
 
   it("shows the inline prompt, expands on star selection, and confirms submission", async () => {
     upsertMock.mockResolvedValue({ error: null });
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
-    vi.stubGlobal("fetch", fetchMock);
+    ingestMock.mockResolvedValue({ success: true });
 
     render(
       <InlineOrderRatingCard
@@ -139,7 +145,6 @@ describe("order feedback rules", () => {
         restaurantId="rest-1"
         displayId={42}
         primaryColor="#0ea573"
-        feedbackWebhookUrl="https://example.com/feedback"
       />,
     );
 
@@ -155,7 +160,7 @@ describe("order feedback rules", () => {
     fireEvent.click(screen.getByRole("button", { name: /enviar avaliação/i }));
 
     await waitFor(() => expect(upsertMock).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(ingestMock).toHaveBeenCalledTimes(1));
     expect(screen.getByText(/avaliação enviada/i)).toBeInTheDocument();
     expect(getRatedOrderIds()).toContain("ord-inline");
   });

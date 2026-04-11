@@ -52,6 +52,40 @@ interface MenuItem {
   variations: Variation[];
 }
 
+type MenuItemRow = {
+  id: string;
+  name: string;
+  price: number | string;
+  category: string | null;
+  available: boolean;
+  image_url: string | null;
+  available_from: string | null;
+  available_until: string | null;
+  badge: string | null;
+  is_chef_suggestion: boolean | null;
+  prep_time_minutes: number | null;
+};
+
+type MenuVariationRow = {
+  id: string;
+  menu_item_id: string;
+  name: string;
+  options: unknown;
+  required: boolean;
+};
+
+type MenuItemUpdateData = {
+  name: string;
+  price: number;
+  category: string;
+  available_from: string | null;
+  available_until: string | null;
+  badge: string | null;
+  is_chef_suggestion: boolean;
+  prep_time_minutes: number | null;
+  image_url?: string | null;
+};
+
 // --- Image resize utility ---
 function resizeImage(file: File, maxSize = 1200): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -80,8 +114,6 @@ function resizeImage(file: File, maxSize = 1200): Promise<Blob> {
     img.src = URL.createObjectURL(file);
   });
 }
-
-const SUPABASE_URL = "https://samuel-supabase.br8r5p.easypanel.host";
 
 const MenuManagement = () => {
   const { user } = useAuth();
@@ -132,15 +164,15 @@ const MenuManagement = () => {
         if (error) throw error;
 
         // Fetch variations for all items
-        const itemIds = (menuData || []).map((m: any) => m.id);
-        let variationsMap: Record<string, Variation[]> = {};
+        const itemIds = ((menuData || []) as MenuItemRow[]).map((m) => m.id);
+        const variationsMap: Record<string, Variation[]> = {};
         if (itemIds.length > 0) {
           const { data: varData } = await supabase
             .from("menu_item_variations")
             .select("*")
             .in("menu_item_id", itemIds);
           if (varData) {
-            for (const v of varData) {
+            for (const v of varData as MenuVariationRow[]) {
               if (!variationsMap[v.menu_item_id]) variationsMap[v.menu_item_id] = [];
               variationsMap[v.menu_item_id].push({
                 id: v.id,
@@ -153,7 +185,7 @@ const MenuManagement = () => {
         }
 
         setItems(
-          (menuData || []).map((m: any) => ({
+          ((menuData || []) as MenuItemRow[]).map((m) => ({
             id: m.id,
             name: m.name,
             price: Number(m.price),
@@ -168,7 +200,7 @@ const MenuManagement = () => {
             variations: variationsMap[m.id] || [],
           }))
         );
-      } catch (err: any) {
+      } catch (err: unknown) {
         toast({ title: "Erro ao carregar cardápio", description: err.message, variant: "destructive" });
       } finally {
         setLoading(false);
@@ -212,7 +244,7 @@ const MenuManagement = () => {
     setSaving(true);
 
     try {
-      const updateData: any = {
+      const updateData: MenuItemUpdateData = {
         name: form.name,
         price: parseFloat(form.price),
         category: form.category,
@@ -293,7 +325,7 @@ const MenuManagement = () => {
         .from("menu_item_variations")
         .select("*")
         .eq("menu_item_id", itemId);
-      const itemVariations: Variation[] = (freshVars || []).map((v: any) => ({
+      const itemVariations: Variation[] = ((freshVars || []) as MenuVariationRow[]).map((v) => ({
         id: v.id, name: v.name, options: v.options, required: v.required,
       }));
 
@@ -331,7 +363,7 @@ const MenuManagement = () => {
 
       resetForm();
       setDialogOpen(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Erro ao salvar", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
@@ -364,7 +396,7 @@ const MenuManagement = () => {
       if (error) throw error;
       setItems(items.filter((i) => i.id !== item.id));
       toast({ title: "Item removido", description: `"${item.name}" foi removido do cardápio.`, variant: "destructive" });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({ title: "Erro ao remover", description: err.message, variant: "destructive" });
     }
   };

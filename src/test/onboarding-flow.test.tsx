@@ -1,4 +1,5 @@
 ﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -13,7 +14,7 @@ vi.mock("@/contexts/AuthContext", () => ({
   }),
 }));
 
-vi.mock("@/integrations/supabase/client", () => ({
+vi.mock("@/lib/supabase", () => ({
   supabase: {
     from: vi.fn(),
   },
@@ -26,8 +27,8 @@ vi.mock("@/hooks/useSubscription", () => ({
 }));
 
 vi.mock("recharts", () => ({
-  ResponsiveContainer: ({ children }: any) => children ?? null,
-  BarChart: ({ children }: any) => children ?? null,
+  ResponsiveContainer: ({ children }: { children?: ReactNode }) => children ?? null,
+  BarChart: ({ children }: { children?: ReactNode }) => children ?? null,
   CartesianGrid: () => null,
   Bar: () => null,
   Tooltip: () => null,
@@ -102,10 +103,10 @@ describe("onboarding flow", () => {
 
     vi.mocked(supabase.from).mockImplementation((table: string) => {
       if (table === "restaurants") {
-        return { insert: restaurantInsert } as any;
+        return { insert: restaurantInsert } as unknown as ReturnType<typeof supabase.from>;
       }
       if (table === "menu_items") {
-        return { insert: menuInsert } as any;
+        return { insert: menuInsert } as unknown as ReturnType<typeof supabase.from>;
       }
       throw new Error(`Unexpected table: ${table}`);
     });
@@ -168,10 +169,10 @@ describe("onboarding flow", () => {
 
     vi.mocked(supabase.from).mockImplementation((table: string) => {
       if (table === "restaurants") {
-        return { insert: restaurantInsert } as any;
+        return { insert: restaurantInsert } as unknown as ReturnType<typeof supabase.from>;
       }
       if (table === "menu_items") {
-        return { insert: menuInsert } as any;
+        return { insert: menuInsert } as unknown as ReturnType<typeof supabase.from>;
       }
       throw new Error(`Unexpected table: ${table}`);
     });
@@ -263,3 +264,4 @@ describe("onboarding flow", () => {
     });
   });
 });
+

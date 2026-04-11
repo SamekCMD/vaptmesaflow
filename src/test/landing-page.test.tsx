@@ -57,7 +57,7 @@ describe("landing page copy", () => {
     const cockpit = within(hero as HTMLElement);
 
     expect(cockpit.getByText("Cockpit operacional em tempo real")).toBeInTheDocument();
-    expect(cockpit.getByRole("heading", { name: "Operação clara para decidir antes do atraso." })).toBeInTheDocument();
+    expect(cockpit.getByRole("heading", { name: "Seu restaurante no piloto automático." })).toBeInTheDocument();
     expect(cockpit.getByRole("link", { name: "Começar Agora" })).toBeInTheDocument();
     expect(cockpit.getByRole("link", { name: "Ver cockpit" })).toBeInTheDocument();
     expect(cockpit.getByText("Pedidos abertos")).toBeInTheDocument();
