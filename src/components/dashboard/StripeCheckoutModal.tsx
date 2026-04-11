@@ -125,7 +125,7 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
                 priceId: plan.priceId,
               });
 
-        if (data.autoCharged === true || !data.clientSecret) {
+        if (data.autoCharged === true) {
           onAutoCharged?.();
           onOpenChange(false);
         } else if (
@@ -134,7 +134,9 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
         ) {
           setClientSecret(data.clientSecret);
         } else {
-          setFetchError("Não foi possível iniciar o checkout. Tente novamente.");
+          setFetchError(
+            "A assinatura foi criada sem client secret retornado pela Stripe. O fluxo no n8n ainda não concluiu a etapa de confirmação.",
+          );
         }
       } catch (error) {
         if (error instanceof N8nClientError) {
