@@ -20,11 +20,12 @@ const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
 
 interface CheckoutFormProps {
   planName: string;
+  clientSecret: string;
   loading: boolean;
   setLoading: (v: boolean) => void;
 }
 
-function CheckoutForm({ planName, loading, setLoading }: CheckoutFormProps) {
+function CheckoutForm({ planName, clientSecret, loading, setLoading }: CheckoutFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [error, setError] = useState<string | null>(null);
@@ -35,15 +36,28 @@ function CheckoutForm({ planName, loading, setLoading }: CheckoutFormProps) {
     setLoading(true);
     setError(null);
 
-    const { error } = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
-        return_url: `${window.location.origin}/dashboard?subscribed=true`,
-      },
-    });
+    const confirmParams = {
+      return_url: `${window.location.origin}/dashboard?subscribed=true`,
+    };
 
-    if (error) {
-      setError(error.message || "Erro ao processar pagamento.");
+    const result = clientSecret.startsWith("seti_")
+      ? await stripe.confirmSetup({
+          elements,
+          confirmParams,
+        })
+      : clientSecret.startsWith("pi_")
+        ? await stripe.confirmPayment({
+            elements,
+            confirmParams,
+          })
+        : {
+            error: {
+              message: "Tipo de confirmação da Stripe não suportado para este checkout.",
+            },
+          };
+
+    if (result.error) {
+      setError(result.error.message || "Erro ao processar pagamento.");
       setLoading(false);
     }
   };
@@ -178,7 +192,12 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
                 },
               }}
             >
-              <CheckoutForm planName={plan.name} loading={submitting} setLoading={setSubmitting} />
+              <CheckoutForm
+                planName={plan.name}
+                clientSecret={clientSecret}
+                loading={submitting}
+                setLoading={setSubmitting}
+              />
             </Elements>
           )}
         </div>

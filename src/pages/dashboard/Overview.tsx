@@ -247,8 +247,8 @@ const Overview = ({ guideProgress }: OverviewProps) => {
   useEffect(() => {
     if (searchParams.get("subscribed") === "true") {
       toast({
-        title: "Assinatura confirmada!",
-        description: "Bem-vindo ao seu novo plano. Aproveite todos os recursos!",
+        title: "Pagamento enviado para confirmação",
+        description: "Estamos aguardando a sincronização final da assinatura com a Stripe.",
       });
       refetchSub();
       setSearchParams({}, { replace: true });
