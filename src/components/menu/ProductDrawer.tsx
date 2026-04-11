@@ -47,7 +47,7 @@ const ProductDrawer = ({ item, open, onClose, onAdd, primaryColor }: ProductDraw
       setNotes("");
       setAdded(false);
     }
-  }, [item?.id]);
+  }, [item]);
 
   if (!item) return null;
 
@@ -94,13 +94,14 @@ const ProductDrawer = ({ item, open, onClose, onAdd, primaryColor }: ProductDraw
               src={item.imageUrl}
               alt={item.name}
               className="w-full h-full object-cover"
+              loading="lazy"
             />
           </div>
         ) : null}
 
         <DrawerHeader className="relative">
           <DrawerClose asChild>
-            <button aria-label="Fechar detalhes do item" className="absolute right-4 top-4 rounded-full p-1 bg-muted hover:bg-muted/80 transition-colors active:scale-90 z-10">
+            <button aria-label="Fechar detalhes do item" className="absolute right-4 top-4 rounded-full p-2 bg-muted hover:bg-muted/80 transition-colors active:scale-90 z-10 min-h-11 min-w-11">
               <X className="h-4 w-4" />
             </button>
           </DrawerClose>

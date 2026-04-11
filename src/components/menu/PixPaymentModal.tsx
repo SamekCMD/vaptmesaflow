@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -36,7 +37,6 @@ const PixPaymentModal = ({
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState("");
 
-  // Relógio de Expiração
   useEffect(() => {
     if (!open || confirmed) return;
     const updateTimer = () => {
@@ -54,11 +54,10 @@ const PixPaymentModal = ({
     return () => clearInterval(interval);
   }, [open, expiration, confirmed]);
 
-  // VIGILÂNCIA DO BANCO (Polling)
   const checkStatus = useCallback(async () => {
     if (!orderId || confirmed || !open) return;
 
-    if (import.meta.env.DEV) console.log("🔍 Vapt Vigilante: Verificando pagamento do pedido:", orderId);
+    if (import.meta.env.DEV) console.log("[vapt] Verificando pagamento do pedido:", orderId);
 
     try {
       const { data, error } = await supabase
@@ -68,24 +67,22 @@ const PixPaymentModal = ({
         .single();
 
       if (error) {
-        if (import.meta.env.DEV) console.error("❌ Erro na vigilância:", error.message);
+        if (import.meta.env.DEV) console.error("[vapt] Erro na verificacao de pagamento:", error.message);
         return;
       }
-      
-      if (import.meta.env.DEV) console.log("📡 Status atual no banco:", data?.payment_status);
 
-      // Se o n8n já mudou para CONFIRMED ou RECEIVED, ativa o sucesso!
+      if (import.meta.env.DEV) console.log("[vapt] Status atual no banco:", data?.payment_status);
+
       if (data && ["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH"].includes(data.payment_status)) {
-        if (import.meta.env.DEV) console.log("✅ PAGAMENTO DETECTADO!");
+        if (import.meta.env.DEV) console.log("[vapt] Pagamento detectado.");
         setConfirmed(true);
         onPaymentConfirmed();
       }
     } catch (err) {
-      if (import.meta.env.DEV) console.error("🚨 Erro crítico ao checar pagamento:", err);
+      if (import.meta.env.DEV) console.error("[vapt] Erro critico ao checar pagamento:", err);
     }
   }, [orderId, confirmed, open, onPaymentConfirmed]);
 
-  // Inicia o vigia a cada 2 segundos (Mais rápido que os 5s anteriores)
   useEffect(() => {
     if (!open || confirmed) return;
     const interval = setInterval(checkStatus, 2000);
@@ -96,7 +93,7 @@ const PixPaymentModal = ({
     try {
       await navigator.clipboard.writeText(pixPayload);
       setCopied(true);
-      toast({ title: "Código Pix copiado!" });
+      toast({ title: "Codigo Pix copiado!" });
       setTimeout(() => setCopied(false), 3000);
     } catch {
       toast({ title: "Erro ao copiar", variant: "destructive" });
@@ -136,7 +133,7 @@ const PixPaymentModal = ({
                 transition={{ delay: 0.3 }}
                 className="text-xl font-bold mb-2 text-center"
               >
-                Pagamento Confirmado!
+                Pagamento confirmado!
               </motion.h3>
               <motion.p
                 initial={{ opacity: 0, y: 10 }}
@@ -144,7 +141,7 @@ const PixPaymentModal = ({
                 transition={{ delay: 0.4 }}
                 className="text-muted-foreground text-sm text-center"
               >
-                Pedido enviado para a cozinha! 🎉
+                Pedido enviado para a cozinha.
               </motion.p>
               <motion.div
                 initial={{ opacity: 0 }}
@@ -171,6 +168,9 @@ const PixPaymentModal = ({
                 <DialogTitle className="text-center">
                   Pagamento via Pix
                 </DialogTitle>
+                <DialogDescription className="text-center">
+                  Escaneie o QR Code ou copie o codigo Pix. O status atualiza automaticamente.
+                </DialogDescription>
               </DialogHeader>
 
               <div className="flex flex-col items-center gap-4 py-4">
@@ -206,7 +206,7 @@ const PixPaymentModal = ({
                   ) : (
                     <>
                       <Copy className="h-4 w-4 mr-2" />
-                      Copiar código Pix
+                      Copiar codigo Pix
                     </>
                   )}
                 </Button>

@@ -19,6 +19,41 @@ import MyOrdersDrawer from "@/components/menu/MyOrdersDrawer";
 import FloatingActions from "@/components/menu/FloatingActions";
 import { supabase } from "@/lib/supabase";
 
+type RestaurantPublicRow = {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  primary_color: string | null;
+  secondary_color: string | null;
+  font_family: RestaurantConfig["fontFamily"] | null;
+  payment_mode: "open_tab" | "prepaid" | null;
+  max_pending_orders: number | null;
+};
+
+type MenuItemRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number | string;
+  category: string | null;
+  image_url: string | null;
+  available: boolean;
+  available_from: string | null;
+  available_until: string | null;
+  badge: string | null;
+  is_chef_suggestion: boolean | null;
+  prep_time_minutes: number | null;
+};
+
+type MenuVariationRow = {
+  id: string;
+  menu_item_id: string;
+  name: string;
+  options: unknown;
+  required: boolean;
+};
+
 function isWithinTimeRange(from: string | null | undefined, until: string | null | undefined): boolean {
   if (!from && !until) return true;
   const now = new Date();
@@ -92,25 +127,26 @@ const PublicMenu = () => {
           return;
         }
 
+        const restaurantRow = restData as RestaurantPublicRow;
         const config: RestaurantConfig = {
-          id: restData.id,
-          name: restData.name,
-          slug: restData.slug,
-          logoUrl: restData.logo_url || "",
-          primaryColor: restData.primary_color || "#0ea573",
-          secondaryColor: restData.secondary_color || "#1e293b",
-          fontFamily: (restData.font_family as RestaurantConfig["fontFamily"]) || "modern",
+          id: restaurantRow.id,
+          name: restaurantRow.name,
+          slug: restaurantRow.slug,
+          logoUrl: restaurantRow.logo_url || "",
+          primaryColor: restaurantRow.primary_color || "#0ea573",
+          secondaryColor: restaurantRow.secondary_color || "#1e293b",
+          fontFamily: restaurantRow.font_family || "modern",
           activeModules: { menu: true, kds: true, metrics: true },
         };
 
         setRestaurant(config);
-        setRestaurantIdState(restData.id);
-        setPaymentMode((restData as any).payment_mode || "open_tab");
-        setMaxPendingOrders((restData as any).max_pending_orders || 3);
+        setRestaurantIdState(restaurantRow.id);
+        setPaymentMode(restaurantRow.payment_mode || "open_tab");
+        setMaxPendingOrders(restaurantRow.max_pending_orders || 3);
 
-        const mode = (restData as any).payment_mode || "open_tab";
+        const mode = restaurantRow.payment_mode || "open_tab";
         if (mode === "open_tab" && tableNumber) {
-          const storedSessionId = localStorage.getItem(`table_session_${restData.id}_${tableNumber}`);
+          const storedSessionId = localStorage.getItem(`table_session_${restaurantRow.id}_${tableNumber}`);
           if (storedSessionId) {
             const { data: existingSession } = await supabase
               .from("table_sessions")
@@ -122,7 +158,7 @@ const PublicMenu = () => {
               setTableSessionId(existingSession.id);
               setHasPlacedOrder(true);
             } else {
-              localStorage.removeItem(`table_session_${restData.id}_${tableNumber}`);
+              localStorage.removeItem(`table_session_${restaurantRow.id}_${tableNumber}`);
             }
           }
 
@@ -130,20 +166,20 @@ const PublicMenu = () => {
             const { data: dbSession } = await supabase
               .from("table_sessions")
               .select("id")
-              .eq("restaurant_id", restData.id)
+              .eq("restaurant_id", restaurantRow.id)
               .eq("table_number", tableNumber)
               .in("status", ["open", "check_requested"])
               .single();
             if (dbSession) {
               setTableSessionId(dbSession.id);
               setHasPlacedOrder(true);
-              localStorage.setItem(`table_session_${restData.id}_${tableNumber}`, dbSession.id);
+              localStorage.setItem(`table_session_${restaurantRow.id}_${tableNumber}`, dbSession.id);
             }
           }
         }
 
-        const { data: menuData } = await supabase.from("menu_items").select("*").eq("restaurant_id", restData.id);
-        const menuItems: PublicMenuItem[] = (menuData || []).map((m: any) => ({
+        const { data: menuData } = await supabase.from("menu_items").select("*").eq("restaurant_id", restaurantRow.id);
+        const menuItems: PublicMenuItem[] = ((menuData || []) as MenuItemRow[]).map((m) => ({
           id: m.id,
           name: m.name,
           description: m.description || "",
@@ -163,7 +199,7 @@ const PublicMenu = () => {
           const { data: varData } = await supabase.from("menu_item_variations").select("*").in("menu_item_id", itemIds);
           if (varData) {
             const varMap: Record<string, MenuItemVariation[]> = {};
-            for (const v of varData) {
+            for (const v of varData as MenuVariationRow[]) {
               if (!varMap[v.menu_item_id]) varMap[v.menu_item_id] = [];
               varMap[v.menu_item_id].push({
                 id: v.id,
@@ -196,7 +232,7 @@ const PublicMenu = () => {
       const { data: menuData } = await supabase.from("menu_items").select("*").eq("restaurant_id", restaurantIdState);
       if (!menuData) return;
 
-      const newItems: PublicMenuItem[] = menuData.map((m: any) => ({
+      const newItems: PublicMenuItem[] = (menuData as MenuItemRow[]).map((m) => ({
         id: m.id,
         name: m.name,
         description: m.description || "",
@@ -216,7 +252,7 @@ const PublicMenu = () => {
         const { data: varData } = await supabase.from("menu_item_variations").select("*").in("menu_item_id", itemIds);
         if (varData) {
           const varMap: Record<string, MenuItemVariation[]> = {};
-          for (const v of varData) {
+          for (const v of varData as MenuVariationRow[]) {
             if (!varMap[v.menu_item_id]) varMap[v.menu_item_id] = [];
             varMap[v.menu_item_id].push({
               id: v.id,
@@ -286,9 +322,17 @@ const PublicMenu = () => {
     };
 
     const channel = supabase
-      .channel("client-orders-realtime")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (payload) => {
-        const updated = payload.new as any;
+      .channel(`client-orders-realtime-${restaurant.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "orders",
+          filter: `restaurant_id=eq.${restaurant.id}`,
+        },
+        (payload) => {
+        const updated = payload.new as { id: string; display_id: number; status: string };
         const currentSessionIds = getSessionOrderIds();
         if (!currentSessionIds.includes(updated.id) || isInitialLoadRef.current) return;
         if (updated.status === "ready") {

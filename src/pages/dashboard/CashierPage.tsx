@@ -16,9 +16,31 @@ import {
 } from "@/lib/onboarding";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
+type RestaurantCashierRow = {
+  id: string;
+  total_tables: number | null;
+  max_tables: number | null;
+};
+
+type TableSessionRow = {
+  id: string;
+  restaurant_id: string;
+  table_number: string;
+  status: TableSession["status"];
+  opened_at: string;
+  closed_at: string | null;
+};
+
+type OrderAggregateRow = {
+  table_session_id: string;
+  total_price: number;
+};
+
 const playBellSound = () => {
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioContextClass = window.AudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -31,7 +53,11 @@ const playBellSound = () => {
     gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.5);
-  } catch {}
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn("[CashierPage] could not play bell sound", error);
+    }
+  }
 };
 
 const CashierPage = () => {
@@ -52,12 +78,13 @@ const CashierPage = () => {
     const fetch = async () => {
       const { data } = await supabase
         .from("restaurants")
-        .select("id, total_tables, max_tables")
-        .eq("owner_id", user.id)
-        .single();
-      if (data) {
-        setRestaurantId(data.id);
-        setTotalTables((data as any).max_tables || (data as any).total_tables || 20);
+      .select("id, total_tables, max_tables")
+      .eq("owner_id", user.id)
+      .single();
+    if (data) {
+        const row = data as RestaurantCashierRow;
+        setRestaurantId(row.id);
+        setTotalTables(row.max_tables || row.total_tables || 20);
       }
     };
     fetch();
@@ -84,22 +111,23 @@ const CashierPage = () => {
       .eq("restaurant_id", restaurantId)
       .in("status", ["open", "check_requested"]);
     if (!sessionsData) return;
-    const sessionIds = sessionsData.map((s: any) => s.id);
-    let orderAggs: Record<string, { total: number; count: number }> = {};
+    const sessionRows = sessionsData as TableSessionRow[];
+    const sessionIds = sessionRows.map((s) => s.id);
+    const orderAggs: Record<string, { total: number; count: number }> = {};
     if (sessionIds.length > 0) {
       const { data: ordersData } = await supabase
         .from("orders")
         .select("table_session_id, total_price")
         .in("table_session_id", sessionIds);
       if (ordersData) {
-        for (const o of ordersData as any[]) {
+        for (const o of ordersData as OrderAggregateRow[]) {
           if (!orderAggs[o.table_session_id]) orderAggs[o.table_session_id] = { total: 0, count: 0 };
           orderAggs[o.table_session_id].total += Number(o.total_price);
           orderAggs[o.table_session_id].count += 1;
         }
       }
     }
-    const mapped: TableSession[] = sessionsData.map((s: any) => ({
+    const mapped: TableSession[] = sessionRows.map((s) => ({
       id: s.id, restaurant_id: s.restaurant_id, table_number: s.table_number,
       status: s.status, opened_at: s.opened_at, closed_at: s.closed_at,
       session_total: orderAggs[s.id]?.total || null, order_count: orderAggs[s.id]?.count || null,

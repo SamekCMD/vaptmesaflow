@@ -98,38 +98,44 @@ const HeroDashboardMockup = () => {
               )}
               <div className="relative z-10 flex h-full items-end gap-2">
                 {chartPoints.map((point, i) => (
-                  <div key={point.hour} className="flex-1">
+                  <div key={point.hour} className="flex h-full flex-1 items-end">
                     <motion.div
                       initial={
                         prefersReducedMotion
-                          ? { height: `${point.height}%`, opacity: 1, scaleY: 1 }
-                          : { height: 0, opacity: 0.45, scaleY: 0.75 }
+                          ? { opacity: 1, scaleY: 1 }
+                          : { opacity: 0.4, scaleY: 0 }
                       }
                       animate={
                         prefersReducedMotion
-                          ? { height: `${point.height}%`, opacity: 1, scaleY: 1 }
+                          ? { opacity: 1, scaleY: 1 }
                           : {
-                              height: [`0%`, `${Math.min(point.height + 8, 84)}%`, `${point.height}%`],
-                              opacity: [0.45, 1, 0.9],
-                              scaleY: [0.75, 1.06, 1],
+                              opacity: [0.4, 1, 0.9, 0.96, 0.9],
+                              scaleY: [0, 1.08, 1, 1.03, 1],
                             }
                       }
                       transition={{
-                        duration: prefersReducedMotion ? 0 : 0.72,
+                        duration: prefersReducedMotion ? 0 : 2.6,
                         delay: prefersReducedMotion ? 0 : 0.35 + i * 0.07,
                         ease: entranceEase,
+                        times: prefersReducedMotion ? undefined : [0, 0.22, 0.32, 0.72, 1],
+                        repeat: prefersReducedMotion ? 0 : Infinity,
+                        repeatDelay: prefersReducedMotion ? 0 : 1.8,
                       }}
-                      className="mx-auto w-full max-w-[22px] rounded-t-md bg-primary/80 origin-bottom"
+                      style={{ height: `${point.height}%` }}
+                      className="mx-auto w-full max-w-[22px] rounded-t-md bg-primary origin-bottom will-change-transform"
                     >
                       {!prefersReducedMotion && (
                         <motion.div
                           aria-hidden="true"
                           initial={{ opacity: 0 }}
-                          animate={{ opacity: [0, 0.32, 0] }}
+                          animate={{ opacity: [0, 0.28, 0, 0.22, 0] }}
                           transition={{
-                            duration: 0.5,
-                            delay: 0.55 + i * 0.07,
+                            duration: 2.2,
+                            delay: 0.52 + i * 0.07,
                             ease: "easeOut",
+                            times: [0, 0.2, 0.34, 0.72, 1],
+                            repeat: Infinity,
+                            repeatDelay: 2.2,
                           }}
                           className="h-2 w-full rounded-t-md bg-white/35"
                         />

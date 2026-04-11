@@ -1,3 +1,4 @@
+﻿import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { ArrowRight, BadgeCheck, Clock3, ShieldCheck } from "lucide-react";
@@ -5,9 +6,34 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import HeroDashboardMockup from "./HeroDashboardMockup";
 
+const HERO_SUBTITLE_OPTIONS = [
+  "Pedidos, faturamento e fila de preparo em uma única visão para agir antes do atraso aparecer.",
+  "Do salão à cozinha, tudo no mesmo cockpit para você decidir rápido.",
+  "Menos ruído na operação, mais clareza para vender bem no pico.",
+  "Acompanhe pedidos e ritmo do restaurante sem trocar de tela o tempo todo.",
+] as const;
+
 const Hero = () => {
   const { user } = useAuth();
   const primaryHref = user ? "/dashboard" : "/signup";
+  const [heroSubtitle, setHeroSubtitle] = useState<string>(HERO_SUBTITLE_OPTIONS[0]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const storageKey = "vapt_landing_hero_subtitle";
+    const stored = window.sessionStorage.getItem(storageKey);
+
+    if (stored && HERO_SUBTITLE_OPTIONS.includes(stored as (typeof HERO_SUBTITLE_OPTIONS)[number])) {
+      setHeroSubtitle(stored);
+      return;
+    }
+
+    const randomSubtitle =
+      HERO_SUBTITLE_OPTIONS[Math.floor(Math.random() * HERO_SUBTITLE_OPTIONS.length)];
+    window.sessionStorage.setItem(storageKey, randomSubtitle);
+    setHeroSubtitle(randomSubtitle);
+  }, []);
 
   return (
     <section className="relative min-h-screen hero-gradient overflow-hidden flex items-center">
@@ -33,12 +59,11 @@ const Hero = () => {
             </div>
 
             <h1 className="max-w-xl text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight text-foreground leading-[1.08] mb-6">
-              Operação clara para decidir antes do atraso.
+              Seu restaurante no piloto automático.
             </h1>
 
             <p className="text-lg text-muted-foreground max-w-xl mb-8 leading-relaxed">
-              Pedidos, faturamento e fila de preparo em uma única visão para agir
-              antes do atraso aparecer.
+              {heroSubtitle}
             </p>
 
             <div className="flex flex-wrap gap-4">

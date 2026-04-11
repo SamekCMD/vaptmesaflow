@@ -38,6 +38,13 @@ interface PlanData {
   refetch: () => void;
 }
 
+type RestaurantPlanRow = {
+  id: string;
+  plan_type: PlanType | null;
+  plan_status: PlanStatus | null;
+  trial_ends_at: string | null;
+};
+
 export function usePlan(): PlanData {
   const { user } = useAuth();
   const [planType, setPlanType] = useState<PlanType>("starter");
@@ -58,10 +65,11 @@ export function usePlan(): PlanData {
       .single();
 
     if (data) {
-      setRestaurantId(data.id);
-      setPlanType((data as any).plan_type || "starter");
-      setPlanStatus((data as any).plan_status || "trialing");
-      setTrialEndsAt((data as any).trial_ends_at ? new Date((data as any).trial_ends_at) : null);
+      const row = data as RestaurantPlanRow;
+      setRestaurantId(row.id);
+      setPlanType(row.plan_type || "starter");
+      setPlanStatus(row.plan_status || "trialing");
+      setTrialEndsAt(row.trial_ends_at ? new Date(row.trial_ends_at) : null);
     }
     setLoading(false);
   }, [user]);
@@ -90,7 +98,8 @@ export function usePlan(): PlanData {
 
   const canAccess = useCallback(
     (feature: Feature): boolean => {
-      if (planStatus === "trialing" && trialEndsAt && trialEndsAt > now) return true;
+      const currentNow = new Date();
+      if (planStatus === "trialing" && trialEndsAt && trialEndsAt > currentNow) return true;
       if (planStatus !== "active") return false;
       const required = FEATURE_MIN_PLAN[feature];
       return PLAN_HIERARCHY[planType] >= PLAN_HIERARCHY[required];

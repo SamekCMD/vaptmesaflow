@@ -26,6 +26,13 @@ export interface SubscriptionData {
   refetch: () => void;
 }
 
+type RestaurantSubscriptionRow = {
+  id: string;
+  plan_type: Exclude<PlanType, "trial"> | null;
+  plan_status: PlanStatus | null;
+  trial_ends_at: string | null;
+};
+
 export function useSubscription(): SubscriptionData {
   const { user } = useAuth();
   const [planType, setPlanType] = useState<PlanType>("trial");
@@ -46,12 +53,13 @@ export function useSubscription(): SubscriptionData {
       .single();
 
     if (data) {
-      setRestaurantId(data.id);
-      const pt = (data as any).plan_type || "starter";
-      const ps = (data as any).plan_status || "trialing";
+      const row = data as RestaurantSubscriptionRow;
+      setRestaurantId(row.id);
+      const pt = row.plan_type || "starter";
+      const ps = row.plan_status || "trialing";
       setPlanType(ps === "trialing" ? "trial" : pt);
       setPlanStatus(ps);
-      setTrialEndsAt((data as any).trial_ends_at ? new Date((data as any).trial_ends_at) : null);
+      setTrialEndsAt(row.trial_ends_at ? new Date(row.trial_ends_at) : null);
     }
     setLoading(false);
   }, [user]);

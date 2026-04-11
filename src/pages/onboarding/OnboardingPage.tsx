@@ -109,8 +109,9 @@ const OnboardingPage = () => {
       if (menuError) throw menuError;
       toast({ title: "Restaurante criado com sucesso!" });
       setSetupComplete(true);
-    } catch (err: any) {
-      toast({ title: "Erro ao salvar", description: err.message || "Tente novamente.", variant: "destructive" });
+    } catch (err: unknown) {
+      const description = err instanceof Error ? err.message : "Tente novamente.";
+      toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
       setSaving(false);
     }

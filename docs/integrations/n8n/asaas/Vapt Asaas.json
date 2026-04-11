@@ -750,7 +750,7 @@
                   },
                   {
                       "parameters":  {
-                                         "jsCode":  "const input=$input.first().json;const list=Array.isArray(input)?input:(input.data??input.items??input.customers??[]);const customers=Array.isArray(list)?list:(list.data??list.items??list.customers??[]);const existingCustomer=customers.find((entry)=\u003eentry.externalReference===`vapt-restaurant-${$(\u0027Normalize Pix Context\u0027).first().json.restaurant.id}`)??customers[0]??null;return [{json:{...$(\u0027Normalize Pix Context\u0027).first().json,asaas_customer:existingCustomer,needs_create_customer:!existingCustomer}}];"
+                                         "jsCode":  "const input=$input.first().json;const customers=Array.isArray(input?.data)?input.data:[];const existingCustomer=customers[0]??null;return [{json:{...$(\u0027Normalize Pix Context\u0027).first().json,asaas_customer:existingCustomer,needs_create_customer:!existingCustomer}}];"
                                      },
                       "id":  "normalize-customer-lookup",
                       "name":  "Normalize Customer Lookup",
@@ -803,7 +803,7 @@
                                          "sendHeaders":  true,
                                          "sendBody":  true,
                                          "specifyBody":  "json",
-                                         "jsonBody":  "={{ { name: \u0027Vapt \u0027 + $json.restaurant.name + \u0027 Pix Operacional\u0027, email: \u0027pix+\u0027 + $json.restaurant.id + \u0027@vapt.local\u0027, cpfCnpj: $json.asaas_billing_document ?? $json.restaurant.asaas_billing_document ?? $json.restaurant.cnpj, externalReference: \u0027vapt-restaurant-\u0027 + $json.restaurant.id } }}",
+                                         "jsonBody":  "={{ { name: \u0027Consumidor Vapt\u0027, email: \u0027cliente-vapt@vapt.com.br\u0027, cpfCnpj: $json.asaas_billing_document ?? $json.restaurant.asaas_billing_document ?? $json.restaurant.cnpj, externalReference: \u0027VAPT_GENERIC_USER\u0027 } }}",
                                          "headerParameters":  {
                                                                   "parameters":  [
                                                                                      {
@@ -849,7 +849,7 @@
                                          "sendHeaders":  true,
                                          "sendBody":  true,
                                          "specifyBody":  "json",
-                                         "jsonBody":  "={{ (() => { const rawValue = $json.order?.total_price ?? $json.request_body?.total_price ?? $json.total_price ?? $json.order?.totalPrice ?? $json.request_body?.totalPrice ?? $json.totalPrice; const value = Number.parseFloat(String(rawValue ?? \u0027\u0027).replace(\u0027,\u0027, \u0027.\u0027)); return { customer: $json.asaas_customer?.id ?? $json.customer?.id ?? $json.customer_id, billingType: \u0027PIX\u0027, value, dueDate: new Date().toISOString().slice(0, 10), description: \u0027Pedido \u0027 + ($json.order?.display_id ?? $json.order?.id ?? $json.order_id), externalReference: $json.order?.id ?? $json.order_id }; })() }}",
+                                         "jsonBody":  "={{ (() => { const rawValue = $json.order?.total_price ?? $json.request_body?.total_price ?? $json.total_price ?? $json.order?.totalPrice ?? $json.request_body?.totalPrice ?? $json.totalPrice; const value = Number.parseFloat(String(rawValue ?? \u0027\u0027).replace(\u0027,\u0027, \u0027.\u0027)); return { customer: $json.asaas_customer?.id ?? $json.customer?.id ?? $json.customer_id, billingType: \u0027PIX\u0027, value, dueDate: \u00272026-12-31\u0027, externalReference: $json.order?.id ?? $json.order_id }; })() }}",
                                          "headerParameters":  {
                                                                   "parameters":  [
                                                                                      {
@@ -878,13 +878,13 @@
                   {
                       "parameters":  {
                                          "method":  "GET",
-                                         "url":  "={{ $json.asaas_base_url + \u0027/payments/\u0027 + $json.id + \u0027/pixQrCode\u0027 }}",
+                                         "url":  "={{ $(\u0027Normalize Customer Lookup\u0027).first().json.asaas_base_url + \u0027/payments/\u0027 + $json.id + \u0027/pixQrCode\u0027 }}",
                                          "sendHeaders":  true,
                                          "headerParameters":  {
                                                                   "parameters":  [
                                                                                      {
                                                                                          "name":  "access_token",
-                                                                                         "value":  "={{ $json.asaas_api_key }}"
+                                                                                         "value":  "={{ $(\u0027Normalize Customer Lookup\u0027).first().json.asaas_api_key }}"
                                                                                      }
                                                                                  ]
                                                               },
@@ -903,7 +903,7 @@
                   },
                   {
                       "parameters":  {
-                                         "jsCode":  "const input=$input.first().json;const base=$(\u0027Normalize Customer Lookup\u0027).first().json;const qr=input;const orderPatch={payment_status:\u0027PENDING\u0027};if(Object.prototype.hasOwnProperty.call(base.order,\u0027payment_id\u0027)){orderPatch.payment_id=base.order.payment_id??base.payment?.id??input.id;}if(Object.prototype.hasOwnProperty.call(base.order,\u0027pix_payload\u0027)){orderPatch.pix_payload=qr.payload??qr.encodedPayload??null;}if(Object.prototype.hasOwnProperty.call(base.order,\u0027qr_code_base64\u0027)){orderPatch.qr_code_base64=qr.encodedImage??qr.base64Image??null;}const eventPayload={provider:\u0027asaas\u0027,provider_event_id:`pix_create:${input.id}`,event_type:\u0027PIX_CREATED\u0027,restaurant_id:base.restaurant.id,order_id:base.order.id,payload:{payment:input,pix_qr:qr}};return [{json:{...base,payment:input,pix_qr:qr,order_patch:orderPatch,event_payload:eventPayload}}];"
+                                         "jsCode":  "const qr=$input.first().json;const base=$(\u0027Normalize Customer Lookup\u0027).first().json;const payment=$(\u0027Create Pix Payment\u0027).first().json;const orderPatch={payment_status:\u0027PENDING\u0027};if(Object.prototype.hasOwnProperty.call(base.order,\u0027payment_id\u0027)){orderPatch.payment_id=base.order.payment_id??payment.id??null;}if(Object.prototype.hasOwnProperty.call(base.order,\u0027pix_payload\u0027)){orderPatch.pix_payload=qr.payload??qr.encodedPayload??null;}if(Object.prototype.hasOwnProperty.call(base.order,\u0027qr_code_base64\u0027)){orderPatch.qr_code_base64=qr.encodedImage??qr.base64Image??null;}const eventPayload={provider:\u0027asaas\u0027,provider_event_id:`pix_create:${payment.id??base.order.id}`,event_type:\u0027PIX_CREATED\u0027,restaurant_id:base.restaurant.id,order_id:base.order.id,payload:{payment,pix_qr:qr}};return [{json:{...base,payment,pix_qr:qr,order_patch:orderPatch,event_payload:eventPayload}}];"
                                      },
                       "id":  "prepare-pix-persist",
                       "name":  "Prepare Pix Persist Payload",
@@ -916,85 +916,88 @@
                   },
                   {
                       "parameters":  {
-                                         "method":  "PATCH",
-                                         "url":  "={{ $env.VAPT_SUPABASE_URL.replace(//$/, \u0027\u0027) + \u0027/rest/v1/orders?id=eq.\u0027 + encodeURIComponent($json.order.id) }}",
-                                         "sendBody":  true,
-                                         "specifyBody":  "json",
-                                         "jsonBody":  "={{ $json.order_patch }}",
-                                         "sendHeaders":  true,
-                                         "headerParameters":  {
-                                                                  "parameters":  [
-                                                                                     {
-                                                                                         "name":  "apikey",
-                                                                                         "value":  "={{ $env.VAPT_SUPABASE_SERVICE_KEY }}"
-                                                                                     },
-                                                                                     {
-                                                                                         "name":  "Authorization",
-                                                                                         "value":  "={{ \u0027Bearer \u0027 + $env.VAPT_SUPABASE_SERVICE_KEY }}"
-                                                                                     },
-                                                                                     {
-                                                                                         "name":  "Content-Type",
-                                                                                         "value":  "application/json"
-                                                                                     },
-                                                                                     {
-                                                                                         "name":  "Prefer",
-                                                                                         "value":  "return=minimal"
-                                                                                     }
-                                                                                 ]
-                                                              },
-                                         "options":  {
-
-                                                     }
+                                         "operation":  "update",
+                                         "tableId":  "orders",
+                                         "filters":  {
+                                                         "conditions":  [
+                                                                            {
+                                                                                "keyName":  "id",
+                                                                                "condition":  "eq",
+                                                                                "keyValue":  "={{ $json.order.id }}"
+                                                                            }
+                                                                        ]
+                                                     },
+                                         "fieldsUi":  {
+                                                          "fieldValues":  [
+                                                                              {
+                                                                                  "fieldId":  "payment_status",
+                                                                                  "fieldValue":  "={{ $(\u0027Prepare Pix Persist Payload\u0027).first().json.order_patch.payment_status ?? \u0027PENDING\u0027 }}"
+                                                                              }
+                                                                          ]
+                                                      }
                                      },
                       "id":  "http-persist-pix-order",
                       "name":  "Persist Pix Order",
-                      "type":  "n8n-nodes-base.httpRequest",
-                      "typeVersion":  4.3,
+                      "type":  "n8n-nodes-base.supabase",
+                      "typeVersion":  1,
                       "position":  [
                                        2160,
                                        420
-                                   ]
+                                   ],
+                      "credentials":  {
+                                          "supabaseApi":  {
+                                                              "id":  "amnDaggR6cwPHYRa",
+                                                              "name":  "Supabase account"
+                                                          }
+                                      }
                   },
                   {
                       "parameters":  {
-                                         "method":  "POST",
-                                         "url":  "={{ $env.VAPT_SUPABASE_URL.replace(//$/, \u0027\u0027) + \u0027/rest/v1/payment_provider_events?on_conflict=provider,provider_event_id\u0027 }}",
-                                         "sendBody":  true,
-                                         "specifyBody":  "json",
-                                         "jsonBody":  "={{ $(\u0027Prepare Pix Persist Payload\u0027).first().json.event_payload }}",
-                                         "sendHeaders":  true,
-                                         "headerParameters":  {
-                                                                  "parameters":  [
-                                                                                     {
-                                                                                         "name":  "apikey",
-                                                                                         "value":  "={{ $env.VAPT_SUPABASE_SERVICE_KEY }}"
-                                                                                     },
-                                                                                     {
-                                                                                         "name":  "Authorization",
-                                                                                         "value":  "={{ \u0027Bearer \u0027 + $env.VAPT_SUPABASE_SERVICE_KEY }}"
-                                                                                     },
-                                                                                     {
-                                                                                         "name":  "Content-Type",
-                                                                                         "value":  "application/json"
-                                                                                     },
-                                                                                     {
-                                                                                         "name":  "Prefer",
-                                                                                         "value":  "resolution=merge-duplicates,return=minimal"
-                                                                                     }
-                                                                                 ]
-                                                              },
-                                         "options":  {
-
-                                                     }
+                                         "operation":  "create",
+                                         "tableId":  "payment_provider_events",
+                                         "fieldsUi":  {
+                                                          "fieldValues":  [
+                                                                              {
+                                                                                  "fieldId":  "provider",
+                                                                                  "fieldValue":  "={{ $(\u0027Prepare Pix Persist Payload\u0027).first().json.event_payload.provider }}"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "provider_event_id",
+                                                                                  "fieldValue":  "={{ $(\u0027Prepare Pix Persist Payload\u0027).first().json.event_payload.provider_event_id }}"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "event_type",
+                                                                                  "fieldValue":  "={{ $(\u0027Prepare Pix Persist Payload\u0027).first().json.event_payload.event_type }}"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "restaurant_id",
+                                                                                  "fieldValue":  "={{ $(\u0027Prepare Pix Persist Payload\u0027).first().json.event_payload.restaurant_id }}"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "order_id",
+                                                                                  "fieldValue":  "={{ $(\u0027Prepare Pix Persist Payload\u0027).first().json.event_payload.order_id }}"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "payload",
+                                                                                  "fieldValue":  "={{ $(\u0027Prepare Pix Persist Payload\u0027).first().json.event_payload.payload }}"
+                                                                              }
+                                                                          ]
+                                                      }
                                      },
                       "id":  "http-persist-pix-event",
                       "name":  "Persist Pix Event",
-                      "type":  "n8n-nodes-base.httpRequest",
-                      "typeVersion":  4.3,
+                      "type":  "n8n-nodes-base.supabase",
+                      "typeVersion":  1,
                       "position":  [
                                        2380,
                                        420
-                                   ]
+                                   ],
+                      "credentials":  {
+                                          "supabaseApi":  {
+                                                              "id":  "amnDaggR6cwPHYRa",
+                                                              "name":  "Supabase account"
+                                                          }
+                                      }
                   },
                   {
                       "parameters":  {
@@ -1238,44 +1241,51 @@
                   },
                   {
                       "parameters":  {
-                                         "method":  "POST",
-                                         "url":  "={{ $env.VAPT_SUPABASE_URL.replace(//$/, \u0027\u0027) + \u0027/rest/v1/payment_provider_events?on_conflict=provider,provider_event_id\u0027 }}",
-                                         "sendBody":  true,
-                                         "specifyBody":  "json",
-                                         "jsonBody":  "={{ { provider: \u0027asaas\u0027, provider_event_id: $json.provider_event_id, event_type: $json.event_type, restaurant_id: $json.restaurant.id, order_id: $json.order.id, payload: $json.payment } }}",
-                                         "sendHeaders":  true,
-                                         "headerParameters":  {
-                                                                  "parameters":  [
-                                                                                     {
-                                                                                         "name":  "apikey",
-                                                                                         "value":  "={{ $env.VAPT_SUPABASE_SERVICE_KEY }}"
-                                                                                     },
-                                                                                     {
-                                                                                         "name":  "Authorization",
-                                                                                         "value":  "={{ \u0027Bearer \u0027 + $env.VAPT_SUPABASE_SERVICE_KEY }}"
-                                                                                     },
-                                                                                     {
-                                                                                         "name":  "Content-Type",
-                                                                                         "value":  "application/json"
-                                                                                     },
-                                                                                     {
-                                                                                         "name":  "Prefer",
-                                                                                         "value":  "resolution=merge-duplicates,return=minimal"
-                                                                                     }
-                                                                                 ]
-                                                              },
-                                         "options":  {
-
-                                                     }
+                                         "operation":  "create",
+                                         "tableId":  "payment_provider_events",
+                                         "fieldsUi":  {
+                                                          "fieldValues":  [
+                                                                              {
+                                                                                  "fieldId":  "provider",
+                                                                                  "fieldValue":  "=asaas"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "provider_event_id",
+                                                                                  "fieldValue":  "={{ $json.provider_event_id }}"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "event_type",
+                                                                                  "fieldValue":  "={{ $json.event_type }}"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "restaurant_id",
+                                                                                  "fieldValue":  "={{ $json.restaurant.id }}"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "order_id",
+                                                                                  "fieldValue":  "={{ $json.order.id }}"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "payload",
+                                                                                  "fieldValue":  "={{ $json.payment }}"
+                                                                              }
+                                                                          ]
+                                                      }
                                      },
                       "id":  "http-persist-payment-event",
                       "name":  "Persist Payment Event",
-                      "type":  "n8n-nodes-base.httpRequest",
-                      "typeVersion":  4.3,
+                      "type":  "n8n-nodes-base.supabase",
+                      "typeVersion":  1,
                       "position":  [
                                        620,
                                        1120
-                                   ]
+                                   ],
+                      "credentials":  {
+                                          "supabaseApi":  {
+                                                              "id":  "amnDaggR6cwPHYRa",
+                                                              "name":  "Supabase account"
+                                                          }
+                                      }
                   },
                   {
                       "parameters":  {
@@ -1292,44 +1302,48 @@
                   },
                   {
                       "parameters":  {
-                                         "method":  "PATCH",
-                                         "url":  "={{ $env.VAPT_SUPABASE_URL.replace(/\\/$/, \u0027\u0027) + \u0027/rest/v1/orders?id=eq.\u0027 + encodeURIComponent($(\u0027Prepare Paid Order\u0027).first().json.order.id) }}",
-                                         "sendBody":  true,
-                                         "specifyBody":  "json",
-                                         "jsonBody":  "={{ $json.order_patch }}",
-                                         "sendHeaders":  true,
-                                         "headerParameters":  {
-                                                                  "parameters":  [
-                                                                                     {
-                                                                                         "name":  "apikey",
-                                                                                         "value":  "={{ $env.VAPT_SUPABASE_SERVICE_KEY }}"
-                                                                                     },
-                                                                                     {
-                                                                                         "name":  "Authorization",
-                                                                                         "value":  "={{ \u0027Bearer \u0027 + $env.VAPT_SUPABASE_SERVICE_KEY }}"
-                                                                                     },
-                                                                                     {
-                                                                                         "name":  "Content-Type",
-                                                                                         "value":  "application/json"
-                                                                                     },
-                                                                                     {
-                                                                                         "name":  "Prefer",
-                                                                                         "value":  "return=minimal"
-                                                                                     }
-                                                                                 ]
-                                                              },
-                                         "options":  {
-
-                                                     }
+                                         "operation":  "update",
+                                         "tableId":  "orders",
+                                         "filters":  {
+                                                         "conditions":  [
+                                                                            {
+                                                                                "keyName":  "id",
+                                                                                "condition":  "eq",
+                                                                                "keyValue":  "={{ $(\u0027Prepare Paid Order\u0027).first().json.order.id }}"
+                                                                            }
+                                                                        ]
+                                                     },
+                                         "fieldsUi":  {
+                                                          "fieldValues":  [
+                                                                              {
+                                                                                  "fieldId":  "payment_status",
+                                                                                  "fieldValue":  "={{ $(\u0027Prepare Paid Order\u0027).first().json.order_patch.payment_status ?? \u0027CONFIRMED\u0027 }}"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "status",
+                                                                                  "fieldValue":  "={{ $(\u0027Prepare Paid Order\u0027).first().json.order_patch.status ?? \u0027paid\u0027 }}"
+                                                                              },
+                                                                              {
+                                                                                  "fieldId":  "payment_confirmed_at",
+                                                                                  "fieldValue":  "={{ $(\u0027Prepare Paid Order\u0027).first().json.order_patch.payment_confirmed_at ?? new Date().toISOString() }}"
+                                                                              }
+                                                                          ]
+                                                      }
                                      },
                       "id":  "http-patch-paid-order",
                       "name":  "Patch Paid Order",
-                      "type":  "n8n-nodes-base.httpRequest",
-                      "typeVersion":  4.3,
+                      "type":  "n8n-nodes-base.supabase",
+                      "typeVersion":  1,
                       "position":  [
                                        1060,
                                        1120
-                                   ]
+                                   ],
+                      "credentials":  {
+                                          "supabaseApi":  {
+                                                              "id":  "amnDaggR6cwPHYRa",
+                                                              "name":  "Supabase account"
+                                                          }
+                                      }
                   },
                   {
                       "parameters":  {
@@ -2137,20 +2151,24 @@
                                                   },
                         "Prepare Paid Order":  {
                                                    "main":  [
-                                                                {
-                                                                    "node":  "If Paid Order Patch Needed",
-                                                                    "type":  "main",
-                                                                    "index":  0
-                                                                }
+                                                                [
+                                                                    {
+                                                                        "node":  "If Paid Order Patch Needed",
+                                                                        "type":  "main",
+                                                                        "index":  0
+                                                                    }
+                                                                ]
                                                             ]
                                                },
                         "Patch Paid Order":  {
                                                  "main":  [
-                                                              {
-                                                                  "node":  "Respond Asaas Webhook",
-                                                                  "type":  "main",
-                                                                  "index":  0
-                                                              }
+                                                              [
+                                                                  {
+                                                                      "node":  "Respond Asaas Webhook",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ]
                                                           ]
                                              },
                         "Admin Status Request":  {

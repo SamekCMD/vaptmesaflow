@@ -50,7 +50,7 @@ const SubscriptionPage = () => {
   const activePlanId = planStatus === "active" ? planType : null;
   const currentPlan = PLANS.find((p) => p.id === activePlanId);
   const currentPlanName = currentPlan?.name ?? planType;
-  const currentPlanIndex = PLAN_ORDER.indexOf(activePlanId as any);
+  const currentPlanIndex = activePlanId ? PLAN_ORDER.indexOf(activePlanId) : -1;
 
   const handlePlanClick = (plan: PlanDefinition) => {
     if (planStatus === "active") {

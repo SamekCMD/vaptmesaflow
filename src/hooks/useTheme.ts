@@ -8,7 +8,11 @@ export function useTheme() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored === 'dark' || stored === 'light') return stored;
-    } catch {}
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn("Failed to read stored theme", error);
+      }
+    }
     return 'light';
   });
 
@@ -18,7 +22,11 @@ export function useTheme() {
     root.classList.add(theme);
     try {
       localStorage.setItem(STORAGE_KEY, theme);
-    } catch {}
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn("Failed to persist theme", error);
+      }
+    }
   }, [theme]);
 
   const toggleTheme = useCallback(() => {

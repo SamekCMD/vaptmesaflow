@@ -98,9 +98,9 @@ const InlineOrderRatingCard = ({
               className="transition-transform active:scale-90"
             >
               <Star
-                className="h-8 w-8 transition-colors"
-                fill={active ? "#facc15" : "none"}
-                color={active ? "#facc15" : "hsl(var(--muted-foreground))"}
+                className={`h-8 w-8 transition-colors ${active ? "text-primary" : "text-muted-foreground"}`}
+                fill={active ? "currentColor" : "none"}
+                color="currentColor"
               />
             </button>
           );

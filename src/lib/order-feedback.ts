@@ -22,6 +22,15 @@ export type OrderFeedbackPayload = {
 
 export type StoredOrderFeedbackRecord = OrderFeedbackPayload;
 
+type OrderFeedbackRow = {
+  order_id: string;
+  restaurant_id: string;
+  rating: number | string;
+  reasons: unknown;
+  comment: string | null;
+  created_at: string;
+};
+
 type OrderFeedbackInput = {
   orderId: string;
   restaurantId: string;
@@ -92,7 +101,7 @@ export const fetchOrderFeedbackRecords = async ({
     throw error;
   }
 
-  return (data || []).map((record: any) => ({
+  return ((data || []) as OrderFeedbackRow[]).map((record) => ({
     order_id: record.order_id,
     restaurant_id: record.restaurant_id,
     rating: Number(record.rating),

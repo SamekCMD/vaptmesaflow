@@ -1,4 +1,4 @@
-import { ENV } from "@/lib/env";
+ï»¿import { ENV } from "@/lib/env";
 import { n8nClient } from "@/lib/n8n-client";
 
 const VAPID_PUBLIC_KEY = ENV.vapidPublicKey;
@@ -86,24 +86,24 @@ export async function subscribeToPush(
     dismissPushBanner();
 
     return { success: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Push subscription failed:", err);
 
-    const message = String(err?.message || "");
-    const name = String(err?.name || "");
+    const message = err instanceof Error ? err.message : String(err ?? "");
+    const name = err instanceof Error ? err.name : "";
 
     if (message.includes("push service error")) {
       return {
         success: false,
         error:
-          "O navegador não conseguiu registrar notificações push. No Brave, ative o uso de serviços do Google para push ou teste no Chrome.",
+          "O navegador nÃ£o conseguiu registrar notificaÃ§Ãµes push. No Brave, ative o uso de serviÃ§os do Google para push ou teste no Chrome.",
       };
     }
 
     if (name === "NotSupportedError") {
       return {
         success: false,
-        error: "Este navegador não oferece suporte completo a notificações push neste contexto.",
+        error: "Este navegador nÃ£o oferece suporte completo a notificaÃ§Ãµes push neste contexto.",
       };
     }
 

@@ -18,7 +18,9 @@ import {
 
 const playDoubleBeep = () => {
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioContextClass = window.AudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
     const playBeep = (startTime: number) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -32,7 +34,11 @@ const playDoubleBeep = () => {
     };
     playBeep(ctx.currentTime);
     playBeep(ctx.currentTime + 0.35);
-  } catch {}
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn("[KitchenMonitor] could not play notification sound", error);
+    }
+  }
 };
 
 interface OrderItem {

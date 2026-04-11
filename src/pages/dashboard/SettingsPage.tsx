@@ -21,6 +21,36 @@ import {
   GUIDE_MODULE_CONTENT,
 } from "@/lib/onboarding";
 
+type RestaurantSettingsRow = {
+  id: string;
+  cnpj: string | null;
+  name: string | null;
+  address: string | null;
+  phone: string | null;
+  hours: string | null;
+  description: string | null;
+  payment_mode: "open_tab" | "prepaid" | null;
+  max_pending_orders: number | null;
+  max_tables: number | null;
+  asaas_api_key: string | null;
+  asaas_environment: "production" | "sandbox" | null;
+  asaas_billing_document: string | null;
+};
+
+type RestaurantSettingsUpdate = {
+  name?: string;
+  address?: string;
+  phone?: string;
+  hours?: string;
+  description?: string;
+  max_tables?: number;
+  payment_mode?: "open_tab" | "prepaid";
+  max_pending_orders?: number;
+  asaas_environment?: "production" | "sandbox";
+  asaas_billing_document?: string | null;
+  asaas_api_key?: string;
+};
+
 const SettingsPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -101,22 +131,23 @@ const SettingsPage = () => {
         if (error) throw error;
 
         if (data) {
-          setRestaurantId((data as any).id ?? null);
+          const row = data as RestaurantSettingsRow;
+          setRestaurantId(row.id ?? null);
           setForm({
-            name: data.name || "",
-            address: data.address || "",
-            phone: data.phone || "",
-            hours: data.hours || "",
-            description: data.description || "",
-            max_tables: (data as any).max_tables || 20,
+            name: row.name || "",
+            address: row.address || "",
+            phone: row.phone || "",
+            hours: row.hours || "",
+            description: row.description || "",
+            max_tables: row.max_tables || 20,
           });
           setPaymentForm({
-            payment_mode: (data as any).payment_mode || "open_tab",
-            has_asaas_key: !!(data as any).asaas_api_key,
-            asaas_environment: ((data as any).asaas_environment || "production") as "production" | "sandbox",
-            asaas_billing_document: (data as any).asaas_billing_document || (data as any).cnpj || "",
+            payment_mode: row.payment_mode || "open_tab",
+            has_asaas_key: !!row.asaas_api_key,
+            asaas_environment: row.asaas_environment || "production",
+            asaas_billing_document: row.asaas_billing_document || row.cnpj || "",
             new_asaas_api_key: "",
-            max_pending_orders: (data as any).max_pending_orders || 3,
+            max_pending_orders: row.max_pending_orders || 3,
           });
         }
 
@@ -126,11 +157,13 @@ const SettingsPage = () => {
           new_password: "",
           confirm_password: "",
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (import.meta.env.DEV) console.error("Error fetching restaurant data:", error);
+        const description =
+          error instanceof Error ? error.message : "Não foi possível carregar as configurações";
         toast({
           title: "Erro ao carregar dados",
-          description: error.message || "Não foi possível carregar as configurações",
+          description,
           variant: "destructive",
         });
       } finally {
@@ -162,13 +195,14 @@ const SettingsPage = () => {
           hours: form.hours,
           description: form.description,
           max_tables: form.max_tables,
-        } as any)
+        } satisfies RestaurantSettingsUpdate)
         .eq("owner_id", user.id);
 
       if (error) throw error;
       toast({ title: "Configurações salvas", description: "As alterações foram aplicadas com sucesso." });
-    } catch (error: any) {
-      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+    } catch (error: unknown) {
+      const description = error instanceof Error ? error.message : "Não foi possível salvar agora.";
+      toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -183,7 +217,7 @@ const SettingsPage = () => {
         throw new Error("Informe um CPF ou CNPJ para o cliente operacional do Asaas.");
       }
 
-      const updatePayload: any = {
+      const updatePayload: RestaurantSettingsUpdate = {
         payment_mode: paymentForm.payment_mode,
         max_pending_orders: paymentForm.max_pending_orders,
         asaas_environment: paymentForm.asaas_environment,
@@ -220,9 +254,13 @@ const SettingsPage = () => {
       }
 
       toast({ title: "Configurações de pagamento salvas", description: "Modo de operação atualizado." });
-    } catch (error: any) {
+    } catch (error: unknown) {
       const description =
-        error instanceof N8nClientError ? error.message : error.message || "Não foi possível salvar agora.";
+        error instanceof N8nClientError
+          ? error.message
+          : error instanceof Error
+          ? error.message
+          : "Não foi possível salvar agora.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
       setSettingUpAsaas(false);
@@ -262,8 +300,9 @@ const SettingsPage = () => {
       }
 
       toast({ title: "Conta atualizada", description: "Suas informações foram salvas." });
-    } catch (error: any) {
-      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+    } catch (error: unknown) {
+      const description = error instanceof Error ? error.message : "Não foi possível salvar agora.";
+      toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
       setSavingAccount(false);
     }

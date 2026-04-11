@@ -31,6 +31,13 @@ dist-ssr
 .superpowers/
 skills-lock.json
 docs/superpowers/
+.lovable/
+lovable/
+lovable.*
+.impeccable.md
+docs/current-backlog.md
+tools/
+vapt-api/
 
 # Scratch files
 *.new

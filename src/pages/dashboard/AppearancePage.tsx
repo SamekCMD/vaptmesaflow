@@ -60,8 +60,10 @@ const AppearancePage = () => {
           });
           setLogoPreview(data.logo_url || "");
         }
-      } catch (err: any) {
-        console.error("Error fetching restaurant:", err);
+      } catch (err: unknown) {
+        if (import.meta.env.DEV) {
+          console.error("Error fetching restaurant:", err);
+        }
       } finally {
         setLoading(false);
       }
@@ -94,9 +96,10 @@ const AppearancePage = () => {
         .eq("owner_id", user.id);
 
       if (error) throw error;
-      toast({ title: "Aparência salva", description: "As alterações de marca foram aplicadas." });
-    } catch (err: any) {
-      toast({ title: "Erro ao salvar", description: err.message || "Tente novamente.", variant: "destructive" });
+      toast({ title: "Aparencia salva", description: "As alteracoes de marca foram aplicadas." });
+    } catch (err: unknown) {
+      const description = err instanceof Error ? err.message : "Tente novamente.";
+      toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -109,8 +112,8 @@ const AppearancePage = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Aparência & Marca</h1>
-        <p className="text-muted-foreground text-sm">Personalize a identidade visual do seu cardápio público</p>
+        <h1 className="text-xl font-semibold tracking-tight">Aparencia & Marca</h1>
+        <p className="text-muted-foreground text-sm">Personalize a identidade visual do seu Cardapio publico</p>
       </div>
 
       <div className="grid lg:grid-cols-[1fr_360px] gap-6">
@@ -130,7 +133,7 @@ const AppearancePage = () => {
                   <span className="text-sm text-muted-foreground whitespace-nowrap">/menu/</span>
                   <Input value={config.slug} onChange={(e) => updateConfig({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })} />
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Endereço público: /menu/{config.slug}</p>
+                <p className="text-xs text-muted-foreground mt-1">Endereco publico: /menu/{config.slug}</p>
               </div>
               <div>
                 <Label>Logo</Label>
@@ -161,14 +164,14 @@ const AppearancePage = () => {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Cor Primária</Label>
+                  <Label>Cor Primaria</Label>
                   <div className="flex items-center gap-3 mt-2">
                     <input type="color" value={config.primaryColor} onChange={(e) => updateConfig({ primaryColor: e.target.value })} className="h-10 w-10 rounded-md border border-input cursor-pointer" />
                     <Input value={config.primaryColor} onChange={(e) => updateConfig({ primaryColor: e.target.value })} className="font-mono text-sm" maxLength={7} />
                   </div>
                 </div>
                 <div>
-                  <Label>Cor Secundária</Label>
+                  <Label>Cor Secundaria</Label>
                   <div className="flex items-center gap-3 mt-2">
                     <input type="color" value={config.secondaryColor} onChange={(e) => updateConfig({ secondaryColor: e.target.value })} className="h-10 w-10 rounded-md border border-input cursor-pointer" />
                     <Input value={config.secondaryColor} onChange={(e) => updateConfig({ secondaryColor: e.target.value })} className="font-mono text-sm" maxLength={7} />
@@ -182,7 +185,7 @@ const AppearancePage = () => {
           <Card>
             <CardHeader><CardTitle className="text-base">Tipografia</CardTitle></CardHeader>
             <CardContent>
-              <Label>Família de Fonte</Label>
+              <Label>Familia de Fonte</Label>
               <Select value={config.fontFamily} onValueChange={(v) => updateConfig({ fontFamily: v as RestaurantConfig["fontFamily"] })}>
                 <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -196,12 +199,12 @@ const AppearancePage = () => {
 
           <div className="flex gap-3">
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : "Salvar Alterações"}
+              {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : "Salvar alteracoes"}
             </Button>
             <Button variant="outline" asChild>
               <a href={`/menu/${config.slug}`} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-4 w-4 mr-2" />
-                Ver Menu Público
+                Ver Menu publico
               </a>
             </Button>
           </div>
@@ -234,7 +237,7 @@ const CurrentMenuPreview = ({ config, logoPreview }: { config: RestaurantConfig;
       <div className="flex h-6 items-center justify-center bg-background">
         <div className="h-1.5 w-20 rounded-full bg-muted" />
       </div>
-      <div className="flex h-[560px] flex-col bg-background" style={{ fontFamily: font }}>
+      <div className="flex min-h-[520px] h-[68vh] max-h-[640px] flex-col bg-background" style={{ fontFamily: font }}>
         <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
           <div className="flex items-center gap-2 px-3 py-3">
             {logoPreview ? (
@@ -262,9 +265,9 @@ const CurrentMenuPreview = ({ config, logoPreview }: { config: RestaurantConfig;
         <div className="flex-1 space-y-3 overflow-hidden px-3 py-3">
           <div className="rounded-[20px] border border-border bg-card px-4 py-3">
             <div className="space-y-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Cardápio da mesa</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Cardapio da mesa</p>
               <p className="text-base font-semibold text-foreground">Escolha os itens e monte seu pedido</p>
-              <p className="text-[11px] leading-5 text-muted-foreground">Abra um produto para ver detalhes, observações e quantidade.</p>
+              <p className="text-[11px] leading-5 text-muted-foreground">Abra um produto para ver detalhes, observacoes e quantidade.</p>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
               <div className="rounded-2xl px-3 py-2.5" style={{ backgroundColor: mutedSurface }}>
@@ -301,7 +304,7 @@ const CurrentMenuPreview = ({ config, logoPreview }: { config: RestaurantConfig;
             <div className="space-y-2.5">
               {[
                 { name: "Bruschetta Caprese", desc: "Tomate e mozzarella", price: "R$ 24,90" },
-                { name: "Ceviche de Peixe", desc: "Peixe marinado com limão", price: "R$ 32,00" },
+                { name: "Ceviche de Peixe", desc: "Peixe marinado com limao", price: "R$ 32,00" },
                 { name: "X-Burguer Especial", desc: "Blend 180g, cheddar", price: "R$ 38,90" },
               ].map((item) => (
                 <div key={item.name} className="grid grid-cols-[56px_minmax(0,1fr)_auto] gap-3 rounded-[18px] border border-border bg-card p-3">
@@ -338,153 +341,6 @@ const CurrentMenuPreview = ({ config, logoPreview }: { config: RestaurantConfig;
   );
 };
 
-/* ── Live Preview (phone mockup) ── */
-const LivePreview = ({ config, logoPreview }: { config: RestaurantConfig; logoPreview: string }) => {
-  const font = fontFamilyMap[config.fontFamily];
-  const pc = config.primaryColor;
-
-  return (
-    <div className="w-full max-w-[320px] mx-auto rounded-[2rem] border-4 border-border bg-[#0C0C0E] shadow-xl overflow-hidden">
-      {/* Phone notch */}
-      <div className="h-6 bg-[#0C0C0E] flex items-center justify-center">
-        <div className="w-20 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }} />
-      </div>
-      <div className="h-[560px] overflow-auto relative" style={{ fontFamily: font, backgroundColor: '#0C0C0E' }}>
-        {/* Fixed Header */}
-        <div
-          className="sticky top-0 z-10 flex items-center px-3 gap-2"
-          style={{
-            height: 48,
-            backgroundColor: 'rgba(12,12,14,0.95)',
-            backdropFilter: 'blur(12px)',
-            borderBottom: '1px solid rgba(255,255,255,0.06)',
-          }}
-        >
-          {logoPreview ? (
-            <img src={logoPreview} alt="Logo" className="shrink-0 object-cover" style={{ width: 28, height: 28, borderRadius: 6 }} />
-          ) : (
-            <div
-              className="shrink-0 flex items-center justify-center font-semibold"
-              style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: pc + '33', color: pc, fontSize: 11 }}
-            >
-              {config.name.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <span className="text-xs font-semibold truncate" style={{ color: '#F2F2F0' }}>
-            {config.name || "Nome do Restaurante"}
-          </span>
-          <span
-            className="ml-auto shrink-0 uppercase font-medium"
-            style={{
-              fontSize: 9,
-              letterSpacing: '0.06em',
-              backgroundColor: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 4,
-              padding: '2px 6px',
-              color: 'rgba(255,255,255,0.5)',
-            }}
-          >
-            Mesa 5
-          </span>
-        </div>
-
-        {/* Category pills */}
-        <div className="flex gap-1.5 px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          {["Entradas", "Pratos", "Bebidas"].map((cat, i) => (
-            <span
-              key={cat}
-              className="whitespace-nowrap"
-              style={{
-                fontSize: 11,
-                fontWeight: i === 0 ? 500 : 400,
-                borderRadius: 4,
-                padding: '4px 10px',
-                backgroundColor: i === 0 ? pc + '26' : 'rgba(255,255,255,0.04)',
-                border: i === 0 ? `1px solid ${pc}66` : '1px solid rgba(255,255,255,0.08)',
-                color: i === 0 ? pc : 'rgba(255,255,255,0.45)',
-              }}
-            >
-              {cat}
-            </span>
-          ))}
-        </div>
-
-        {/* 2-column grid of items */}
-        <div className="grid grid-cols-2 gap-2 px-3 pt-3 pb-16">
-          {[
-            { name: "Bruschetta Caprese", desc: "Tomate e mozzarella", price: "R$ 24,90" },
-            { name: "Ceviche de Peixe", desc: "Peixe marinado com limão", price: "R$ 32,00" },
-            { name: "X-Burguer Especial", desc: "Blend 180g, cheddar", price: "R$ 38,90" },
-          ].map((item) => (
-            <div
-              key={item.name}
-              className="flex flex-col overflow-hidden"
-              style={{
-                backgroundColor: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.07)',
-                borderRadius: 8,
-              }}
-            >
-              {/* Image placeholder */}
-              <div
-                className="w-full flex items-center justify-center"
-                style={{ aspectRatio: '4/3', backgroundColor: 'rgba(255,255,255,0.04)' }}
-              >
-                <UtensilsCrossed style={{ width: 16, height: 16, color: 'rgba(255,255,255,0.15)' }} />
-              </div>
-              {/* Content */}
-              <div style={{ padding: '6px 6px 8px' }}>
-                <p className="font-medium" style={{ fontSize: 10, lineHeight: 1.3, color: 'rgba(255,255,255,0.9)' }}>
-                  {item.name}
-                </p>
-                <p style={{ fontSize: 8, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>{item.desc}</p>
-                <div className="flex items-center justify-between" style={{ marginTop: 4 }}>
-                  <span className="font-mono font-medium" style={{ fontSize: 10, color: pc }}>
-                    {item.price}
-                  </span>
-                  <span
-                    className="flex items-center justify-center"
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 4,
-                      backgroundColor: pc + '26',
-                      border: `1px solid ${pc}4D`,
-                      color: pc,
-                      fontSize: 14,
-                      lineHeight: 1,
-                    }}
-                  >
-                    +
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Bottom nav */}
-        <div
-          className="absolute bottom-0 left-0 right-0 flex items-center justify-around"
-          style={{
-            height: 48,
-            backgroundColor: 'rgba(12,12,14,0.96)',
-            borderTop: '1px solid rgba(255,255,255,0.06)',
-          }}
-        >
-          <div className="flex flex-col items-center gap-0.5">
-            <div className="h-4 w-4 rounded" style={{ backgroundColor: pc + '30' }} />
-            <span style={{ fontSize: 8, color: pc }}>Menu</span>
-          </div>
-          <div className="flex flex-col items-center gap-0.5">
-            <div className="h-4 w-4 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }} />
-            <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)' }}>Pedidos</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 export default AppearancePage;
+
+

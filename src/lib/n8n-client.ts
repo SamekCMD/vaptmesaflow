@@ -1,4 +1,5 @@
-import { ENV } from "@/lib/env";
+﻿import { ENV } from "@/lib/env";
+import { supabase } from "@/lib/supabase";
 
 type N8nErrorCode =
   | "unauthorized"
@@ -27,6 +28,7 @@ type RequestOptions = {
   headers?: Record<string, string>;
   query?: Record<string, string | number | boolean | null | undefined>;
   body?: unknown;
+  requireAuth?: boolean;
 };
 
 type StripeCreateInput = {
@@ -77,16 +79,13 @@ type PushSubscriptionInput = {
   created_at: string;
 };
 
-const normalizeBaseUrl = (): string => {
-  const base = ENV.n8nWebhookBaseUrl;
-  return base.replace(/\/$/, "");
-};
+const normalizeBackendBaseUrl = (): string => ENV.vaptApiBaseUrl.replace(/\/$/, "");
 
 const buildUrl = (
   route: string,
   query?: Record<string, string | number | boolean | null | undefined>,
 ): string => {
-  const url = new URL(`${normalizeBaseUrl()}/${route.replace(/^\//, "")}`);
+  const url = new URL(`${normalizeBackendBaseUrl()}/${route.replace(/^\//, "")}`);
   if (query) {
     Object.entries(query).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
@@ -97,7 +96,7 @@ const buildUrl = (
   return url.toString();
 };
 
-const parseJsonSafe = async (response: Response): Promise<any> => {
+const parseJsonSafe = async (response: Response): Promise<unknown> => {
   const text = await response.text();
   if (!text) return null;
   try {
@@ -107,27 +106,56 @@ const parseJsonSafe = async (response: Response): Promise<any> => {
   }
 };
 
+const getAccessToken = async (): Promise<string | null> => {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? null;
+};
+
 const request = async <T>({
   method = "POST",
   route,
   headers = {},
   query,
   body,
+  requireAuth = true,
 }: RequestOptions): Promise<T> => {
+  const token = requireAuth ? await getAccessToken() : null;
+
+  if (requireAuth && !token) {
+    throw new N8nClientError("unauthorized", "Sessão inválida. Faça login novamente.", 401);
+  }
+
   const response = await fetch(buildUrl(route, query), {
     method,
     headers: {
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
 
-  const payload = await parseJsonSafe(response);
+  const payload = (await parseJsonSafe(response)) as
+    | {
+        error?: string | { code?: string; message?: string };
+        message?: string;
+      }
+    | null;
 
-  if (!response.ok || payload?.error) {
-    const code = payload?.error || "provider_unreachable";
-    const message = payload?.message || "Unexpected n8n error";
+  const errorCode =
+    typeof payload?.error === "string"
+      ? payload.error
+      : payload?.error && typeof payload.error === "object"
+        ? payload.error.code
+        : undefined;
+  const errorMessage =
+    typeof payload?.error === "object" && payload.error
+      ? payload.error.message
+      : payload?.message;
+
+  if (!response.ok || errorCode) {
+    const code = errorCode || "provider_unreachable";
+    const message = errorMessage || "Unexpected backend error";
     throw new N8nClientError(code, message, response.status);
   }
 
@@ -135,11 +163,11 @@ const request = async <T>({
 };
 
 export type StripeStatusResponse = {
-  plan_type: string | null;
-  plan_status: string | null;
-  trial_ends_at: string | null;
-  stripe_customer_id: string | null;
-  stripe_subscription_id: string | null;
+  planType: string | null;
+  planStatus: string | null;
+  trialEndsAt: string | null;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
   billing_last_error?: string | null;
   subscription_canceled_at?: string | null;
 };
@@ -153,33 +181,27 @@ export const n8nClient = {
         customerId: string | null;
         autoCharged: boolean;
       }>({
-        route: "stripe/subscription/create",
-        headers: {
-          "x-vapt-app-key": ENV.vaptAppEndpointSecret,
-        },
+        route: "billing/stripe/checkout",
         body: {
-          restaurant_id: input.restaurantId,
+          restaurantId: input.restaurantId,
           email: input.email,
-          plan_type: input.planType,
-          price_id: input.priceId,
+          planType: input.planType,
+          priceId: input.priceId,
         },
       }),
 
     changeSubscription: (input: StripeChangeInput) =>
       request<{
         subscriptionId: string | null;
-        plan_type: string;
+        planType: string;
         status: string;
         autoCharged: boolean;
       }>({
-        route: "stripe/subscription/change",
-        headers: {
-          "x-vapt-app-key": ENV.vaptAppEndpointSecret,
-        },
+        route: "billing/stripe/subscription/change",
         body: {
-          restaurant_id: input.restaurantId,
-          target_plan_type: input.targetPlanType,
-          target_price_id: input.targetPriceId,
+          restaurantId: input.restaurantId,
+          targetPlanType: input.targetPlanType,
+          targetPriceId: input.targetPriceId,
         },
       }),
 
@@ -188,24 +210,18 @@ export const n8nClient = {
         subscriptionId: string | null;
         status: string;
       }>({
-        route: "stripe/subscription/cancel",
-        headers: {
-          "x-vapt-app-key": ENV.vaptAppEndpointSecret,
-        },
+        route: "billing/stripe/subscription/cancel",
         body: {
-          restaurant_id: input.restaurantId,
+          restaurantId: input.restaurantId,
         },
       }),
 
     getSubscriptionStatus: (restaurantId: string) =>
       request<StripeStatusResponse>({
         method: "GET",
-        route: "stripe/subscription/status",
-        headers: {
-          "x-vapt-app-key": ENV.vaptAppEndpointSecret,
-        },
+        route: "billing/stripe/subscription",
         query: {
-          restaurant_id: restaurantId,
+          restaurantId,
         },
       }),
   },
@@ -214,63 +230,58 @@ export const n8nClient = {
     setup: (input: AsaasSetupInput) =>
       request<{
         valid: boolean;
-        webhook_registered: boolean;
-        webhook_id: string | null;
-        setup_status: string;
+        webhookRegistered: boolean;
+        webhookId: string | null;
+        setupStatus: string;
         message: string;
       }>({
-        route: "asaas/setup",
-        headers: {
-          "x-vapt-webhook-key": ENV.vaptWebhookSetupSecret,
-        },
+        route: "billing/asaas/setup",
         body: {
-          restaurant_id: input.restaurantId,
-          asaas_api_key: input.asaasApiKey,
-          asaas_environment: input.asaasEnvironment ?? "production",
-          asaas_billing_document: input.asaasBillingDocument?.trim() || undefined,
+          restaurantId: input.restaurantId,
+          asaasApiKey: input.asaasApiKey,
+          asaasEnvironment: input.asaasEnvironment ?? "production",
+          asaasBillingDocument: input.asaasBillingDocument?.trim() || undefined,
         },
       }),
 
     getSetupStatus: (restaurantId: string) =>
       request<{
-        restaurant_id: string;
+        restaurantId: string;
         name: string;
-        setup_status: string | null;
-        webhook_id: string | null;
-        webhook_url: string | null;
-        last_validated_at: string | null;
-        last_error: string | null;
-        has_api_key: boolean;
-        asaas_environment: "production" | "sandbox" | null;
+        setupStatus: string | null;
+        webhookId: string | null;
+        webhookUrl: string | null;
+        lastValidatedAt: string | null;
+        lastError: string | null;
+        hasApiKey: boolean;
+        asaasEnvironment: "production" | "sandbox" | null;
       }>({
         method: "GET",
-        route: "asaas/setup/status",
-        headers: {
-          "x-vapt-admin-key": ENV.vaptAdminEndpointSecret,
-        },
+        route: "billing/asaas/setup/status",
         query: {
-          restaurant_id: restaurantId,
+          restaurantId,
         },
       }),
 
-    createPix: (input: PixCreateInput) =>
-      request<{
-        payment_id: string;
-        qr_code_base64: string | null;
-        pix_payload: string | null;
+    createPix: async (input: PixCreateInput) => {
+      const token = await getAccessToken();
+      const route = token ? "billing/asaas/pix" : "billing/asaas/pix/public";
+      return request<{
+        paymentId: string;
+        qrCodeBase64: string | null;
+        pixPayload: string | null;
         expiration: string | null;
         status: string;
       }>({
-        route: "asaas/pix/create",
-        headers: {
-          "x-vapt-app-key": ENV.vaptAppEndpointSecret,
-        },
+        route,
+        requireAuth: Boolean(token),
         body: {
-          restaurant_id: input.restaurantId,
-          order_id: input.orderId,
-          total_price: input.totalPrice,
+          restaurantId: input.restaurantId,
+          orderId: input.orderId,
+          totalPrice: Number(input.totalPrice ?? 0),
         },
-      }),
+      });
+    },
   },
 
   ingest: {
@@ -284,9 +295,7 @@ export const n8nClient = {
         status: string;
       }>({
         route: "ingest/order-feedback",
-        headers: {
-          "x-vapt-app-key": ENV.vaptAppEndpointSecret,
-        },
+        requireAuth: false,
         body: payload,
       }),
 
@@ -299,9 +308,6 @@ export const n8nClient = {
         status: string;
       }>({
         route: "ingest/push-subscription",
-        headers: {
-          "x-vapt-app-key": ENV.vaptAppEndpointSecret,
-        },
         body: {
           action: "subscribe",
           ...payload,

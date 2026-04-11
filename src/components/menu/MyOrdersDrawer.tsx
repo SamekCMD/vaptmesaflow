@@ -88,12 +88,14 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor, tableSessio
 
   useEffect(() => {
     if (open) fetchOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const interval = setInterval(fetchOrders, 8000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const getElapsed = (dateStr: string) => {

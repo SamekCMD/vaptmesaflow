@@ -150,7 +150,7 @@ const OrderSummaryDrawer = ({
           total_price: totalPrice,
           status: orderStatus,
           ...(effectiveSessionId ? { table_session_id: effectiveSessionId } : {}),
-        } as any)
+        })
         .select("id, display_id")
         .single();
 
@@ -179,14 +179,14 @@ const OrderSummaryDrawer = ({
           totalPrice,
         });
 
-        if (!pixResult?.payment_id) {
+        if (!pixResult?.paymentId) {
           throw new Error("Resposta inválida do servidor de pagamento");
         }
 
         setPixData({
           orderId: orderData.id,
-          qrCodeBase64: pixResult.qr_code_base64,
-          pixPayload: pixResult.pix_payload,
+          qrCodeBase64: pixResult.qrCodeBase64,
+          pixPayload: pixResult.pixPayload,
           expiration: pixResult.expiration,
         });
         setSending(false);
@@ -207,10 +207,14 @@ const OrderSummaryDrawer = ({
           onClose();
         }, 2500);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setSending(false);
       const description =
-        err instanceof N8nClientError ? err.message : err?.message || "Tente novamente.";
+        err instanceof N8nClientError
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : "Tente novamente.";
       toast({
         title: "Erro ao enviar pedido",
         description,

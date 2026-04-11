@@ -19,6 +19,7 @@ import {
   Trophy,
 } from "lucide-react";
 import { OverviewSkeleton } from "@/components/skeletons/DashboardSkeletons";
+import OverviewMetricCard from "@/components/dashboard/OverviewMetricCard";
 import {
   Bar,
   BarChart,
@@ -66,6 +67,12 @@ type SatisfactionSummary = {
   count: number;
   averageRating: number;
   promoterShare: number;
+};
+
+type RestaurantOverviewRecord = {
+  id: string;
+  name: string;
+  payment_mode: string | null;
 };
 
 const periodLabels: Record<Period, string> = {
@@ -119,6 +126,7 @@ const GUIDE_MODULE_LABELS: Record<keyof OnboardingGuideProgress, string> = {
   overview: "Visão geral / métricas",
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getGuideChecklistState(guideProgress: OnboardingGuideProgress) {
   const remainingGuideModules = getRemainingGuideModules(guideProgress);
 
@@ -173,7 +181,7 @@ export function OverviewGuideChecklist({ guideProgress }: OverviewGuideChecklist
               {complete ? (
                 <span className="text-xs text-muted-foreground">Concluído</span>
               ) : (
-                <Button asChild variant="ghost" size="sm" className="h-7 px-2 text-xs">
+                <Button asChild variant="ghost" size="sm" className="h-9 px-3 text-xs">
                   <Link to={getGuideModuleHref(module)}>Abrir</Link>
                 </Button>
               )}
@@ -185,6 +193,7 @@ export function OverviewGuideChecklist({ guideProgress }: OverviewGuideChecklist
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getOverviewSatisfactionSummary({
   feedbackRecords,
   restaurantId,
@@ -223,7 +232,7 @@ const Overview = ({ guideProgress }: OverviewProps) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { refetch: refetchSub } = useSubscription();
-  const [restaurant, setRestaurant] = useState<any>(null);
+  const [restaurant, setRestaurant] = useState<RestaurantOverviewRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [period, setPeriod] = useState<Period>("week");
@@ -290,7 +299,7 @@ const Overview = ({ guideProgress }: OverviewProps) => {
           .single();
 
         if (restError) throw restError;
-        setRestaurant(restData);
+        setRestaurant(restData as RestaurantOverviewRecord);
 
         if (restData) {
           const periodStart = getStartDate(period);
@@ -311,10 +320,11 @@ const Overview = ({ guideProgress }: OverviewProps) => {
           if (ordersData) setOrders(ordersData as unknown as OrderWithItems[]);
           setFeedbackRecords(feedbackData);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const description = error instanceof Error ? error.message : "Não foi possível carregar os dados.";
         toast({
           title: "Erro ao carregar dados",
-          description: error.message,
+          description,
           variant: "destructive",
         });
       } finally {
@@ -425,7 +435,7 @@ const Overview = ({ guideProgress }: OverviewProps) => {
     }
 
     if (completedOrders.length > 0) {
-      return `${completedOrders.length} ${completedOrders.length === 1 ? "pedido concluído" : "pedidos concluídos"} neste recorte`;
+      return "Fluxo sob controle neste momento";
     }
 
     return "Ainda sem movimento neste período";
@@ -433,7 +443,7 @@ const Overview = ({ guideProgress }: OverviewProps) => {
 
   const periodSnapshotDescription = useMemo(() => {
     if (completedOrders.length > 0) {
-      return `O que ${periodLabels[period].toLowerCase()} já gerou em vendas e pedidos concluídos.`;
+      return `Panorama rápido para decidir os próximos ajustes em ${periodLabels[period].toLowerCase()}.`;
     }
 
     if (pendingCount > 0) {
@@ -447,13 +457,13 @@ const Overview = ({ guideProgress }: OverviewProps) => {
     {
       title: "Faturamento no período",
       value: `R$ ${totalRevenue.toFixed(2).replace(".", ",")}`,
-      helper: completedOrders.length > 0 ? periodContext : "Sem vendas fechadas até agora",
+      helper: completedOrders.length > 0 ? "Receita acumulada no período selecionado" : "Sem vendas fechadas até agora",
       icon: DollarSign,
     },
     {
       title: "Pedidos concluídos",
       value: `${completedOrders.length}`,
-      helper: completedOrders.length > 0 ? "Pedidos já finalizados neste recorte" : "Aparece assim que as primeiras vendas fecharem",
+      helper: completedOrders.length > 0 ? "Volume finalizado no período" : "Aparece assim que as primeiras vendas fecharem",
       icon: TrendingUp,
     },
   ];
@@ -655,16 +665,13 @@ const Overview = ({ guideProgress }: OverviewProps) => {
 
                 <div className="grid w-full gap-3 sm:grid-cols-2 lg:max-w-[420px]">
                   {primaryMetrics.map((metric) => (
-                    <div key={metric.title} className="rounded-md border border-border/70 bg-background px-4 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                          {metric.title}
-                        </span>
-                        <metric.icon className="h-4 w-4 text-primary/80" strokeWidth={1.75} />
-                      </div>
-                      <div className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{metric.value}</div>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{metric.helper}</p>
-                    </div>
+                    <OverviewMetricCard
+                      key={metric.title}
+                      title={metric.title}
+                      value={metric.value}
+                      helper={metric.helper}
+                      icon={metric.icon}
+                    />
                   ))}
                 </div>
               </div>
@@ -729,18 +736,14 @@ const Overview = ({ guideProgress }: OverviewProps) => {
 
       <div className="grid gap-4 sm:grid-cols-3">
         {supportMetrics.map((metric) => (
-          <Card key={metric.title} className="border-border/80 bg-card/90">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                  {metric.title}
-                </span>
-                <metric.icon className="h-4 w-4 text-primary/80" strokeWidth={1.75} />
-              </div>
-              <div className="mt-3 text-[1.75rem] font-semibold tracking-tight text-foreground">{metric.value}</div>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">{metric.helper}</p>
-            </CardContent>
-          </Card>
+          <OverviewMetricCard
+            key={metric.title}
+            title={metric.title}
+            value={metric.value}
+            helper={metric.helper}
+            icon={metric.icon}
+            variant="card"
+          />
         ))}
       </div>
 
