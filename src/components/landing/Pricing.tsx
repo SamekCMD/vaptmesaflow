@@ -59,32 +59,44 @@ const Pricing = () => {
               }}
             >
               <Card
-                className={"h-full card-hover relative " + (plan.highlighted ? "border-[hsl(153_14%_34%)]" : "")}
-                style={plan.highlighted ? { background: "linear-gradient(135deg, hsl(240 10% 7%), hsl(153 23% 10%))" } : undefined}
+                className={`relative h-full card-hover ${
+                  plan.highlighted
+                    ? "border-primary/35 bg-[linear-gradient(160deg,hsl(155_18%_11%)_0%,hsl(150_18%_9%)_100%)] text-primary-foreground shadow-[0_24px_80px_rgba(18,31,24,0.18)]"
+                    : ""
+                }`}
               >
                 {plan.highlighted && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <Badge className="normal-case tracking-normal text-xs">Mais usado no dia a dia</Badge>
+                    <Badge className="normal-case tracking-normal text-xs border-primary/20 bg-primary text-primary-foreground">
+                      Mais usado no dia a dia
+                    </Badge>
                   </div>
                 )}
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-medium">{plan.name}</CardTitle>
-                  <p className="text-sm text-muted-foreground mt-2">{planSummaries[plan.id]}</p>
+                  <CardTitle className={`text-base font-medium ${plan.highlighted ? "text-primary-foreground" : ""}`}>
+                    {plan.name}
+                  </CardTitle>
+                  <p className={`text-sm mt-2 ${plan.highlighted ? "text-primary-foreground/82" : "text-muted-foreground"}`}>
+                    {planSummaries[plan.id]}
+                  </p>
                   <div className="pt-4">
-                    <span className="text-3xl font-semibold font-mono">R$ {plan.price}</span>
+                    <span className={`text-3xl font-semibold font-mono ${plan.highlighted ? "text-primary-foreground" : ""}`}>R$ {plan.price}</span>
                     <span className="text-muted-foreground text-sm">/mês</span>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-4">
                   <ul className="space-y-3 mb-8">
                     {plan.features.map((f) => (
-                      <li key={f} className="flex items-start gap-2 text-sm">
+                      <li key={f} className={`flex items-start gap-2 text-sm ${plan.highlighted ? "text-primary-foreground/92" : ""}`}>
                         <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" strokeWidth={1.5} />
                         <span>{f}</span>
                       </li>
                     ))}
                     {plan.blockedFeatures.map((f) => (
-                      <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground/50">
+                      <li
+                        key={f}
+                        className={`flex items-start gap-2 text-sm ${plan.highlighted ? "text-primary-foreground/40" : "text-muted-foreground/50"}`}
+                      >
                         <X className="h-4 w-4 mt-0.5 shrink-0" strokeWidth={1.5} />
                         <span className="line-through">{f}</span>
                       </li>

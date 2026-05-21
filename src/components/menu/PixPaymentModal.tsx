@@ -37,6 +37,17 @@ const PixPaymentModal = ({
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState("");
 
+  const isPaymentConfirmed = (paymentStatus: string | null | undefined, orderStatus: string | null | undefined) => {
+    const normalizedPaymentStatus = typeof paymentStatus === "string" ? paymentStatus.trim().toUpperCase() : "";
+    const normalizedOrderStatus = typeof orderStatus === "string" ? orderStatus.trim().toLowerCase() : "";
+
+    return (
+      ["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH", "PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"].includes(
+        normalizedPaymentStatus,
+      ) || ["paid", "confirmed"].includes(normalizedOrderStatus)
+    );
+  };
+
   useEffect(() => {
     if (!open || confirmed) return;
     const updateTimer = () => {
@@ -62,7 +73,7 @@ const PixPaymentModal = ({
     try {
       const { data, error } = await supabase
         .from("orders")
-        .select("payment_status")
+        .select("payment_status, status")
         .eq("id", orderId)
         .single();
 
@@ -71,9 +82,12 @@ const PixPaymentModal = ({
         return;
       }
 
-      if (import.meta.env.DEV) console.log("[vapt] Status atual no banco:", data?.payment_status);
+      if (import.meta.env.DEV) console.log("[vapt] Status atual no banco:", {
+        payment_status: data?.payment_status,
+        status: data?.status,
+      });
 
-      if (data && ["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH"].includes(data.payment_status)) {
+      if (data && isPaymentConfirmed(data.payment_status, data.status)) {
         if (import.meta.env.DEV) console.log("[vapt] Pagamento detectado.");
         setConfirmed(true);
         onPaymentConfirmed();

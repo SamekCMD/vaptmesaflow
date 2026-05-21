@@ -18,6 +18,10 @@ export function isPushSupported(): boolean {
   return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 }
 
+function isLocalDevEnvironment(): boolean {
+  return import.meta.env.DEV || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+}
+
 export function isPushConfigured(): boolean {
   return Boolean(VAPID_PUBLIC_KEY);
 }
@@ -36,6 +40,12 @@ export function isAlreadySubscribed(): boolean {
 
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!("serviceWorker" in navigator)) return null;
+
+  if (isLocalDevEnvironment()) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+    return null;
+  }
 
   try {
     const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });

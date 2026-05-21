@@ -22,6 +22,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { buildSupabaseStoragePublicUrl } from "@/lib/env";
+import { fetchOwnedRestaurant } from "@/lib/restaurants";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import {
   completeGuideModule,
@@ -146,11 +147,10 @@ const MenuManagement = () => {
     const fetchItems = async () => {
       if (!user) return;
       try {
-        const { data: rest } = await supabase
-          .from("restaurants")
-          .select("id")
-          .eq("owner_id", user.id)
-          .single();
+        const rest = await fetchOwnedRestaurant<{ id: string; owner_id: string; updated_at: string }>(
+          user.id,
+          "id, owner_id, updated_at"
+        );
 
         if (!rest) { setLoading(false); return; }
         setRestaurantId(rest.id);

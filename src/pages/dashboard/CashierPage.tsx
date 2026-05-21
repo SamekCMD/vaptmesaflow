@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
+import { fetchOwnedRestaurant } from "@/lib/restaurants";
 import { useAuth } from "@/contexts/AuthContext";
 import TableCard, { type TableSession } from "@/components/cashier/TableCard";
 import TableSessionModal from "@/components/cashier/TableSessionModal";
@@ -76,12 +77,11 @@ const CashierPage = () => {
   useEffect(() => {
     if (!user) return;
     const fetch = async () => {
-      const { data } = await supabase
-        .from("restaurants")
-      .select("id, total_tables, max_tables")
-      .eq("owner_id", user.id)
-      .single();
-    if (data) {
+      const data = await fetchOwnedRestaurant<RestaurantCashierRow & { owner_id: string; updated_at: string }>(
+        user.id,
+        "id, owner_id, total_tables, max_tables, updated_at",
+      );
+      if (data) {
         const row = data as RestaurantCashierRow;
         setRestaurantId(row.id);
         setTotalTables(row.max_tables || row.total_tables || 20);

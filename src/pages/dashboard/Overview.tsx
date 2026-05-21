@@ -2,6 +2,7 @@
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { fetchOwnedRestaurant } from "@/lib/restaurants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -73,6 +74,8 @@ type RestaurantOverviewRecord = {
   id: string;
   name: string;
   payment_mode: string | null;
+  onboarding_completed: boolean;
+  delivery_enabled: boolean;
 };
 
 const periodLabels: Record<Period, string> = {
@@ -292,13 +295,10 @@ const Overview = ({ guideProgress }: OverviewProps) => {
       try {
         setLoading(true);
 
-        const { data: restData, error: restError } = await supabase
-          .from("restaurants")
-          .select("*")
-          .eq("owner_id", user.id)
-          .single();
-
-        if (restError) throw restError;
+        const restData = await fetchOwnedRestaurant<RestaurantOverviewRecord & { owner_id: string; updated_at: string }>(
+          user.id,
+          "id, owner_id, updated_at, name, payment_mode, onboarding_completed, delivery_enabled"
+        );
         setRestaurant(restData as RestaurantOverviewRecord);
 
         if (restData) {
@@ -580,6 +580,8 @@ const Overview = ({ guideProgress }: OverviewProps) => {
     [effectiveGuideProgress]
   );
 
+  const shouldShowGuideChecklist = showGuideChecklist && !restaurant?.onboarding_completed;
+
   if (loading) return <OverviewSkeleton />;
 
   if (!restaurant) {
@@ -693,6 +695,14 @@ const Overview = ({ guideProgress }: OverviewProps) => {
                       <ArrowRight className="h-4 w-4" />
                     </Link>
                   </Button>
+                  {!restaurant.delivery_enabled && (
+                    <Button asChild variant="outline" className="h-11 justify-between px-4">
+                      <Link to="/dashboard/settings?section=channels">
+                        Ajustar delivery
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -731,7 +741,7 @@ const Overview = ({ guideProgress }: OverviewProps) => {
           </Card>
         )}
 
-        <OverviewGuideChecklist guideProgress={effectiveGuideProgress} />
+        {shouldShowGuideChecklist && <OverviewGuideChecklist guideProgress={effectiveGuideProgress} />}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">

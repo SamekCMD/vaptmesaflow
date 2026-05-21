@@ -12,6 +12,7 @@ import { Upload, Smartphone, ExternalLink, Loader2, UtensilsCrossed } from "luci
 import { AppearanceFormSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { fetchOwnedRestaurant } from "@/lib/restaurants";
 
 const AppearancePage = () => {
   const { user } = useAuth();
@@ -20,6 +21,7 @@ const AppearancePage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [logoPreview, setLogoPreview] = useState("");
+  const [deliveryEnabled, setDeliveryEnabled] = useState(false);
   const [config, setConfig] = useState<RestaurantConfig>({
     id: "",
     name: "",
@@ -40,14 +42,24 @@ const AppearancePage = () => {
     const fetch = async () => {
       if (!user) return;
       try {
-        const { data, error } = await supabase
-          .from("restaurants")
-          .select("*")
-          .eq("owner_id", user.id)
-          .single();
+        const data = await fetchOwnedRestaurant<{
+          id: string;
+          owner_id: string;
+          updated_at: string;
+          name: string | null;
+          slug: string | null;
+          logo_url: string | null;
+          primary_color: string | null;
+          secondary_color: string | null;
+          font_family: string | null;
+          delivery_enabled: boolean | null;
+        }>(
+          user.id,
+          "id, owner_id, updated_at, name, slug, logo_url, primary_color, secondary_color, font_family, delivery_enabled"
+        );
 
-        if (error) throw error;
         if (data) {
+          setDeliveryEnabled(Boolean(data.delivery_enabled));
           setConfig({
             id: data.id,
             name: data.name || "",
@@ -80,7 +92,7 @@ const AppearancePage = () => {
   };
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!user || !config.id) return;
     setSaving(true);
     try {
       const { error } = await supabase
@@ -93,7 +105,7 @@ const AppearancePage = () => {
           font_family: config.fontFamily,
           logo_url: config.logoUrl,
         })
-        .eq("owner_id", user.id);
+        .eq("id", config.id);
 
       if (error) throw error;
       toast({ title: "Aparencia salva", description: "As alteracoes de marca foram aplicadas." });
@@ -207,6 +219,27 @@ const AppearancePage = () => {
                 Ver Menu publico
               </a>
             </Button>
+            <div
+              className="space-y-1"
+              title={deliveryEnabled ? undefined : "Para configurar seu delivery, habilite em Configuracoes > Restaurante."}
+            >
+              {deliveryEnabled ? (
+                <Button variant="outline" asChild>
+                  <a href={`/delivery/${config.slug}`} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Ver delivery publico
+                  </a>
+                </Button>
+              ) : (
+                <Button variant="outline" disabled aria-disabled="true">
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Ver delivery publico
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground md:hidden">
+                Habilite em Configuracoes &gt; Restaurante.
+              </p>
+            </div>
           </div>
         </div>
 

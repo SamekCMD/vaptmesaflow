@@ -18,6 +18,7 @@ const SettingsPage = lazy(() => import("./pages/dashboard/SettingsPage"));
 const AppearancePage = lazy(() => import("./pages/dashboard/AppearancePage"));
 const CashierPage = lazy(() => import("./pages/dashboard/CashierPage"));
 const PublicMenu = lazy(() => import("./pages/menu/PublicMenu"));
+const PublicDelivery = lazy(() => import("./pages/delivery/PublicDelivery"));
 const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
 const SignupPage = lazy(() => import("./pages/auth/SignupPage"));
 const OnboardingPage = lazy(() => import("./pages/onboarding/OnboardingPage"));
@@ -59,6 +60,7 @@ const App = () => {
                     <Route path="subscription" element={<SubscriptionPage />} />
                   </Route>
                   <Route path="/menu/:slug" element={<PublicMenu />} />
+                  <Route path="/delivery/:slug" element={<PublicDelivery />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>

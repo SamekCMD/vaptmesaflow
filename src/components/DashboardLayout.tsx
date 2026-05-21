@@ -6,7 +6,7 @@ import { useTheme } from "@/hooks/useTheme";
 import TrialBanner from "@/components/dashboard/TrialBanner";
 import PushNotificationBanner from "@/components/dashboard/PushNotificationBanner";
 import { registerServiceWorker } from "@/lib/push-notifications";
-import { supabase } from "@/lib/supabase";
+import { fetchOwnedRestaurant } from "@/lib/restaurants";
 import { Switch } from "@/components/ui/switch";
 import {
   LayoutDashboard,
@@ -61,7 +61,10 @@ const DashboardLayout = () => {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("restaurants").select("id, slug").eq("owner_id", user.id).single().then(({ data }) => {
+    fetchOwnedRestaurant<{ id: string; slug: string; owner_id: string; updated_at: string }>(
+      user.id,
+      "id, slug, owner_id, updated_at",
+    ).then((data) => {
       if (data) {
         setRestaurantId(data.id);
         setRestaurantSlug(data.slug);
@@ -103,7 +106,7 @@ const DashboardLayout = () => {
         }`}
         aria-label="Navegação principal do dashboard"
       >
-        <div className="flex items-center justify-between h-[52px] px-5 border-b border-border">
+        <div className="flex items-center justify-between h-[56px] px-5 border-b border-border">
           <Link to="/" className="text-base font-semibold text-foreground">Vapt</Link>
           <button
             onClick={() => setSidebarOpen(false)}

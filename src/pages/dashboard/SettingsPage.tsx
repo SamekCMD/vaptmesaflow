@@ -14,6 +14,7 @@ import { SettingsFormSkeleton } from "@/components/skeletons/DashboardSkeletons"
 import { useNavigate, useSearchParams } from "react-router-dom";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import { n8nClient, N8nClientError } from "@/lib/n8n-client";
+import { fetchOwnedRestaurant } from "@/lib/restaurants";
 import {
   completeGuideModule,
   getGuideModuleHref,
@@ -35,6 +36,8 @@ type RestaurantSettingsRow = {
   asaas_api_key: string | null;
   asaas_environment: "production" | "sandbox" | null;
   asaas_billing_document: string | null;
+  local_enabled: boolean | null;
+  delivery_enabled: boolean | null;
 };
 
 type RestaurantSettingsUpdate = {
@@ -49,6 +52,7 @@ type RestaurantSettingsUpdate = {
   asaas_environment?: "production" | "sandbox";
   asaas_billing_document?: string | null;
   asaas_api_key?: string;
+  delivery_enabled?: boolean;
 };
 
 const SettingsPage = () => {
@@ -62,6 +66,10 @@ const SettingsPage = () => {
     hours: "",
     description: "",
     max_tables: 20,
+  });
+  const [channelsForm, setChannelsForm] = useState({
+    local_enabled: true,
+    delivery_enabled: false,
   });
   const [paymentForm, setPaymentForm] = useState({
     payment_mode: "open_tab" as "open_tab" | "prepaid",
@@ -122,13 +130,12 @@ const SettingsPage = () => {
       if (!user) return;
 
       try {
-        const { data, error } = await supabase
-          .from("restaurants")
-          .select("id, name, cnpj, address, phone, hours, description, payment_mode, max_pending_orders, max_tables, asaas_api_key, asaas_environment, asaas_billing_document")
-          .eq("owner_id", user.id)
-          .single();
-
-        if (error) throw error;
+        const data = await fetchOwnedRestaurant<
+          RestaurantSettingsRow & { owner_id: string; updated_at: string }
+        >(
+          user.id,
+          "id, owner_id, updated_at, name, cnpj, address, phone, hours, description, payment_mode, max_pending_orders, max_tables, asaas_api_key, asaas_environment, asaas_billing_document, local_enabled, delivery_enabled"
+        );
 
         if (data) {
           const row = data as RestaurantSettingsRow;
@@ -148,6 +155,10 @@ const SettingsPage = () => {
             asaas_billing_document: row.asaas_billing_document || row.cnpj || "",
             new_asaas_api_key: "",
             max_pending_orders: row.max_pending_orders || 3,
+          });
+          setChannelsForm({
+            local_enabled: row.local_enabled ?? true,
+            delivery_enabled: row.delivery_enabled ?? false,
           });
         }
 
@@ -183,7 +194,7 @@ const SettingsPage = () => {
   };
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!user || !restaurantId) return;
     setSaving(true);
     try {
       const { error } = await supabase
@@ -195,8 +206,9 @@ const SettingsPage = () => {
           hours: form.hours,
           description: form.description,
           max_tables: form.max_tables,
+          delivery_enabled: channelsForm.delivery_enabled,
         } satisfies RestaurantSettingsUpdate)
-        .eq("owner_id", user.id);
+        .eq("id", restaurantId);
 
       if (error) throw error;
       toast({ title: "Configurações salvas", description: "As alterações foram aplicadas com sucesso." });
@@ -233,7 +245,7 @@ const SettingsPage = () => {
       const { error } = await supabase
         .from("restaurants")
         .update(updatePayload)
-        .eq("owner_id", user.id);
+        .eq("id", restaurantId);
 
       if (error) throw error;
 
@@ -387,6 +399,53 @@ const SettingsPage = () => {
 
               <Button onClick={handleSave} disabled={saving}>
                 {saving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</>) : "Salvar Alterações"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Canais Ativos</CardTitle>
+              <CardDescription>
+                Escolha onde seu restaurante recebe pedidos.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-4">
+                <div className="space-y-1">
+                  <Label className="font-semibold">Atendimento no local</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Sempre ativo na V1 para manter o fluxo presencial funcionando.
+                  </p>
+                </div>
+                <Switch checked={true} disabled aria-label="Atendimento no local sempre ativo" />
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-border p-4">
+                <div className="space-y-1">
+                  <Label className="font-semibold">Delivery próprio</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Ative para receber pedidos remotos no seu canal.
+                  </p>
+                </div>
+                <Switch
+                  checked={channelsForm.delivery_enabled}
+                  onCheckedChange={(checked) =>
+                    setChannelsForm((prev) => ({ ...prev, delivery_enabled: checked }))
+                  }
+                  aria-label="Ativar delivery próprio"
+                />
+              </div>
+
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">
+                  O Vapt organiza os pedidos do seu delivery próprio. A entrega pode ser feita pelo
+                  restaurante, parceiro local ou retirada no balcão.
+                </p>
+              </div>
+
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</>) : "Salvar Canais Ativos"}
               </Button>
             </CardContent>
           </Card>

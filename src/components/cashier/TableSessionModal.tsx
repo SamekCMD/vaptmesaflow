@@ -83,9 +83,23 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
   const handleClose = async () => {
     setClosing(true);
     try {
+      const closedAt = new Date().toISOString();
+
+      const { error: ordersError } = await supabase
+        .from("orders")
+        .update({
+          status: "delivered",
+          payment_status: "RECEIVED_IN_CASH",
+          updated_at: closedAt,
+        })
+        .eq("table_session_id", session.id)
+        .in("status", ["pending", "paid", "preparing", "ready", "waiting_payment"]);
+
+      if (ordersError) throw ordersError;
+
       const { error } = await supabase
         .from("table_sessions")
-        .update({ status: "closed", closed_at: new Date().toISOString() })
+        .update({ status: "closed", closed_at: closedAt })
         .eq("id", session.id);
 
       if (error) throw error;

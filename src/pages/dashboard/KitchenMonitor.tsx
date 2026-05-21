@@ -7,6 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import { KitchenSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { fetchOwnedRestaurant } from "@/lib/restaurants";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import {
@@ -55,6 +56,7 @@ interface Order {
   table_number: string | null;
   total_price: number;
   status: "paid" | "pending" | "preparing" | "ready";
+  order_channel?: "local" | "delivery" | null;
   payment_status: string | null;
   created_at: string;
   updated_at: string | null;
@@ -62,22 +64,29 @@ interface Order {
 }
 
 const columns = [
-  { key: "paid" as const, label: "Pagos (Novos)", dotColor: "bg-[hsl(153_33%_62%)]" },
   { key: "pending" as const, label: "Na Fila", dotColor: "bg-[hsl(44_51%_54%)]" },
   { key: "preparing" as const, label: "Preparando", dotColor: "bg-[hsl(216_34%_64%)]" },
   { key: "ready" as const, label: "Prontos", dotColor: "bg-primary" },
 ];
 
 const nextStatus: Record<string, string> = {
-  paid: "pending",
+  paid: "preparing",
   pending: "preparing",
   preparing: "ready",
 };
 
 const actionLabels: Record<string, string> = {
-  paid: "Aceitar",
+  paid: "Preparar",
   pending: "Preparar",
   preparing: "Finalizar",
+};
+
+const isOrderInColumn = (order: Order, columnKey: (typeof columns)[number]["key"]) => {
+  if (columnKey === "pending") {
+    return order.status === "paid" || order.status === "pending";
+  }
+
+  return order.status === columnKey;
 };
 
 const getTimerDisplay = (order: Order, isReady: boolean) => {
@@ -89,7 +98,6 @@ const getTimerDisplay = (order: Order, isReady: boolean) => {
   const seconds = elapsedSeconds % 60;
   const display = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 
-  // Border color based on urgency
   let borderClass: string;
   let textClass: string;
 
@@ -110,11 +118,12 @@ const getTimerDisplay = (order: Order, isReady: boolean) => {
 const KitchenMonitor = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [orders, setOrders] = useState<Order[]>([]);
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [channelFilter, setChannelFilter] = useState<"all" | "local" | "delivery">("all");
   const [soundEnabled, setSoundEnabled] = useState(() => {
     const stored = localStorage.getItem("vapt_kds_sound_enabled");
     return stored !== null ? stored === "true" : true;
@@ -136,7 +145,7 @@ const KitchenMonitor = () => {
       setOrders((prev) => {
         const now = Date.now();
         const toArchive = prev.filter(
-          (o) => o.status === "ready" && o.updated_at && now - new Date(o.updated_at).getTime() > 60000
+          (o) => o.status === "ready" && o.updated_at && now - new Date(o.updated_at).getTime() > 60000,
         );
         if (toArchive.length > 0) {
           toArchive.forEach((o) => {
@@ -153,7 +162,10 @@ const KitchenMonitor = () => {
   useEffect(() => {
     if (!user) return;
     const fetchRestaurant = async () => {
-      const { data } = await supabase.from("restaurants").select("id").eq("owner_id", user.id).single();
+      const data = await fetchOwnedRestaurant<{ id: string; owner_id: string; updated_at: string }>(
+        user.id,
+        "id, owner_id, updated_at",
+      );
       if (data) setRestaurantId(data.id);
     };
     fetchRestaurant();
@@ -180,7 +192,7 @@ const KitchenMonitor = () => {
       const fetched = data as unknown as Order[];
       if (knownOrderIdsRef.current.size > 0 && soundEnabled) {
         const newOrders = fetched.filter(
-          (o) => !knownOrderIdsRef.current.has(o.id) && o.payment_status === "CONFIRMED"
+          (o) => !knownOrderIdsRef.current.has(o.id) && o.payment_status === "CONFIRMED",
         );
         if (newOrders.length > 0) {
           playDoubleBeep();
@@ -210,8 +222,8 @@ const KitchenMonitor = () => {
     const previousStatus = order.status;
     setOrders((prev) =>
       prev.map((o) =>
-        o.id === order.id ? { ...o, status: next as Order["status"], updated_at: new Date().toISOString() } : o
-      )
+        o.id === order.id ? { ...o, status: next as Order["status"], updated_at: new Date().toISOString() } : o,
+      ),
     );
     const { error } = await supabase.from("orders").update({ status: next }).eq("id", order.id);
     setUpdatingOrderId(null);
@@ -222,11 +234,24 @@ const KitchenMonitor = () => {
     }
     toast({
       title: `Pedido #${order.display_id} atualizado`,
-      description: `Movido para "${columns.find((c) => c.key === next)?.label}"`,
+      description: `Movido para "${columns.find((c) => c.key === next)?.label ?? "Próxima etapa"}"`,
     });
   };
 
   if (loading) return <KitchenSkeleton />;
+
+  const getOrderChannel = (order: Order): "local" | "delivery" =>
+    order.order_channel === "delivery" ? "delivery" : "local";
+
+  const getOrdersByFilter = (list: Order[]) => {
+    if (channelFilter === "all") return list;
+    return list.filter((order) => getOrderChannel(order) === channelFilter);
+  };
+
+  const localCount = orders.filter((order) => getOrderChannel(order) === "local").length;
+  const deliveryCount = orders.filter((order) => getOrderChannel(order) === "delivery").length;
+  const allCount = orders.length;
+  const filteredOrders = getOrdersByFilter(orders);
 
   return (
     <div className="space-y-6">
@@ -260,59 +285,112 @@ const KitchenMonitor = () => {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-4 gap-6">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant={channelFilter === "all" ? "default" : "outline"}
+          onClick={() => setChannelFilter("all")}
+          className="h-9 min-w-[110px] justify-center"
+        >
+          Todos ({allCount})
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={channelFilter === "local" ? "default" : "outline"}
+          onClick={() => setChannelFilter("local")}
+          className="h-9 min-w-[110px] justify-center"
+        >
+          Local ({localCount})
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={channelFilter === "delivery" ? "default" : "outline"}
+          onClick={() => setChannelFilter("delivery")}
+          className="h-9 min-w-[110px] justify-center"
+        >
+          Delivery ({deliveryCount})
+        </Button>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
         {columns.map((col) => (
-          <div key={col.key}>
-            <div className="flex items-center gap-2 mb-4">
+          <div key={col.key} className="min-w-0">
+            <div className="mb-4 flex items-center gap-2">
               <div className={`h-2 w-2 rounded-full ${col.dotColor}`} />
               <h2 className="text-sm font-medium">{col.label}</h2>
               <Badge variant="outline" className="ml-auto text-[10px] normal-case tracking-normal">
-                {orders.filter((o) => o.status === col.key).length}
+                {filteredOrders.filter((o) => isOrderInColumn(o, col.key)).length}
               </Badge>
             </div>
 
-            <div className="space-y-3">
-              {orders
-                .filter((o) => o.status === col.key)
+            <div className="space-y-2">
+              {filteredOrders
+                .filter((o) => isOrderInColumn(o, col.key))
                 .map((order) => {
                   const isReady = col.key === "ready";
                   const timer = getTimerDisplay(order, isReady);
                   const isUpdating = updatingOrderId === order.id;
+                  const next = nextStatus[order.status];
+                  const canAdvance = Boolean(next) && !isUpdating && col.key !== "ready";
+                  const orderChannel = getOrderChannel(order);
 
                   return (
                     <Card
                       key={order.id}
-                      className={`${timer.borderClass} bg-card`}
+                      className={`${timer.borderClass} bg-card transition-colors ${
+                        canAdvance ? "cursor-pointer hover:bg-accent/40" : ""
+                      }`}
+                      onClick={canAdvance ? () => advance(order) : undefined}
+                      role={canAdvance ? "button" : undefined}
+                      tabIndex={canAdvance ? 0 : undefined}
+                      onKeyDown={
+                        canAdvance
+                          ? (event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                advance(order);
+                              }
+                            }
+                          : undefined
+                      }
                     >
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="font-medium text-sm font-mono">#{order.display_id}</span>
-                          <Badge variant="outline" className="text-[10px] normal-case tracking-normal">
-                            {order.table_number ? `Mesa ${order.table_number}` : "S/ mesa"}
-                          </Badge>
+                      <CardContent className="p-3">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="font-mono text-sm font-medium">#{order.display_id}</span>
+                          <div className="flex items-center gap-1.5">
+                            <Badge
+                              variant={orderChannel === "delivery" ? "default" : "outline"}
+                              className="text-[10px] normal-case tracking-normal"
+                            >
+                              {orderChannel === "delivery" ? "Delivery" : "Local"}
+                            </Badge>
+                            <Badge variant="outline" className="text-[10px] normal-case tracking-normal">
+                              {order.table_number ? `Mesa ${order.table_number}` : "S/ mesa"}
+                            </Badge>
+                          </div>
                         </div>
-                        <ul className="space-y-1 mb-3">
+                        <ul className="mb-2 space-y-0.5">
                           {order.order_items.map((item) => (
-                            <li key={item.id} className="text-sm text-muted-foreground">
+                            <li key={item.id} className="text-xs text-muted-foreground">
                               • {item.quantity}x {item.product_name}
                               {item.notes ? ` (${item.notes})` : ""}
                             </li>
                           ))}
                         </ul>
                         <div className="flex items-center justify-between">
-                          {col.key !== "ready" && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 text-xs"
-                              onClick={() => advance(order)}
-                              disabled={isUpdating}
-                            >
-                              {isUpdating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                              {actionLabels[col.key]} <ArrowRight className="h-3 w-3 ml-1" />
-                            </Button>
+                          {col.key !== "ready" && canAdvance ? (
+                            <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                              {isUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                              <span>{actionLabels[order.status]}</span>
+                              <ArrowRight className="h-3 w-3" />
+                            </div>
+                          ) : (
+                            <div />
                           )}
-                          <div className={`flex items-center gap-1 text-xs font-mono font-medium ml-auto ${timer.textClass}`}>
+                          <div className={`ml-auto flex items-center gap-1 font-mono text-xs font-medium ${timer.textClass}`}>
                             <Clock className="h-3 w-3" strokeWidth={1.5} />
                             {timer.display}
                           </div>
@@ -321,8 +399,8 @@ const KitchenMonitor = () => {
                     </Card>
                   );
                 })}
-              {orders.filter((o) => o.status === col.key).length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-8">Nenhum pedido</p>
+              {filteredOrders.filter((o) => isOrderInColumn(o, col.key)).length === 0 && (
+                <p className="py-8 text-center text-xs text-muted-foreground">Nenhum pedido</p>
               )}
             </div>
           </div>

@@ -59,6 +59,7 @@ type PixCreateInput = {
   restaurantId: string;
   orderId: string;
   totalPrice?: number;
+  public?: boolean;
 };
 
 type FeedbackInput = {
@@ -265,7 +266,8 @@ export const n8nClient = {
 
     createPix: async (input: PixCreateInput) => {
       const token = await getAccessToken();
-      const route = token ? "billing/asaas/pix" : "billing/asaas/pix/public";
+      const shouldUsePublicRoute = input.public === true || !token;
+      const route = shouldUsePublicRoute ? "billing/asaas/pix/public" : "billing/asaas/pix";
       return request<{
         paymentId: string;
         qrCodeBase64: string | null;
@@ -274,7 +276,7 @@ export const n8nClient = {
         status: string;
       }>({
         route,
-        requireAuth: Boolean(token),
+        requireAuth: !shouldUsePublicRoute,
         body: {
           restaurantId: input.restaurantId,
           orderId: input.orderId,

@@ -1,23 +1,23 @@
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Footer = () => {
   return (
     <footer className="bg-background py-20">
       <div className="container text-center">
-        <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground font-medium mb-4">
-          Operação pronta para ganhar clareza?
+        <p className="mb-4 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+          Operacao pronta para ganhar clareza?
         </p>
-        <h2 className="text-2xl sm:text-3xl font-semibold text-foreground mb-4 tracking-tight">
-          Comece com 3 dias grátis e veja o fluxo inteiro em um só painel
+        <h2 className="mb-4 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          Comece com 3 dias gratis e veja o fluxo inteiro em um so painel
         </h2>
-        <p className="text-muted-foreground text-base mb-8 max-w-2xl mx-auto">
-          Sem fidelidade. Sem cartão no teste. Sem ruído entre salão, cozinha e caixa.
+        <p className="mx-auto mb-8 max-w-2xl text-base text-muted-foreground">
+          Sem fidelidade. Sem cartao no teste. Sem ruido entre salao, cozinha e caixa.
         </p>
-        <Button asChild size="lg" className="text-base px-8 h-11">
+        <Button asChild size="lg" className="h-11 px-8 text-base">
           <Link to="/dashboard">
-            Criar conta grátis
+            Criar conta gratis
             <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
         </Button>
@@ -32,8 +32,14 @@ const Footer = () => {
             Cancelamento livre
           </span>
         </div>
-        <div className="mt-16 pt-8 border-t border-border text-muted-foreground text-sm">
-          © 2026 Vapt. Operação mais clara para restaurantes.
+        <div className="mt-16 border-t border-border pt-8 text-sm text-muted-foreground">
+          <a
+            href="#"
+            className="termly-display-preferences underline underline-offset-4 transition-colors hover:text-foreground"
+          >
+            Consent Preferences
+          </a>
+          <p className="mt-4">© 2026 Vapt. Operacao mais clara para restaurantes.</p>
         </div>
       </div>
     </footer>

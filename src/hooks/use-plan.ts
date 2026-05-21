@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { fetchOwnedRestaurant } from "@/lib/restaurants";
 
 export type PlanType = "starter" | "pro" | "business";
 export type PlanStatus = "trialing" | "active" | "expired" | "cancelled";
@@ -45,6 +45,25 @@ type RestaurantPlanRow = {
   trial_ends_at: string | null;
 };
 
+const normalizePlanType = (planType: string | null | undefined): PlanType => {
+  if (typeof planType !== "string") return "starter";
+  const normalized = planType.trim().toLowerCase();
+  return normalized === "starter" || normalized === "pro" || normalized === "business"
+    ? normalized
+    : "starter";
+};
+
+const normalizePlanStatus = (planStatus: string | null | undefined): PlanStatus => {
+  if (typeof planStatus !== "string") return "trialing";
+  const normalized = planStatus.trim().toLowerCase();
+  return normalized === "trialing" ||
+    normalized === "active" ||
+    normalized === "expired" ||
+    normalized === "cancelled"
+    ? (normalized as PlanStatus)
+    : "trialing";
+};
+
 export function usePlan(): PlanData {
   const { user } = useAuth();
   const [planType, setPlanType] = useState<PlanType>("starter");
@@ -58,17 +77,16 @@ export function usePlan(): PlanData {
       setLoading(false);
       return;
     }
-    const { data } = await supabase
-      .from("restaurants")
-      .select("id, plan_type, plan_status, trial_ends_at")
-      .eq("owner_id", user.id)
-      .single();
+    const data = await fetchOwnedRestaurant<RestaurantPlanRow & { owner_id: string }>(
+      user.id,
+      "id, owner_id, plan_type, plan_status, trial_ends_at, updated_at",
+    );
 
     if (data) {
       const row = data as RestaurantPlanRow;
       setRestaurantId(row.id);
-      setPlanType(row.plan_type || "starter");
-      setPlanStatus(row.plan_status || "trialing");
+      setPlanType(normalizePlanType(row.plan_type));
+      setPlanStatus(normalizePlanStatus(row.plan_status));
       setTrialEndsAt(row.trial_ends_at ? new Date(row.trial_ends_at) : null);
     }
     setLoading(false);

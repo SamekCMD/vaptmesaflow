@@ -177,6 +177,7 @@ const OrderSummaryDrawer = ({
           restaurantId,
           orderId: orderData.id,
           totalPrice,
+          public: true,
         });
 
         if (!pixResult?.paymentId) {

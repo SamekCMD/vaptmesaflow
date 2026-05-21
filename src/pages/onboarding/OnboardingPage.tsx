@@ -11,8 +11,10 @@ import { ArrowLeft, ArrowRight, Check, Upload, UtensilsCrossed, Palette, Store, 
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 import {
+  GUIDE_MODULES,
   POST_SETUP_PRIMARY_ACTION,
   POST_SETUP_SECONDARY_ACTION,
+  saveGuideProgress,
 } from "@/lib/onboarding";
 
 const STEPS = [
@@ -95,6 +97,8 @@ const OnboardingPage = () => {
           trial_ends_at: trialEndsAt,
           total_tables: Math.max(1, Number.parseInt(tableCount, 10) || 1),
           max_tables: Math.max(1, Number.parseInt(tableCount, 10) || 1),
+          onboarding_completed: true,
+          onboarding_completed_at: new Date().toISOString(),
         })
         .select("id")
         .single();
@@ -107,6 +111,11 @@ const OnboardingPage = () => {
         category: dishCategory.trim(),
       });
       if (menuError) throw menuError;
+      const completedGuideProgress = GUIDE_MODULES.reduce(
+        (acc, module) => ({ ...acc, [module]: true }),
+        {} as Record<(typeof GUIDE_MODULES)[number], boolean>
+      );
+      saveGuideProgress(completedGuideProgress);
       toast({ title: "Restaurante criado com sucesso!" });
       setSetupComplete(true);
     } catch (err: unknown) {

@@ -195,6 +195,7 @@ export type Database = {
           created_at: string
           display_id: number | null
           id: string
+          order_channel: string
           payment_status: string | null
           restaurant_id: string
           status: string
@@ -207,6 +208,7 @@ export type Database = {
           created_at?: string
           display_id?: number | null
           id?: string
+          order_channel?: string
           payment_status?: string | null
           restaurant_id: string
           status?: string
@@ -219,6 +221,7 @@ export type Database = {
           created_at?: string
           display_id?: number | null
           id?: string
+          order_channel?: string
           payment_status?: string | null
           restaurant_id?: string
           status?: string
@@ -249,14 +252,18 @@ export type Database = {
           address: string | null
           asaas_api_key: string | null
           created_at: string
+          delivery_enabled: boolean
           description: string | null
           font_family: string
           hours: string | null
           id: string
+          local_enabled: boolean
           logo_url: string | null
           max_pending_orders: number
           max_tables: number
           name: string
+          onboarding_completed: boolean
+          onboarding_completed_at: string | null
           owner_id: string
           payment_mode: string
           phone: string | null
@@ -274,14 +281,18 @@ export type Database = {
           address?: string | null
           asaas_api_key?: string | null
           created_at?: string
+          delivery_enabled?: boolean
           description?: string | null
           font_family?: string
           hours?: string | null
           id?: string
+          local_enabled?: boolean
           logo_url?: string | null
           max_pending_orders?: number
           max_tables?: number
           name: string
+          onboarding_completed?: boolean
+          onboarding_completed_at?: string | null
           owner_id: string
           payment_mode?: string
           phone?: string | null
@@ -299,14 +310,18 @@ export type Database = {
           address?: string | null
           asaas_api_key?: string | null
           created_at?: string
+          delivery_enabled?: boolean
           description?: string | null
           font_family?: string
           hours?: string | null
           id?: string
+          local_enabled?: boolean
           logo_url?: string | null
           max_pending_orders?: number
           max_tables?: number
           name?: string
+          onboarding_completed?: boolean
+          onboarding_completed_at?: string | null
           owner_id?: string
           payment_mode?: string
           phone?: string | null
