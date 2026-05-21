@@ -128,7 +128,7 @@ const AppearancePage = () => {
         <p className="text-muted-foreground text-sm">Personalize a identidade visual do seu Cardapio publico</p>
       </div>
 
-      <div className="grid lg:grid-cols-[1fr_360px] gap-6">
+      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         {/* Left – Editor */}
         <div className="space-y-6">
           {/* Brand */}
@@ -141,16 +141,20 @@ const AppearancePage = () => {
               </div>
               <div>
                 <Label>Slug da URL</Label>
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 items-center gap-2">
                   <span className="text-sm text-muted-foreground whitespace-nowrap">/menu/</span>
-                  <Input value={config.slug} onChange={(e) => updateConfig({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })} />
+                  <Input
+                    value={config.slug}
+                    onChange={(e) => updateConfig({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })}
+                    className="min-w-0"
+                  />
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Endereco publico: /menu/{config.slug}</p>
               </div>
               <div>
                 <Label>Logo</Label>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-                <div className="flex items-center gap-4 mt-2">
+                <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                   <div
                     className="h-16 w-16 rounded-lg border-2 border-dashed border-border flex items-center justify-center cursor-pointer hover:border-primary transition-colors overflow-hidden"
                     onClick={() => fileInputRef.current?.click()}
@@ -161,7 +165,7 @@ const AppearancePage = () => {
                       <Upload className="h-5 w-5 text-muted-foreground" />
                     )}
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                  <Button variant="outline" size="sm" className="h-11 w-full sm:h-9 sm:w-auto" onClick={() => fileInputRef.current?.click()}>
                     <Upload className="h-4 w-4 mr-2" />
                     Upload Logo
                   </Button>
@@ -174,7 +178,7 @@ const AppearancePage = () => {
           <Card>
             <CardHeader><CardTitle className="text-base">Cores</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <Label>Cor Primaria</Label>
                   <div className="flex items-center gap-3 mt-2">
@@ -209,11 +213,11 @@ const AppearancePage = () => {
             </CardContent>
           </Card>
 
-          <div className="flex gap-3">
-            <Button onClick={handleSave} disabled={saving}>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:flex">
+            <Button onClick={handleSave} disabled={saving} className="h-11 w-full sm:w-auto">
               {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : "Salvar alteracoes"}
             </Button>
-            <Button variant="outline" asChild>
+            <Button variant="outline" asChild className="h-11 w-full sm:w-auto">
               <a href={`/menu/${config.slug}`} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Ver Menu publico
@@ -224,14 +228,14 @@ const AppearancePage = () => {
               title={deliveryEnabled ? undefined : "Para configurar seu delivery, habilite em Configuracoes > Restaurante."}
             >
               {deliveryEnabled ? (
-                <Button variant="outline" asChild>
+                <Button variant="outline" asChild className="h-11 w-full sm:w-auto">
                   <a href={`/delivery/${config.slug}`} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4 mr-2" />
                     Ver delivery publico
                   </a>
                 </Button>
               ) : (
-                <Button variant="outline" disabled aria-disabled="true">
+                <Button variant="outline" disabled aria-disabled="true" className="h-11 w-full sm:w-auto">
                   <ExternalLink className="h-4 w-4 mr-2" />
                   Ver delivery publico
                 </Button>

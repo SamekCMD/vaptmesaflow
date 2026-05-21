@@ -521,7 +521,7 @@ const PublicDelivery = () => {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-5xl gap-6 px-4 pt-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_350px]">
+      <main className="mx-auto grid max-w-5xl gap-6 overflow-x-hidden px-4 pt-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_350px]">
         <section className="space-y-5">
           <div className="rounded-3xl border border-border bg-card px-5 py-5">
             <h2 className="text-2xl font-semibold text-foreground">Peça direto da loja</h2>
@@ -552,7 +552,7 @@ const PublicDelivery = () => {
           <div className="space-y-3">
             {filteredItems.map((item) => (
               <div key={item.id} className="rounded-2xl border border-border bg-card p-4">
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                   <div className="min-w-0">
                     <h3 className="text-base font-semibold text-foreground">{item.name}</h3>
                     {item.description && <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>}
@@ -562,7 +562,7 @@ const PublicDelivery = () => {
                   </div>
                   <Button
                     type="button"
-                    className="h-11 min-w-[96px] rounded-xl text-sm font-semibold"
+                    className="h-11 w-full rounded-xl text-sm font-semibold sm:min-w-[120px] sm:w-auto"
                     style={{ backgroundColor: primaryColor }}
                     onClick={() => addToCart(item)}
                   >
@@ -580,7 +580,7 @@ const PublicDelivery = () => {
           </div>
         </section>
 
-        <aside className="space-y-4">
+        <aside className="min-w-0 space-y-4">
           <div className="rounded-3xl border border-border bg-card p-5">
             <h2 className="text-lg font-semibold text-foreground">Seu carrinho</h2>
             <div className="mt-4 space-y-3">
@@ -627,7 +627,7 @@ const PublicDelivery = () => {
                   {savedAddress ? "Endereço salvo neste navegador." : "Defina uma vez e reutilize no próximo acesso."}
                 </p>
               </div>
-              <Button type="button" variant="outline" className="h-9 px-3 text-xs" onClick={() => setAddressModalOpen(true)}>
+              <Button type="button" variant="outline" className="h-10 px-3 text-xs sm:h-9" onClick={() => setAddressModalOpen(true)}>
                 {savedAddress ? "Editar" : "Definir"}
               </Button>
             </div>
@@ -707,7 +707,7 @@ const PublicDelivery = () => {
           </div>
 
           <div className="rounded-3xl border border-border bg-card p-5">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col items-start justify-between gap-1 sm:flex-row sm:items-center sm:gap-3">
               <h2 className="text-base font-semibold text-foreground">Peça novamente</h2>
               <span className="text-xs text-muted-foreground">{recentOrders.length} salvos no navegador</span>
             </div>
@@ -715,7 +715,7 @@ const PublicDelivery = () => {
               {recentOrders.length === 0 && <p className="text-sm text-muted-foreground">Nenhum pedido salvo neste navegador.</p>}
               {recentOrders.map((order) => (
                 <div key={order.id} className="rounded-xl border border-border p-3">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-col items-start justify-between gap-1 sm:flex-row sm:items-center sm:gap-2">
                     <p className="text-sm font-medium text-foreground">
                       {order.displayId ? `Pedido #${order.displayId}` : "Pedido"}
                     </p>
