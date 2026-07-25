@@ -377,7 +377,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_public_restaurant_by_slug: {
+        Args: { p_slug: string }
+        Returns: {
+          delivery_enabled: boolean
+          font_family: string
+          id: string
+          local_enabled: boolean
+          logo_url: string | null
+          max_pending_orders: number
+          name: string
+          payment_mode: string
+          primary_color: string
+          secondary_color: string
+          slug: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

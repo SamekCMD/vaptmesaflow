@@ -29,6 +29,8 @@ type RestaurantPublicRow = {
   font_family: RestaurantConfig["fontFamily"] | null;
   payment_mode: "open_tab" | "prepaid" | null;
   max_pending_orders: number | null;
+  local_enabled: boolean;
+  delivery_enabled: boolean;
 };
 
 type MenuItemRow = {
@@ -116,12 +118,10 @@ const PublicMenu = () => {
 
       try {
         const { data: restData, error: restError } = await supabase
-          .from("restaurants")
-          .select("id, name, slug, logo_url, primary_color, secondary_color, font_family, payment_mode, max_pending_orders")
-          .eq("slug", slug)
-          .single();
+          .rpc("get_public_restaurant_by_slug", { p_slug: slug })
+          .maybeSingle();
 
-        if (restError || !restData) {
+        if (restError || !restData || !restData.local_enabled) {
           setError("Restaurante não encontrado");
           setLoading(false);
           return;

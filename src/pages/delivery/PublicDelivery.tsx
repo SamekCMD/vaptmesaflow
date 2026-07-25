@@ -136,12 +136,10 @@ const PublicDelivery = () => {
       }
 
       const { data: restData, error: restError } = await supabase
-        .from("restaurants")
-        .select("id, name, slug, logo_url, primary_color, secondary_color, font_family, delivery_enabled")
-        .eq("slug", slug)
-        .single();
+        .rpc("get_public_restaurant_by_slug", { p_slug: slug })
+        .maybeSingle();
 
-      if (restError || !restData) {
+      if (restError || !restData || !restData.delivery_enabled) {
         setRestaurant(null);
         setLoading(false);
         return;
