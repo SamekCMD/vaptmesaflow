@@ -7,14 +7,21 @@ import {
   DrawerFooter,
   DrawerClose,
 } from "@/components/ui/drawer";
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, Trash2, X, CheckCircle2, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 import type { CartItem } from "@/hooks/use-cart";
 import PixPaymentModal from "@/components/menu/PixPaymentModal";
 import { n8nClient, N8nClientError } from "@/lib/n8n-client";
+import {
+  createOrderIdempotencyKey,
+  orderClient,
+  readStoredOrderAccess,
+  type StoredOrderAccess,
+} from "@/lib/order-client";
+import { VaptApiClientError } from "@/lib/vapt-api-client";
 
 interface OrderSummaryDrawerProps {
   open: boolean;
@@ -26,8 +33,9 @@ interface OrderSummaryDrawerProps {
   onClearCart: () => void;
   primaryColor: string;
   restaurantId?: string;
+  restaurantSlug?: string;
   tableNumber?: string;
-  onOrderPlaced?: (orderId: string) => void;
+  onOrderPlaced?: (access: StoredOrderAccess) => void;
   onSessionCreated?: (sessionId: string) => void;
   paymentMode?: "open_tab" | "prepaid";
   maxPendingOrders?: number;
@@ -45,19 +53,21 @@ const OrderSummaryDrawer = ({
   primaryColor,
   restaurantId,
   tableNumber,
+  restaurantSlug,
   onOrderPlaced,
   onSessionCreated,
   paymentMode = "open_tab",
   maxPendingOrders = 3,
-  tableSessionId,
 }: OrderSummaryDrawerProps) => {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
   // Pix payment state
+  const idempotencyKeyRef = useRef<string | null>(null);
   const [pixModalOpen, setPixModalOpen] = useState(false);
   const [pixData, setPixData] = useState<{
     orderId: string;
+    publicToken: string;
     qrCodeBase64: string;
     pixPayload: string;
     expiration: string;
@@ -67,17 +77,17 @@ const OrderSummaryDrawer = ({
     if (paymentMode !== "open_tab" || !restaurantId) return true;
 
     try {
-      const key = `orders_${restaurantId}`;
-      const stored = JSON.parse(localStorage.getItem(key) || "[]");
-      if (stored.length === 0) return true;
+      const stored = readStoredOrderAccess(restaurantId);
+      const orders = await Promise.all(
+        stored.map((access) =>
+          orderClient.get(access.orderId, access.publicToken).catch(() => null),
+        ),
+      );
+      const pendingCount = orders.filter(
+        (order) => order && ["pending", "preparing"].includes(order.status),
+      ).length;
 
-      const { data } = await supabase
-        .from("orders")
-        .select("id, status")
-        .in("id", stored)
-        .in("status", ["pending", "preparing"]);
-
-      if (data && data.length >= maxPendingOrders) {
+      if (pendingCount >= maxPendingOrders) {
         toast({
           title: "Limite de pedidos atingido",
           description: `Aguarde seus pedidos anteriores serem aceitos pela cozinha. Máximo: ${maxPendingOrders} pedidos pendentes.`,
@@ -87,96 +97,47 @@ const OrderSummaryDrawer = ({
       }
       return true;
     } catch {
-      return true; // allow on error
+      return true;
     }
   };
 
   const handleSendOrder = async () => {
-    if (!restaurantId) {
+    if (!restaurantId || !restaurantSlug) {
       toast({ title: "Erro", description: "Restaurante não identificado.", variant: "destructive" });
       return;
     }
 
-    // Anti-fraud: check pending orders limit
     const canProceed = await checkPendingOrdersLimit();
     if (!canProceed) return;
 
     setSending(true);
 
     try {
-      const orderStatus = paymentMode === "prepaid" ? "waiting_payment" : "pending";
+      idempotencyKeyRef.current ??= createOrderIdempotencyKey();
+      const order = await orderClient.create(
+        {
+          restaurantSlug,
+          channel: "local",
+          ...(tableNumber && Number.isInteger(Number(tableNumber))
+            ? { tableNumber: Number(tableNumber) }
+            : {}),
+          items: items.map((cartItem) => ({
+            menuItemId: String(cartItem.item.id),
+            quantity: cartItem.quantity,
+            notes: cartItem.notes || undefined,
+          })),
+        },
+        idempotencyKeyRef.current,
+      );
 
-      // For open_tab: create session BEFORE order if none exists
-      let effectiveSessionId = tableSessionId;
-      if (paymentMode === "open_tab" && tableNumber && !effectiveSessionId) {
-        try {
-          const { data: newSession } = await supabase
-            .from("table_sessions")
-            .insert({
-              restaurant_id: restaurantId,
-              table_number: tableNumber,
-              status: "open",
-            })
-            .select("id")
-            .single();
-
-          if (newSession) {
-            effectiveSessionId = newSession.id;
-            onSessionCreated?.(newSession.id);
-          }
-        } catch {
-          // Session might already exist, try to find it
-          const { data: existing } = await supabase
-            .from("table_sessions")
-            .select("id")
-            .eq("restaurant_id", restaurantId!)
-            .eq("table_number", tableNumber)
-            .in("status", ["open", "check_requested"])
-            .single();
-
-          if (existing) {
-            effectiveSessionId = existing.id;
-            onSessionCreated?.(existing.id);
-          }
-        }
-      }
-
-      // Insert order with session already linked
-      const { data: orderData, error: orderError } = await supabase
-        .from("orders")
-        .insert({
-          restaurant_id: restaurantId,
-          table_number: tableNumber || null,
-          total_price: totalPrice,
-          status: orderStatus,
-          ...(effectiveSessionId ? { table_session_id: effectiveSessionId } : {}),
-        })
-        .select("id, display_id")
-        .single();
-
-      if (orderError || !orderData) throw orderError;
-
-      // Insert order items
-      const orderItems = items.map((ci) => ({
-        order_id: orderData.id,
-        product_id: String(ci.item.id),
-        product_name: ci.item.name,
-        quantity: ci.quantity,
-        unit_price: ci.item.price,
-        notes: ci.notes || "",
-      }));
-
-      const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
-      if (itemsError) throw itemsError;
-
-      // Save order ID to localStorage
-      onOrderPlaced?.(orderData.id);
+      onOrderPlaced?.({ orderId: order.orderId, publicToken: order.publicToken });
+      if (order.tableSessionId) onSessionCreated?.(order.tableSessionId);
 
       if (paymentMode === "prepaid") {
         const pixResult = await n8nClient.asaas.createPix({
           restaurantId,
-          orderId: orderData.id,
-          totalPrice,
+          publicToken: order.publicToken,
+          orderId: order.orderId,
           public: true,
         });
 
@@ -184,8 +145,10 @@ const OrderSummaryDrawer = ({
           throw new Error("Resposta inválida do servidor de pagamento");
         }
 
+        idempotencyKeyRef.current = null;
         setPixData({
-          orderId: orderData.id,
+          orderId: order.orderId,
+          publicToken: order.publicToken,
           qrCodeBase64: pixResult.qrCodeBase64,
           pixPayload: pixResult.pixPayload,
           expiration: pixResult.expiration,
@@ -193,12 +156,12 @@ const OrderSummaryDrawer = ({
         setSending(false);
         setPixModalOpen(true);
       } else {
-        // Open tab: order sent directly
+        idempotencyKeyRef.current = null;
         setSending(false);
         setSent(true);
 
         toast({
-          title: `Pedido #${orderData.display_id} enviado!`,
+          title: `Pedido #${order.displayId} enviado!`,
           description: "Acompanhe o status em 'Meus Pedidos'.",
         });
 
@@ -211,7 +174,7 @@ const OrderSummaryDrawer = ({
     } catch (err: unknown) {
       setSending(false);
       const description =
-        err instanceof N8nClientError
+        err instanceof N8nClientError || err instanceof VaptApiClientError
           ? err.message
           : err instanceof Error
           ? err.message
@@ -410,6 +373,7 @@ const OrderSummaryDrawer = ({
             setPixData(null);
           }}
           orderId={pixData.orderId}
+          publicToken={pixData.publicToken}
           qrCodeBase64={pixData.qrCodeBase64}
           pixPayload={pixData.pixPayload}
           expiration={pixData.expiration}

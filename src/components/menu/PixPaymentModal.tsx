@@ -10,12 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Copy, CheckCircle2, Loader2, Clock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
+import { orderClient } from "@/lib/order-client";
 
 interface PixPaymentModalProps {
   open: boolean;
   onClose: () => void;
   orderId: string;
+  publicToken: string;
   qrCodeBase64: string;
   pixPayload: string;
   expiration: string;
@@ -27,6 +28,7 @@ const PixPaymentModal = ({
   open,
   onClose,
   orderId,
+  publicToken,
   qrCodeBase64,
   pixPayload,
   primaryColor,
@@ -71,23 +73,14 @@ const PixPaymentModal = ({
     if (import.meta.env.DEV) console.log("[vapt] Verificando pagamento do pedido:", orderId);
 
     try {
-      const { data, error } = await supabase
-        .from("orders")
-        .select("payment_status, status")
-        .eq("id", orderId)
-        .single();
-
-      if (error) {
-        if (import.meta.env.DEV) console.error("[vapt] Erro na verificacao de pagamento:", error.message);
-        return;
-      }
+      const data = await orderClient.get(orderId, publicToken);
 
       if (import.meta.env.DEV) console.log("[vapt] Status atual no banco:", {
-        payment_status: data?.payment_status,
+        payment_status: data.paymentStatus,
         status: data?.status,
       });
 
-      if (data && isPaymentConfirmed(data.payment_status, data.status)) {
+      if (isPaymentConfirmed(data.paymentStatus, data.status)) {
         if (import.meta.env.DEV) console.log("[vapt] Pagamento detectado.");
         setConfirmed(true);
         onPaymentConfirmed();
@@ -95,7 +88,7 @@ const PixPaymentModal = ({
     } catch (err) {
       if (import.meta.env.DEV) console.error("[vapt] Erro critico ao checar pagamento:", err);
     }
-  }, [orderId, confirmed, open, onPaymentConfirmed]);
+  }, [orderId, publicToken, confirmed, open, onPaymentConfirmed]);
 
   useEffect(() => {
     if (!open || confirmed) return;

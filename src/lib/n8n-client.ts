@@ -59,6 +59,7 @@ type PixCreateInput = {
   restaurantId: string;
   orderId: string;
   totalPrice?: number;
+  publicToken?: string;
   public?: boolean;
 };
 
@@ -277,11 +278,13 @@ export const n8nClient = {
       }>({
         route,
         requireAuth: !shouldUsePublicRoute,
-        body: {
-          restaurantId: input.restaurantId,
-          orderId: input.orderId,
-          totalPrice: Number(input.totalPrice ?? 0),
-        },
+        body: shouldUsePublicRoute
+          ? { restaurantId: input.restaurantId, orderId: input.orderId, publicToken: input.publicToken }
+          : {
+              restaurantId: input.restaurantId,
+              orderId: input.orderId,
+              totalPrice: Number(input.totalPrice ?? 0),
+            },
       });
     },
   },

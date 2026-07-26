@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useRef } from "react";
 import { useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, ChevronUp, Minus, Plus, RotateCcw, Store, Truck } from "lucide-react";
@@ -9,6 +10,8 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { fontFamilyMap, type RestaurantConfig } from "@/lib/restaurant-config";
 import { PublicMenuSkeleton } from "@/components/skeletons/DashboardSkeletons";
+import { createOrderIdempotencyKey, orderClient } from "@/lib/order-client";
+import { VaptApiClientError } from "@/lib/vapt-api-client";
 
 type RestaurantDeliveryRow = {
   id: string;
@@ -54,6 +57,7 @@ type SessionDeliveryOrderItem = {
 };
 
 type SessionDeliveryOrderSnapshot = {
+  publicToken: string;
   id: string;
   displayId: number | null;
   status: DeliveryOrderStatus;
@@ -105,6 +109,7 @@ const PublicDelivery = () => {
   const [cart, setCart] = useState<Record<string, CartItem>>({});
   const [submitting, setSubmitting] = useState(false);
   const [lastOrderCode, setLastOrderCode] = useState<string | null>(null);
+  const [lastOrderToken, setLastOrderToken] = useState<string | null>(null);
   const [lastOrderId, setLastOrderId] = useState<string | null>(null);
   const [lastOrderStatus, setLastOrderStatus] = useState<DeliveryOrderStatus | null>(null);
   const [recentOrders, setRecentOrders] = useState<SessionDeliveryOrderSnapshot[]>([]);
@@ -118,6 +123,7 @@ const PublicDelivery = () => {
     number: "",
     neighborhood: "",
   });
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   const pruneDeliveredOrders = (orders: SessionDeliveryOrderSnapshot[]) => {
     const now = Date.now();
@@ -190,11 +196,14 @@ const PublicDelivery = () => {
       try {
         const parsed = JSON.parse(rawOrders) as SessionDeliveryOrderSnapshot[];
         if (Array.isArray(parsed)) {
-          const cleaned = pruneDeliveredOrders(parsed);
+          const cleaned = pruneDeliveredOrders(
+            parsed.filter((order) => typeof order.publicToken === "string" && order.publicToken.length > 0),
+          );
           localStorage.setItem(`${DELIVERY_RECENT_ORDERS_STORAGE_KEY}_${restaurant.id}`, JSON.stringify(cleaned));
           setRecentOrders(cleaned);
           if (cleaned[0]) {
             setLastOrderId(cleaned[0].id);
+            setLastOrderToken(cleaned[0].publicToken);
             setLastOrderStatus(cleaned[0].status);
             setLastOrderCode(cleaned[0].displayId ? `#${cleaned[0].displayId}` : "recebido");
           }
@@ -206,34 +215,29 @@ const PublicDelivery = () => {
   }, [restaurant?.id]);
 
   useEffect(() => {
-    if (!restaurant?.id || !lastOrderId) return;
+    if (!restaurant?.id || !lastOrderId || !lastOrderToken) return;
 
     let active = true;
     const poll = async () => {
-      const { data } = await supabase
-        .from("orders")
-        .select("id, display_id, status")
-        .eq("id", lastOrderId)
-        .eq("restaurant_id", restaurant.id)
-        .single();
+      const data = await orderClient.get(lastOrderId, lastOrderToken).catch(() => null);
+      if (!active || !data?.orderId) return;
 
-      if (!active || !data?.id) return;
       const normalized = normalizeDeliveryStatus(data.status);
       setLastOrderStatus(normalized);
-      setLastOrderCode(data.display_id ? `#${data.display_id}` : "recebido");
+      setLastOrderCode(data.displayId ? `#${data.displayId}` : "recebido");
 
       setRecentOrders((current) => {
         const updated = current.map((order) => {
-          if (order.id !== data.id) return order;
+          if (order.id !== data.orderId) return order;
           if (normalized === "delivered" && !order.deliveredAt) {
             return {
               ...order,
-              displayId: data.display_id ?? order.displayId,
+              displayId: data.displayId ?? order.displayId,
               status: normalized,
               deliveredAt: new Date().toISOString(),
             };
           }
-          return { ...order, displayId: data.display_id ?? order.displayId, status: normalized };
+          return { ...order, displayId: data.displayId ?? order.displayId, status: normalized };
         });
 
         const cleaned = pruneDeliveredOrders(updated);
@@ -241,6 +245,7 @@ const PublicDelivery = () => {
 
         if (cleaned.length === 0) {
           setLastOrderId(null);
+          setLastOrderToken(null);
           setLastOrderCode(null);
           setLastOrderStatus(null);
         }
@@ -248,13 +253,13 @@ const PublicDelivery = () => {
       });
     };
 
-    poll();
-    const intervalId = window.setInterval(poll, 4000);
+    void poll();
+    const intervalId = window.setInterval(() => void poll(), 4000);
     return () => {
       active = false;
       window.clearInterval(intervalId);
     };
-  }, [lastOrderId, restaurant?.id]);
+  }, [lastOrderId, lastOrderToken, restaurant?.id]);
 
   const categories = useMemo(() => Array.from(new Set(items.map((item) => item.category))), [items]);
   const filteredItems = useMemo(() => items.filter((item) => item.category === activeCategory), [items, activeCategory]);
@@ -344,79 +349,65 @@ const PublicDelivery = () => {
     if (!validateCheckout() || !savedAddress) return;
     setSubmitting(true);
 
-    const deliveryNotes = `Delivery | Nome: ${savedAddress.customerName} | Telefone: ${savedAddress.phone} | Endereço: ${savedAddress.street}, ${savedAddress.number} - ${savedAddress.neighborhood}`;
+    try {
+      idempotencyKeyRef.current ??= createOrderIdempotencyKey();
+      const order = await orderClient.create(
+        {
+          restaurantSlug: restaurant.slug,
+          channel: "delivery",
+          items: cartItems.map((cartItem) => ({
+            menuItemId: cartItem.item.id,
+            quantity: cartItem.quantity,
+          })),
+          delivery: {
+            name: savedAddress.customerName,
+            phone: savedAddress.phone,
+            street: savedAddress.street,
+            number: savedAddress.number,
+            neighborhood: savedAddress.neighborhood,
+          },
+        },
+        idempotencyKeyRef.current,
+      );
 
-    const { data: orderData, error: orderError } = await supabase
-      .from("orders")
-      .insert({
-        restaurant_id: restaurant.id,
-        total_price: cartTotal,
-        status: "pending",
-        order_channel: "delivery",
-        table_number: null,
-        table_session_id: null,
-      })
-      .select("id, display_id")
-      .single();
+      const snapshot: SessionDeliveryOrderSnapshot = {
+        id: order.orderId,
+        publicToken: order.publicToken,
+        displayId: order.displayId,
+        status: normalizeDeliveryStatus(order.status),
+        deliveredAt: null,
+        total: Number(order.totalPrice),
+        createdAt: new Date().toISOString(),
+        items: cartItems.map((cartItem) => ({
+          itemId: cartItem.item.id,
+          name: cartItem.item.name,
+          price: cartItem.item.price,
+          quantity: cartItem.quantity,
+        })),
+      };
 
-    if (orderError || !orderData) {
+      setRecentOrders((current) => {
+        const next = [snapshot, ...current.filter((saved) => saved.id !== snapshot.id)].slice(0, 4);
+        localStorage.setItem(`${DELIVERY_RECENT_ORDERS_STORAGE_KEY}_${restaurant.id}`, JSON.stringify(next));
+        return next;
+      });
+
+      idempotencyKeyRef.current = null;
+      setLastOrderId(order.orderId);
+      setLastOrderToken(order.publicToken);
+      setLastOrderStatus(normalizeDeliveryStatus(order.status));
+      setLastOrderCode(order.displayId ? `#${order.displayId}` : "recebido");
+      setCart({});
+      toast({ title: "Pedido enviado", description: "Recebemos seu pedido. Acompanhe o status abaixo." });
+    } catch (error: unknown) {
       toast({
         title: "Erro ao enviar pedido",
-        description: "Não foi possível finalizar agora. Tente novamente.",
+        description: error instanceof VaptApiClientError ? error.message : "Não foi possível finalizar agora. Tente novamente.",
         variant: "destructive",
       });
+    } finally {
       setSubmitting(false);
-      return;
     }
-
-    const orderItemsPayload = cartItems.map((cartItem) => ({
-      order_id: orderData.id,
-      product_id: cartItem.item.id,
-      product_name: cartItem.item.name,
-      quantity: cartItem.quantity,
-      unit_price: cartItem.item.price,
-      notes: deliveryNotes,
-    }));
-
-    const { error: itemsError } = await supabase.from("order_items").insert(orderItemsPayload);
-    if (itemsError) {
-      await supabase.from("orders").delete().eq("id", orderData.id);
-      toast({
-        title: "Erro ao salvar itens",
-        description: "O pedido não foi concluído. Tente novamente.",
-        variant: "destructive",
-      });
-      setSubmitting(false);
-      return;
-    }
-
-    const snapshot: SessionDeliveryOrderSnapshot = {
-      id: orderData.id,
-      displayId: orderData.display_id ?? null,
-      status: "pending",
-      deliveredAt: null,
-      total: cartTotal,
-      createdAt: new Date().toISOString(),
-      items: cartItems.map((ci) => ({
-        itemId: ci.item.id,
-        name: ci.item.name,
-        price: ci.item.price,
-        quantity: ci.quantity,
-      })),
-    };
-
-    setRecentOrders((current) => {
-      const next = [snapshot, ...current].slice(0, 4);
-      localStorage.setItem(`${DELIVERY_RECENT_ORDERS_STORAGE_KEY}_${restaurant.id}`, JSON.stringify(next));
-      return next;
-    });
-
-    setLastOrderId(orderData.id);
-    setLastOrderStatus("pending");
-    setLastOrderCode(orderData.display_id ? `#${orderData.display_id}` : "recebido");
-    setCart({});
-    toast({ title: "Pedido enviado", description: "Recebemos seu pedido. Acompanhe o status abaixo." });
-    setSubmitting(false);
   };
 
   const reorder = (snapshot: SessionDeliveryOrderSnapshot) => {

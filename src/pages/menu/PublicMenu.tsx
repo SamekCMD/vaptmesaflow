@@ -18,6 +18,7 @@ import OrderSummaryDrawer from "@/components/menu/OrderSummaryDrawer";
 import MyOrdersDrawer from "@/components/menu/MyOrdersDrawer";
 import FloatingActions from "@/components/menu/FloatingActions";
 import { supabase } from "@/lib/supabase";
+import { orderClient, readStoredOrderAccess, saveStoredOrderAccess, type StoredOrderAccess } from "@/lib/order-client";
 
 type RestaurantPublicRow = {
   id: string;
@@ -106,7 +107,7 @@ const PublicMenu = () => {
 
   const cart = useCart();
   const prevItemsRef = useRef<Map<string | number, boolean>>(new Map());
-  const isInitialLoadRef = useRef(true);
+  const readyNotifiedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchData = async () => {
@@ -316,35 +317,51 @@ const PublicMenu = () => {
 
   useEffect(() => {
     if (!restaurant) return;
-    const initTimer = setTimeout(() => { isInitialLoadRef.current = false; }, 3000);
+    let cancelled = false;
+    let primed = false;
+    readyNotifiedRef.current.clear();
+
     const getSessionOrderIds = (): string[] => {
       try { return JSON.parse(sessionStorage.getItem("vapt_current_order_ids") || "[]"); } catch { return []; }
     };
 
-    const channel = supabase
-      .channel(`client-orders-realtime-${restaurant.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "orders",
-          filter: `restaurant_id=eq.${restaurant.id}`,
-        },
-        (payload) => {
-        const updated = payload.new as { id: string; display_id: number; status: string };
-        const currentSessionIds = getSessionOrderIds();
-        if (!currentSessionIds.includes(updated.id) || isInitialLoadRef.current) return;
-        if (updated.status === "ready") {
+    const checkReadyOrders = async () => {
+      const currentSessionIds = new Set(getSessionOrderIds());
+      const accesses = readStoredOrderAccess(restaurant.id)
+        .filter((access) => currentSessionIds.has(access.orderId));
+      if (accesses.length === 0) {
+        if (!cancelled) setHasReadyOrder(false);
+        primed = true;
+        return;
+      }
+
+      const results = await Promise.allSettled(
+        accesses.map((access) => orderClient.get(access.orderId, access.publicToken)),
+      );
+      if (cancelled) return;
+
+      const readyOrders = results
+        .filter((result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof orderClient.get>>> => result.status === "fulfilled")
+        .map((result) => result.value)
+        .filter((order) => order.status === "ready");
+
+      setHasReadyOrder(readyOrders.length > 0);
+      readyOrders.forEach((order) => {
+        if (primed && !readyNotifiedRef.current.has(order.orderId)) {
           setHasReadyOrder(true);
-          toast({ title: "Pedido pronto", description: `Seu pedido #${updated.display_id} está pronto para retirada.` });
+          toast({ title: "Pedido pronto", description: `Seu pedido #${order.displayId} está pronto para retirada.` });
         }
-      })
-      .subscribe();
+        readyNotifiedRef.current.add(order.orderId);
+      });
+      primed = true;
+    };
+
+    void checkReadyOrders();
+    const interval = window.setInterval(() => void checkReadyOrders(), 5000);
 
     return () => {
-      clearTimeout(initTimer);
-      supabase.removeChannel(channel);
+      cancelled = true;
+      window.clearInterval(interval);
     };
   }, [restaurant]);
 
@@ -355,22 +372,16 @@ const PublicMenu = () => {
     localStorage.setItem(`table_session_${restaurant.id}_${tableNumber}`, sessionId);
   }, [restaurant, tableNumber]);
 
-  const handleOrderPlaced = useCallback((orderId: string) => {
+  const handleOrderPlaced = useCallback((access: StoredOrderAccess) => {
     if (!restaurant) return;
-    const key = `orders_${restaurant.id}`;
-    try {
-      const stored = JSON.parse(localStorage.getItem(key) || "[]");
-      stored.push(orderId);
-      localStorage.setItem(key, JSON.stringify(stored));
-    } catch {
-      localStorage.setItem(key, JSON.stringify([orderId]));
-    }
+    saveStoredOrderAccess(restaurant.id, access);
+
     try {
       const sessionIds = JSON.parse(sessionStorage.getItem("vapt_current_order_ids") || "[]");
-      sessionIds.push(orderId);
-      sessionStorage.setItem("vapt_current_order_ids", JSON.stringify(sessionIds));
+      const next = [access.orderId, ...sessionIds.filter((id: string) => id !== access.orderId)];
+      sessionStorage.setItem("vapt_current_order_ids", JSON.stringify(next));
     } catch {
-      sessionStorage.setItem("vapt_current_order_ids", JSON.stringify([orderId]));
+      sessionStorage.setItem("vapt_current_order_ids", JSON.stringify([access.orderId]));
     }
     setHasPlacedOrder(true);
   }, [restaurant]);
@@ -483,6 +494,7 @@ const PublicMenu = () => {
         onOrderPlaced={handleOrderPlaced}
         onSessionCreated={handleSessionCreated}
         paymentMode={paymentMode}
+        restaurantSlug={restaurant.slug}
         maxPendingOrders={maxPendingOrders}
         tableSessionId={tableSessionId}
       />
