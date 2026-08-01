@@ -221,7 +221,13 @@ const CashierPage = () => {
           })}
         </div>
 
-        <TableSessionModal open={modalOpen} onClose={() => setModalOpen(false)} session={selectedSession} onSessionClosed={fetchSessions} />
+        <TableSessionModal
+          key={selectedSession?.id ?? "empty-session"}
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          session={selectedSession}
+          onSessionClosed={fetchSessions}
+        />
       </div>
     </FeatureGate>
   );

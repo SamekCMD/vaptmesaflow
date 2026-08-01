@@ -209,6 +209,7 @@ export type Database = {
           idempotency_key: string
           order_id: string
           paid_at: string | null
+          manually_confirmed_by: string | null
           payment_method: string | null
           processing_mode: string
           provider: string
@@ -236,6 +237,7 @@ export type Database = {
           idempotency_key: string
           order_id: string
           paid_at?: string | null
+          manually_confirmed_by?: string | null
           payment_method?: string | null
           processing_mode: string
           provider: string
@@ -263,6 +265,7 @@ export type Database = {
           idempotency_key?: string
           order_id?: string
           paid_at?: string | null
+          manually_confirmed_by?: string | null
           payment_method?: string | null
           processing_mode?: string
           provider?: string
@@ -771,6 +774,7 @@ export type Database = {
           idempotency_key: string
           order_id: string
           paid_at: string | null
+          manually_confirmed_by: string | null
           payment_method: string | null
           processing_mode: string
           provider: string
