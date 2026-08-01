@@ -1,6 +1,19 @@
 -- O modelo V2 convive com Asaas/n8n ate a conclusao da migracao por etapas.
 -- Nenhuma tabela ou coluna financeira legada e removida nesta migration.
 
+begin;
+
+-- A migration deve funcionar mesmo sem o bootstrap historico do Lovable.
+create or replace function public.update_updated_at_column()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
 do $$
 begin
   if not exists (
@@ -15,7 +28,7 @@ begin
 end;
 $$;
 
-create table public.payment_provider_accounts (
+create table if not exists public.payment_provider_accounts (
   id uuid primary key default gen_random_uuid(),
   restaurant_id uuid not null,
   provider text not null,
@@ -49,7 +62,7 @@ create table public.payment_provider_accounts (
     unique (id, restaurant_id)
 );
 
-create table public.payment_transactions (
+create table if not exists public.payment_transactions (
   id uuid primary key default gen_random_uuid(),
   restaurant_id uuid not null,
   order_id uuid not null,
@@ -99,7 +112,7 @@ create table public.payment_transactions (
     unique (id, restaurant_id)
 );
 
-create unique index payment_transactions_provider_external_payment_id_uidx
+create unique index if not exists payment_transactions_provider_external_payment_id_uidx
   on public.payment_transactions (provider, external_payment_id)
   where external_payment_id is not null;
 
@@ -125,7 +138,7 @@ begin
 end;
 $$;
 
-create table public.payment_webhook_events (
+create table if not exists public.payment_webhook_events (
   id uuid primary key default gen_random_uuid(),
   provider text not null,
   external_event_id text not null,
@@ -162,7 +175,7 @@ create table public.payment_webhook_events (
     unique (provider, external_event_id)
 );
 
-create table public.payment_oauth_states (
+create table if not exists public.payment_oauth_states (
   id uuid primary key default gen_random_uuid(),
   restaurant_id uuid not null,
   provider text not null,
@@ -186,7 +199,7 @@ create table public.payment_oauth_states (
     check (consumed_at is null or consumed_at >= created_at)
 );
 
-create table public.payment_effect_outbox (
+create table if not exists public.payment_effect_outbox (
   id uuid primary key default gen_random_uuid(),
   restaurant_id uuid not null,
   payment_transaction_id uuid not null,
@@ -215,34 +228,38 @@ create table public.payment_effect_outbox (
     unique (payment_transaction_id, effect_type)
 );
 
-create index payment_provider_accounts_restaurant_idx
+create index if not exists payment_provider_accounts_restaurant_idx
   on public.payment_provider_accounts (restaurant_id, status);
-create index payment_transactions_order_idx
+create index if not exists payment_transactions_order_idx
   on public.payment_transactions (order_id, created_at desc);
-create index payment_transactions_restaurant_status_idx
+create index if not exists payment_transactions_restaurant_status_idx
   on public.payment_transactions (restaurant_id, status, created_at desc);
-create index payment_webhook_events_pending_idx
+create index if not exists payment_webhook_events_pending_idx
   on public.payment_webhook_events (status, received_at)
   where status in ('received', 'failed');
-create index payment_oauth_states_expiration_idx
+create index if not exists payment_oauth_states_expiration_idx
   on public.payment_oauth_states (expires_at)
   where consumed_at is null;
-create index payment_effect_outbox_available_idx
+create index if not exists payment_effect_outbox_available_idx
   on public.payment_effect_outbox (available_at, created_at)
   where status in ('pending', 'failed');
 
+drop trigger if exists update_payment_provider_accounts_updated_at on public.payment_provider_accounts;
 create trigger update_payment_provider_accounts_updated_at
 before update on public.payment_provider_accounts
 for each row execute function public.update_updated_at_column();
 
+drop trigger if exists update_payment_transactions_updated_at on public.payment_transactions;
 create trigger update_payment_transactions_updated_at
 before update on public.payment_transactions
 for each row execute function public.update_updated_at_column();
 
+drop trigger if exists update_payment_webhook_events_updated_at on public.payment_webhook_events;
 create trigger update_payment_webhook_events_updated_at
 before update on public.payment_webhook_events
 for each row execute function public.update_updated_at_column();
 
+drop trigger if exists update_payment_effect_outbox_updated_at on public.payment_effect_outbox;
 create trigger update_payment_effect_outbox_updated_at
 before update on public.payment_effect_outbox
 for each row execute function public.update_updated_at_column();
@@ -410,3 +427,5 @@ grant execute on function public.apply_payment_transition(
   timestamptz,
   text[]
 ) to service_role;
+
+commit;
