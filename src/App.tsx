@@ -24,6 +24,7 @@ const SignupPage = lazy(() => import("./pages/auth/SignupPage"));
 const OnboardingPage = lazy(() => import("./pages/onboarding/OnboardingPage"));
 const PricingPage = lazy(() => import("./pages/PricingPage"));
 const SubscriptionPage = lazy(() => import("./pages/dashboard/SubscriptionPage"));
+const PaymentReturn = lazy(() => import("./pages/payment/PaymentReturn"));
 
 const queryClient = new QueryClient();
 
@@ -61,6 +62,7 @@ const App = () => {
                   </Route>
                   <Route path="/menu/:slug" element={<PublicMenu />} />
                   <Route path="/delivery/:slug" element={<PublicDelivery />} />
+                  <Route path="/payment/return" element={<PaymentReturn />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
