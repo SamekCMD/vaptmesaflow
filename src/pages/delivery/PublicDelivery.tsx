@@ -11,6 +11,8 @@ import { supabase } from "@/lib/supabase";
 import { fontFamilyMap, type RestaurantConfig } from "@/lib/restaurant-config";
 import { PublicMenuSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { createOrderIdempotencyKey, orderClient } from "@/lib/order-client";
+import { parseHostedCheckoutUrl } from "@/lib/hosted-checkout-url";
+import { paymentClient, savePendingCheckout } from "@/lib/payment-client";
 import { VaptApiClientError } from "@/lib/vapt-api-client";
 
 type RestaurantDeliveryRow = {
@@ -47,7 +49,8 @@ type CheckoutForm = {
   neighborhood: string;
 };
 
-type DeliveryOrderStatus = "pending" | "preparing" | "ready" | "out_for_delivery" | "delivered" | "cancelled";
+type DeliveryOrderStatus = "waiting_payment" | "paid" | "pending" | "preparing" | "ready" | "out_for_delivery" | "delivered" | "cancelled";
+type DeliveryPaymentMode = "online" | "on_delivery";
 
 type SessionDeliveryOrderItem = {
   itemId: string;
@@ -73,6 +76,8 @@ const DELIVERY_RECENT_ORDERS_STORAGE_KEY = "vapt_delivery_recent_orders";
 const DELIVERED_RETENTION_MS = 30 * 60 * 1000;
 
 const statusMeta: Record<DeliveryOrderStatus, { label: string; step: number }> = {
+  waiting_payment: { label: "Aguardando pagamento", step: 0 },
+  paid: { label: "Pagamento confirmado", step: 1 },
   pending: { label: "Pedido recebido", step: 1 },
   preparing: { label: "Em preparo", step: 2 },
   ready: { label: "Saiu para entrega", step: 3 },
@@ -82,6 +87,8 @@ const statusMeta: Record<DeliveryOrderStatus, { label: string; step: number }> =
 };
 
 const statusColorMap: Record<DeliveryOrderStatus, string> = {
+  waiting_payment: "#d97706",
+  paid: "#059669",
   pending: "#f59e0b",
   preparing: "#3b82f6",
   ready: "#6366f1",
@@ -92,6 +99,8 @@ const statusColorMap: Record<DeliveryOrderStatus, string> = {
 
 const normalizeDeliveryStatus = (status: string | null | undefined): DeliveryOrderStatus => {
   const normalized = (status || "").toLowerCase();
+  if (normalized === "waiting_payment") return "waiting_payment";
+  if (normalized === "paid") return "paid";
   if (normalized === "preparing") return "preparing";
   if (normalized === "ready") return "ready";
   if (normalized === "out_for_delivery") return "out_for_delivery";
@@ -344,7 +353,7 @@ const PublicDelivery = () => {
     return true;
   };
 
-  const submitOrder = async () => {
+  const submitOrder = async (paymentMode: DeliveryPaymentMode) => {
     if (!restaurant || submitting) return;
     if (!validateCheckout() || !savedAddress) return;
     setSubmitting(true);
@@ -365,6 +374,7 @@ const PublicDelivery = () => {
             street: savedAddress.street,
             number: savedAddress.number,
             neighborhood: savedAddress.neighborhood,
+            paymentMode,
           },
         },
         idempotencyKeyRef.current,
@@ -392,13 +402,36 @@ const PublicDelivery = () => {
         return next;
       });
 
-      idempotencyKeyRef.current = null;
       setLastOrderId(order.orderId);
       setLastOrderToken(order.publicToken);
       setLastOrderStatus(normalizeDeliveryStatus(order.status));
       setLastOrderCode(order.displayId ? `#${order.displayId}` : "recebido");
+
+      if (paymentMode === "online") {
+        const checkout = await paymentClient.startHosted(
+          order.orderId,
+          order.publicToken,
+          `checkout-${idempotencyKeyRef.current}`,
+        );
+        const checkoutUrl = parseHostedCheckoutUrl(checkout.checkoutUrl);
+
+        savePendingCheckout({
+          orderId: order.orderId,
+          publicToken: order.publicToken,
+          transactionId: checkout.transactionId,
+          returnPath: `${window.location.pathname}${window.location.search}`,
+        });
+        idempotencyKeyRef.current = null;
+        window.location.assign(checkoutUrl.toString());
+        return;
+      }
+
+      idempotencyKeyRef.current = null;
       setCart({});
-      toast({ title: "Pedido enviado", description: "Recebemos seu pedido. Acompanhe o status abaixo." });
+      toast({
+        title: "Pedido enviado",
+        description: "O pagamento será feito na entrega. Acompanhe o preparo por aqui.",
+      });
     } catch (error: unknown) {
       toast({
         title: "Erro ao enviar pedido",
@@ -584,9 +617,15 @@ const PublicDelivery = () => {
               )}
             </div>
 
-            <Button type="button" className="mt-5 hidden h-11 w-full rounded-xl text-sm font-semibold lg:inline-flex" style={{ backgroundColor: primaryColor }} onClick={submitOrder} disabled={submitting}>
-              {submitting ? "Enviando pedido..." : "Confirmar pedido"}
-            </Button>
+            <div className="mt-5 hidden grid-cols-1 gap-2 lg:grid">
+              <Button type="button" className="h-11 w-full rounded-xl text-sm font-semibold" style={{ backgroundColor: primaryColor }} onClick={() => submitOrder("online")} disabled={submitting}>
+                {submitting ? "Abrindo pagamento..." : "Pagar online"}
+              </Button>
+              <Button type="button" variant="outline" className="h-11 w-full rounded-xl text-sm font-semibold" onClick={() => submitOrder("on_delivery")} disabled={submitting}>
+                Pagar na entrega
+              </Button>
+              <p className="text-center text-[11px] leading-4 text-muted-foreground">No pagamento online, o pedido só entra em preparo após a confirmação.</p>
+            </div>
 
             {lastOrderCode && lastOrderStatus && (
               <div className="mt-4 rounded-xl border border-border bg-background p-3">
@@ -640,13 +679,16 @@ const PublicDelivery = () => {
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
-        <div className="mx-auto flex max-w-6xl items-center gap-3">
+        <div className="mx-auto flex max-w-6xl items-center gap-2">
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs text-muted-foreground">{cartItemsCount} itens</p>
             <p className="truncate text-sm font-semibold text-foreground">Total: R$ {cartTotal.toFixed(2).replace(".", ",")}</p>
           </div>
-          <Button type="button" className="h-11 min-w-[150px] rounded-xl text-sm font-semibold" style={{ backgroundColor: primaryColor }} onClick={submitOrder} disabled={submitting}>
-            {submitting ? "Enviando..." : "Confirmar pedido"}
+          <Button type="button" variant="outline" className="h-11 shrink-0 rounded-xl px-3 text-xs font-semibold" aria-label="Pagar na entrega" onClick={() => submitOrder("on_delivery")} disabled={submitting}>
+            Na entrega
+          </Button>
+          <Button type="button" className="h-11 min-w-[128px] shrink-0 rounded-xl px-4 text-sm font-semibold" aria-label="Continuar para pagamento online" style={{ backgroundColor: primaryColor }} onClick={() => submitOrder("online")} disabled={submitting}>
+            {submitting ? "Abrindo..." : "Pagar online"}
           </Button>
         </div>
       </div>

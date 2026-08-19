@@ -432,7 +432,7 @@ const PublicMenu = () => {
             <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
               <div className="space-y-2">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  {paymentMode === "prepaid" ? "Pagamento por Pix" : "Conta aberta na mesa"}
+                  {paymentMode === "prepaid" ? "Pagamento online" : "Conta aberta na mesa"}
                 </p>
                 <h2 className="text-2xl font-semibold text-foreground sm:text-3xl">{heroTitle}</h2>
                 <p className="max-w-xl text-sm leading-6 text-muted-foreground">{heroDescription}</p>

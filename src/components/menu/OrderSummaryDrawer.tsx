@@ -20,6 +20,7 @@ import {
   type StoredOrderAccess,
 } from "@/lib/order-client";
 import { paymentClient, savePendingCheckout } from "@/lib/payment-client";
+import { parseHostedCheckoutUrl } from "@/lib/hosted-checkout-url";
 import { VaptApiClientError } from "@/lib/vapt-api-client";
 
 interface OrderSummaryDrawerProps {
@@ -129,17 +130,7 @@ const OrderSummaryDrawer = ({
           order.publicToken,
           `checkout-${idempotencyKeyRef.current}`,
         );
-        const checkoutUrl = new URL(checkout.checkoutUrl);
-
-        if (
-          checkoutUrl.protocol !== "https:" ||
-          !(
-            checkoutUrl.hostname === "mercadopago.com.br" ||
-            checkoutUrl.hostname.endsWith(".mercadopago.com.br")
-          )
-        ) {
-          throw new Error("O servidor retornou um endereço de pagamento inválido.");
-        }
+        const checkoutUrl = parseHostedCheckoutUrl(checkout.checkoutUrl);
 
         savePendingCheckout({
           orderId: order.orderId,

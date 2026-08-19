@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_catalog;
 
-select plan(2);
+select plan(4);
 
 insert into public.restaurants (
   id,
@@ -70,6 +70,42 @@ select results_eq(
   $$,
   $$ values ('pending'::text, 23.00::numeric, true) $$,
   'idempotent replay also returns enum-backed statuses as text'
+);
+
+select results_eq(
+  $$
+    select status, total_price, idempotent_replay
+      from public.create_public_order_v3(
+        'restaurante-enum-de-teste',
+        'delivery',
+        null,
+        '[{"menuItemId":"10000000-0000-4000-8000-000000000092","quantity":1}]'::jsonb,
+        '{"name":"Cliente Teste","phone":"61999999999","street":"Rua Teste","number":"1","neighborhood":"Centro","paymentMode":"online"}'::jsonb,
+        'online-public-token-hash',
+        'online-idempotency-key',
+        'online-request-fingerprint'
+      )
+  $$,
+  $$ values ('waiting_payment'::text, 23.00::numeric, false) $$,
+  'online delivery waits for payment before entering production'
+);
+
+select results_eq(
+  $$
+    select status, total_price, idempotent_replay
+      from public.create_public_order_v3(
+        'restaurante-enum-de-teste',
+        'delivery',
+        null,
+        '[{"menuItemId":"10000000-0000-4000-8000-000000000092","quantity":1}]'::jsonb,
+        '{"name":"Cliente Teste","phone":"61999999999","street":"Rua Teste","number":"1","neighborhood":"Centro","paymentMode":"on_delivery"}'::jsonb,
+        'delivery-public-token-hash',
+        'delivery-idempotency-key',
+        'delivery-request-fingerprint'
+      )
+  $$,
+  $$ values ('pending'::text, 23.00::numeric, false) $$,
+  'payment on delivery remains available without hosted checkout'
 );
 
 reset role;

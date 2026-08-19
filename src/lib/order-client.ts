@@ -16,6 +16,7 @@ export type CreateOrderRequest = {
     street: string;
     number: string;
     neighborhood: string;
+    paymentMode: "online" | "on_delivery";
   };
 };
 
