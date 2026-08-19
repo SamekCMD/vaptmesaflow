@@ -13,14 +13,13 @@ import { Minus, Plus, Trash2, X, CheckCircle2, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/hooks/use-toast";
 import type { CartItem } from "@/hooks/use-cart";
-import PixPaymentModal from "@/components/menu/PixPaymentModal";
-import { n8nClient, N8nClientError } from "@/lib/n8n-client";
 import {
   createOrderIdempotencyKey,
   orderClient,
   readStoredOrderAccess,
   type StoredOrderAccess,
 } from "@/lib/order-client";
+import { paymentClient, savePendingCheckout } from "@/lib/payment-client";
 import { VaptApiClientError } from "@/lib/vapt-api-client";
 
 interface OrderSummaryDrawerProps {
@@ -62,16 +61,7 @@ const OrderSummaryDrawer = ({
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
-  // Pix payment state
   const idempotencyKeyRef = useRef<string | null>(null);
-  const [pixModalOpen, setPixModalOpen] = useState(false);
-  const [pixData, setPixData] = useState<{
-    orderId: string;
-    publicToken: string;
-    qrCodeBase64: string;
-    pixPayload: string;
-    expiration: string;
-  } | null>(null);
 
   const checkPendingOrdersLimit = async (): Promise<boolean> => {
     if (paymentMode !== "open_tab" || !restaurantId) return true;
@@ -134,27 +124,31 @@ const OrderSummaryDrawer = ({
       if (order.tableSessionId) onSessionCreated?.(order.tableSessionId);
 
       if (paymentMode === "prepaid") {
-        const pixResult = await n8nClient.asaas.createPix({
-          restaurantId,
-          publicToken: order.publicToken,
-          orderId: order.orderId,
-          public: true,
-        });
+        const checkout = await paymentClient.startHosted(
+          order.orderId,
+          order.publicToken,
+          `checkout-${idempotencyKeyRef.current}`,
+        );
+        const checkoutUrl = new URL(checkout.checkoutUrl);
 
-        if (!pixResult?.paymentId) {
-          throw new Error("Resposta inválida do servidor de pagamento");
+        if (
+          checkoutUrl.protocol !== "https:" ||
+          !(
+            checkoutUrl.hostname === "mercadopago.com.br" ||
+            checkoutUrl.hostname.endsWith(".mercadopago.com.br")
+          )
+        ) {
+          throw new Error("O servidor retornou um endereço de pagamento inválido.");
         }
 
-        idempotencyKeyRef.current = null;
-        setPixData({
+        savePendingCheckout({
           orderId: order.orderId,
           publicToken: order.publicToken,
-          qrCodeBase64: pixResult.qrCodeBase64,
-          pixPayload: pixResult.pixPayload,
-          expiration: pixResult.expiration,
+          transactionId: checkout.transactionId,
+          returnPath: `${window.location.pathname}${window.location.search}`,
         });
-        setSending(false);
-        setPixModalOpen(true);
+        idempotencyKeyRef.current = null;
+        window.location.assign(checkoutUrl.toString());
       } else {
         idempotencyKeyRef.current = null;
         setSending(false);
@@ -174,7 +168,7 @@ const OrderSummaryDrawer = ({
     } catch (err: unknown) {
       setSending(false);
       const description =
-        err instanceof N8nClientError || err instanceof VaptApiClientError
+        err instanceof VaptApiClientError
           ? err.message
           : err instanceof Error
           ? err.message
@@ -185,23 +179,6 @@ const OrderSummaryDrawer = ({
         variant: "destructive",
       });
     }
-  };
-
-  const handlePixConfirmed = () => {
-    setPixModalOpen(false);
-    setPixData(null);
-    setSent(true);
-
-    toast({
-      title: "Pagamento confirmado!",
-      description: "Seu pedido foi enviado para a cozinha!",
-    });
-
-    setTimeout(() => {
-      setSent(false);
-      onClearCart();
-      onClose();
-    }, 2500);
   };
 
   const handleOpenChange = (o: boolean) => {
@@ -349,10 +326,10 @@ const OrderSummaryDrawer = ({
                     {sending ? (
                       <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        {paymentMode === "prepaid" ? "Gerando Pix..." : "Enviando..."}
+                        {paymentMode === "prepaid" ? "Abrindo pagamento..." : "Enviando..."}
                       </motion.span>
                     ) : paymentMode === "prepaid" ? (
-                      "Pagar com Pix"
+                      "Pagar online"
                     ) : (
                       "Enviar para a cozinha"
                     )}
@@ -363,24 +340,6 @@ const OrderSummaryDrawer = ({
           </AnimatePresence>
         </DrawerContent>
       </Drawer>
-
-      {/* Pix Payment Modal */}
-      {pixData && (
-        <PixPaymentModal
-          open={pixModalOpen}
-          onClose={() => {
-            setPixModalOpen(false);
-            setPixData(null);
-          }}
-          orderId={pixData.orderId}
-          publicToken={pixData.publicToken}
-          qrCodeBase64={pixData.qrCodeBase64}
-          pixPayload={pixData.pixPayload}
-          expiration={pixData.expiration}
-          primaryColor={primaryColor}
-          onPaymentConfirmed={handlePixConfirmed}
-        />
-      )}
     </>
   );
 };

@@ -6,7 +6,11 @@ import {
   readStoredOrderAccess,
   saveStoredOrderAccess,
 } from "@/lib/order-client";
-import { n8nClient } from "@/lib/n8n-client";
+import {
+  paymentClient,
+  readPendingCheckout,
+  savePendingCheckout,
+} from "@/lib/payment-client";
 
 const originalFetch = globalThis.fetch;
 
@@ -77,29 +81,47 @@ describe("criação pública de pedidos", () => {
     });
   });
 
-  it("autoriza o Pix público com token opaco e sem enviar valor", async () => {
+  it("inicia o checkout hospedado com token opaco e sem enviar valor", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      paymentId: "payment-1",
-      qrCodeBase64: "qr",
-      pixPayload: "pix",
-      expiration: "2026-07-25T23:59:59.000Z",
+      transactionId: "40000000-0000-4000-8000-000000000001",
+      orderId: "20000000-0000-4000-8000-000000000001",
       status: "pending",
+      amount: { amount: "51.80", currency: "BRL" },
+      checkoutUrl: "https://sandbox.mercadopago.com.br/checkout/v1/redirect/test",
+      expiresAt: null,
     }), { status: 200, headers: { "content-type": "application/json" } }));
     globalThis.fetch = fetchMock;
 
-    await n8nClient.asaas.createPix({
-      restaurantId: "restaurant-1",
-      orderId: "order-1",
+    await paymentClient.startHosted(
+      "20000000-0000-4000-8000-000000000001",
+      "opaque-public-order-token-that-is-long-enough",
+      "checkout-attempt-0001",
+    );
+
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(options.headers).toMatchObject({
+      "Idempotency-Key": "checkout-attempt-0001",
+      "X-Vapt-Order-Token": "opaque-public-order-token-that-is-long-enough",
+    });
+    expect(JSON.parse(String(options.body))).toEqual({});
+    expect(url).toContain(
+      "/public/orders/20000000-0000-4000-8000-000000000001/payments/checkout",
+    );
+  });
+
+  it("persiste somente o contexto opaco necessário para confirmar o retorno", () => {
+    savePendingCheckout({
+      orderId: "20000000-0000-4000-8000-000000000001",
       publicToken: "opaque-public-order-token-that-is-long-enough",
-      totalPrice: 0.01,
-      public: true,
+      transactionId: "40000000-0000-4000-8000-000000000001",
+      returnPath: "/menu/restaurante-teste?table=4",
     });
 
-    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(JSON.parse(String(options.body))).toEqual({
-      restaurantId: "restaurant-1",
-      orderId: "order-1",
+    expect(readPendingCheckout()).toEqual({
+      orderId: "20000000-0000-4000-8000-000000000001",
       publicToken: "opaque-public-order-token-that-is-long-enough",
+      transactionId: "40000000-0000-4000-8000-000000000001",
+      returnPath: "/menu/restaurante-teste?table=4",
     });
   });
 
