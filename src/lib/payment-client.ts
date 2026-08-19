@@ -39,6 +39,20 @@ export type PendingCheckout = {
   returnPath: string;
 };
 
+export type PaymentEnvironment = "sandbox" | "production";
+
+export type MercadoPagoConnectionStatus = {
+  connected: boolean;
+  status: "active" | "disconnected" | "expired" | "invalid" | string;
+  externalAccountId?: string;
+  environment?: PaymentEnvironment;
+  tokenExpiresAt?: string | null;
+};
+
+export type MercadoPagoAuthorization = {
+  authorizationUrl: string;
+};
+
 const PENDING_CHECKOUT_STORAGE_KEY = "vapt_pending_checkout";
 
 function isSafeReturnPath(value: unknown): value is string {
@@ -104,6 +118,40 @@ export const paymentClient = {
       body: {
         paymentMethod,
       },
+    });
+  },
+};
+
+export const paymentConnectionClient = {
+  getMercadoPagoStatus(
+    restaurantId: string,
+    environment: PaymentEnvironment,
+  ) {
+    return vaptApiRequest<MercadoPagoConnectionStatus>({
+      method: "GET",
+      route: `/restaurants/${encodeURIComponent(restaurantId)}/payments/mercado-pago/status`,
+      query: { environment },
+    });
+  },
+
+  connectMercadoPago(
+    restaurantId: string,
+    environment: PaymentEnvironment,
+  ) {
+    return vaptApiRequest<MercadoPagoAuthorization>({
+      route: `/restaurants/${encodeURIComponent(restaurantId)}/payments/mercado-pago/connect`,
+      body: { environment },
+    });
+  },
+
+  disconnectMercadoPago(
+    restaurantId: string,
+    environment: PaymentEnvironment,
+  ) {
+    return vaptApiRequest<MercadoPagoConnectionStatus>({
+      method: "DELETE",
+      route: `/restaurants/${encodeURIComponent(restaurantId)}/payments/mercado-pago/connection`,
+      query: { environment },
     });
   },
 };
