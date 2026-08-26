@@ -88,7 +88,11 @@ export default function MercadoPagoSettingsCard({
     setConnecting(true);
     setActionMessage(null);
     try {
-      const result = await paymentConnectionClient.connectMercadoPago(restaurantId, environment);
+      const result = await paymentConnectionClient.connectMercadoPago(
+        restaurantId,
+        environment,
+        window.location.origin,
+      );
       onAuthorizationUrl(parseAuthorizationUrl(result.authorizationUrl));
     } catch {
       setActionMessage("Não foi possível iniciar a conexão");
@@ -120,9 +124,9 @@ export default function MercadoPagoSettingsCard({
               <CreditCard className="h-4 w-4" aria-hidden="true" />
             </div>
             <div className="space-y-1">
-              <CardTitle className="text-base">Pagamentos online</CardTitle>
+              <CardTitle className="text-base">Conectar Mercado Pago</CardTitle>
               <CardDescription>
-                Conecte a conta que receberá as vendas feitas pelo cardápio e pelo delivery.
+                Aceite pagamentos online e atualize seus pedidos automaticamente.
               </CardDescription>
             </div>
           </div>

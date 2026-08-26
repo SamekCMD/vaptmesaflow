@@ -29,11 +29,18 @@ describe("cliente de conexão de pagamentos", () => {
   it("inicia a conexão OAuth no ambiente configurado", async () => {
     mockedRequest.mockResolvedValue({ authorizationUrl: "https://auth.mercadopago.com" });
 
-    await paymentConnectionClient.connectMercadoPago("restaurant-1", "production");
+    await paymentConnectionClient.connectMercadoPago(
+      "restaurant-1",
+      "production",
+      "https://preview.vapt.test",
+    );
 
     expect(mockedRequest).toHaveBeenCalledWith({
       route: "/restaurants/restaurant-1/payments/mercado-pago/connect",
-      body: { environment: "production" },
+      body: {
+        environment: "production",
+        returnOrigin: "https://preview.vapt.test",
+      },
     });
   });
 

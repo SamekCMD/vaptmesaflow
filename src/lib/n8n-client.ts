@@ -48,21 +48,6 @@ type StripeCancelInput = {
   restaurantId: string;
 };
 
-type AsaasSetupInput = {
-  restaurantId: string;
-  asaasApiKey: string;
-  asaasEnvironment?: "production" | "sandbox";
-  asaasBillingDocument?: string;
-};
-
-type PixCreateInput = {
-  restaurantId: string;
-  orderId: string;
-  totalPrice?: number;
-  publicToken?: string;
-  public?: boolean;
-};
-
 type FeedbackInput = {
   order_id: string;
   restaurant_id: string;
@@ -226,67 +211,6 @@ export const n8nClient = {
           restaurantId,
         },
       }),
-  },
-
-  asaas: {
-    setup: (input: AsaasSetupInput) =>
-      request<{
-        valid: boolean;
-        webhookRegistered: boolean;
-        webhookId: string | null;
-        setupStatus: string;
-        message: string;
-      }>({
-        route: "billing/asaas/setup",
-        body: {
-          restaurantId: input.restaurantId,
-          asaasApiKey: input.asaasApiKey,
-          asaasEnvironment: input.asaasEnvironment ?? "production",
-          asaasBillingDocument: input.asaasBillingDocument?.trim() || undefined,
-        },
-      }),
-
-    getSetupStatus: (restaurantId: string) =>
-      request<{
-        restaurantId: string;
-        name: string;
-        setupStatus: string | null;
-        webhookId: string | null;
-        webhookUrl: string | null;
-        lastValidatedAt: string | null;
-        lastError: string | null;
-        hasApiKey: boolean;
-        asaasEnvironment: "production" | "sandbox" | null;
-      }>({
-        method: "GET",
-        route: "billing/asaas/setup/status",
-        query: {
-          restaurantId,
-        },
-      }),
-
-    createPix: async (input: PixCreateInput) => {
-      const token = await getAccessToken();
-      const shouldUsePublicRoute = input.public === true || !token;
-      const route = shouldUsePublicRoute ? "billing/asaas/pix/public" : "billing/asaas/pix";
-      return request<{
-        paymentId: string;
-        qrCodeBase64: string | null;
-        pixPayload: string | null;
-        expiration: string | null;
-        status: string;
-      }>({
-        route,
-        requireAuth: !shouldUsePublicRoute,
-        body: shouldUsePublicRoute
-          ? { restaurantId: input.restaurantId, orderId: input.orderId, publicToken: input.publicToken }
-          : {
-              restaurantId: input.restaurantId,
-              orderId: input.orderId,
-              totalPrice: Number(input.totalPrice ?? 0),
-            },
-      });
-    },
   },
 
   ingest: {

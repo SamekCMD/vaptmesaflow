@@ -13,6 +13,7 @@ import { Loader2 } from "lucide-react";
 import { SettingsFormSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
+import CurrentPaymentMethodsCard from "@/components/payments/CurrentPaymentMethodsCard";
 import MercadoPagoSettingsCard from "@/components/payments/MercadoPagoSettingsCard";
 import { ENV } from "@/lib/env";
 import { fetchOwnedRestaurant } from "@/lib/restaurants";
@@ -441,6 +442,8 @@ const SettingsPage = () => {
               </Button>
             </CardContent>
           </Card>
+
+          <CurrentPaymentMethodsCard />
 
           {restaurantId && (
             <MercadoPagoSettingsCard

@@ -137,10 +137,11 @@ export const paymentConnectionClient = {
   connectMercadoPago(
     restaurantId: string,
     environment: PaymentEnvironment,
+    returnOrigin: string,
   ) {
     return vaptApiRequest<MercadoPagoAuthorization>({
       route: `/restaurants/${encodeURIComponent(restaurantId)}/payments/mercado-pago/connect`,
-      body: { environment },
+      body: { environment, returnOrigin },
     });
   },
 

@@ -63,6 +63,7 @@ describe("configuração do Mercado Pago", () => {
       expect(mockedClient.connectMercadoPago).toHaveBeenCalledWith(
         "10000000-0000-4000-8000-000000000001",
         "sandbox",
+        window.location.origin,
       );
       expect(onAuthorizationUrl).toHaveBeenCalledWith(
         "https://auth.mercadopago.com/authorization?state=seguro",
