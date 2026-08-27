@@ -211,3 +211,16 @@ Nenhum item desta lista pode ser removido antes do piloto, reconciliacao e janel
 - formato historico de IDs/QR e volume de eventos ambiguos.
 - dashboards ou automacoes externas que leem diretamente os campos legados.
 
+## Inventario final da compatibilidade
+
+O arquivo `docs/asaas-decommission-inventory.sql` transforma as principais lacunas
+de dados em verificacoes somente leitura. Qualquer linha `BLOQUEADO` mantem ativos:
+
+- `POST /webhooks/asaas` na API;
+- o encaminhamento `asaas/webhook` no n8n;
+- os tokens por restaurante usados para validar eventos historicos.
+
+O inventario nao autoriza apagar historico. Mesmo depois de todas as verificacoes
+retornarem `OK`, a retirada deve ocorrer em duas entregas reversiveis: primeiro o
+receptor/encaminhamento; depois, em outra janela, credenciais e colunas legadas.
+

@@ -252,3 +252,18 @@ Regras:
 
 Rollback desliga provider/flag V2 e volta novos pedidos ao adapter legado, preservando todas as transacoes e eventos ja criados.
 
+### Criterio de saida da etapa 9
+
+O inventario `docs/asaas-decommission-inventory.sql` deve ser executado em producao
+sem alterar dados. A etapa 10 so pode comecar quando:
+
+- todas as verificacoes marcadas como bloqueadoras retornarem `OK`;
+- nenhum evento Asaas tiver sido recebido durante sete dias consecutivos;
+- a versao publicada do workflow n8n Asaas tiver sido conferida;
+- houver rollback documentado para reativar temporariamente o webhook;
+- Stripe de assinaturas e n8n Ingest estiverem explicitamente fora da remocao.
+
+Configuracoes e eventos historicos devem ser preservados ate o fim da janela. O
+primeiro corte da etapa 10 remove apenas o receptor e o encaminhamento Asaas; a
+limpeza de colunas e dados sensiveis ocorre em uma etapa posterior e separada.
+
