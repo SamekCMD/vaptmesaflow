@@ -14,6 +14,360 @@ export type Database = {
   }
   public: {
     Tables: {
+      payment_effect_outbox: {
+        Row: {
+          attempts: number
+          available_at: string
+          created_at: string
+          effect_type: string
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          locked_until: string | null
+          payload: Json
+          payment_transaction_id: string
+          processed_at: string | null
+          restaurant_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          available_at?: string
+          created_at?: string
+          effect_type: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          locked_until?: string | null
+          payload?: Json
+          payment_transaction_id: string
+          processed_at?: string | null
+          restaurant_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          available_at?: string
+          created_at?: string
+          effect_type?: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          locked_until?: string | null
+          payload?: Json
+          payment_transaction_id?: string
+          processed_at?: string | null
+          restaurant_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_effect_outbox_transaction_tenant_fkey"
+            columns: ["payment_transaction_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "payment_transactions"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      payment_oauth_states: {
+        Row: {
+          code_verifier_encrypted: string
+          consumed_at: string | null
+          created_at: string
+          credential_key_id: string
+          environment: string
+          expires_at: string
+          id: string
+          provider: string
+          redirect_uri: string
+          restaurant_id: string
+          state_hash: string
+        }
+        Insert: {
+          code_verifier_encrypted: string
+          consumed_at?: string | null
+          created_at?: string
+          credential_key_id: string
+          environment?: string
+          expires_at: string
+          id?: string
+          provider: string
+          redirect_uri: string
+          restaurant_id: string
+          state_hash: string
+        }
+        Update: {
+          code_verifier_encrypted?: string
+          consumed_at?: string | null
+          created_at?: string
+          credential_key_id?: string
+          environment?: string
+          expires_at?: string
+          id?: string
+          provider?: string
+          redirect_uri?: string
+          restaurant_id?: string
+          state_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_oauth_states_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_provider_accounts: {
+        Row: {
+          access_token_encrypted: string | null
+          capabilities: Json
+          connected_at: string | null
+          created_at: string
+          credential_key_id: string | null
+          disconnected_at: string | null
+          environment: string
+          external_account_id: string | null
+          id: string
+          last_error: string | null
+          provider: string
+          refresh_token_encrypted: string | null
+          restaurant_id: string
+          status: string
+          token_expires_at: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          capabilities?: Json
+          connected_at?: string | null
+          created_at?: string
+          credential_key_id?: string | null
+          disconnected_at?: string | null
+          environment?: string
+          external_account_id?: string | null
+          id?: string
+          last_error?: string | null
+          provider: string
+          refresh_token_encrypted?: string | null
+          restaurant_id: string
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          capabilities?: Json
+          connected_at?: string | null
+          created_at?: string
+          credential_key_id?: string | null
+          disconnected_at?: string | null
+          environment?: string
+          external_account_id?: string | null
+          id?: string
+          last_error?: string | null
+          provider?: string
+          refresh_token_encrypted?: string | null
+          restaurant_id?: string
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_provider_accounts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_transactions: {
+        Row: {
+          amount: number
+          cancelled_at: string | null
+          checkout_url: string | null
+          created_at: string
+          currency: string
+          expires_at: string | null
+          external_payment_id: string | null
+          failure_code: string | null
+          failure_message: string | null
+          id: string
+          idempotency_key: string
+          order_id: string
+          paid_at: string | null
+          manually_confirmed_by: string | null
+          payment_method: string | null
+          processing_mode: string
+          provider: string
+          provider_account_id: string | null
+          provider_payload: Json
+          provider_status: string | null
+          refunded_at: string | null
+          request_fingerprint: string
+          restaurant_id: string
+          status: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          amount: number
+          cancelled_at?: string | null
+          checkout_url?: string | null
+          created_at?: string
+          currency?: string
+          expires_at?: string | null
+          external_payment_id?: string | null
+          failure_code?: string | null
+          failure_message?: string | null
+          id?: string
+          idempotency_key: string
+          order_id: string
+          paid_at?: string | null
+          manually_confirmed_by?: string | null
+          payment_method?: string | null
+          processing_mode: string
+          provider: string
+          provider_account_id?: string | null
+          provider_payload?: Json
+          provider_status?: string | null
+          refunded_at?: string | null
+          request_fingerprint: string
+          restaurant_id: string
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          amount?: number
+          cancelled_at?: string | null
+          checkout_url?: string | null
+          created_at?: string
+          currency?: string
+          expires_at?: string | null
+          external_payment_id?: string | null
+          failure_code?: string | null
+          failure_message?: string | null
+          id?: string
+          idempotency_key?: string
+          order_id?: string
+          paid_at?: string | null
+          manually_confirmed_by?: string | null
+          payment_method?: string | null
+          processing_mode?: string
+          provider?: string
+          provider_account_id?: string | null
+          provider_payload?: Json
+          provider_status?: string | null
+          refunded_at?: string | null
+          request_fingerprint?: string
+          restaurant_id?: string
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_transactions_order_tenant_fkey"
+            columns: ["order_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "payment_transactions_provider_account_tenant_fkey"
+            columns: ["provider_account_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "payment_provider_accounts"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      payment_webhook_events: {
+        Row: {
+          attempts: number
+          created_at: string
+          event_type: string
+          external_event_id: string
+          id: string
+          last_error: string | null
+          payload: Json
+          payment_transaction_id: string | null
+          processed_at: string | null
+          provider: string
+          provider_account_id: string | null
+          received_at: string
+          restaurant_id: string | null
+          signature_valid: boolean | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          event_type: string
+          external_event_id: string
+          id?: string
+          last_error?: string | null
+          payload?: Json
+          payment_transaction_id?: string | null
+          processed_at?: string | null
+          provider: string
+          provider_account_id?: string | null
+          received_at?: string
+          restaurant_id?: string | null
+          signature_valid?: boolean | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          event_type?: string
+          external_event_id?: string
+          id?: string
+          last_error?: string | null
+          payload?: Json
+          payment_transaction_id?: string | null
+          processed_at?: string | null
+          provider?: string
+          provider_account_id?: string | null
+          received_at?: string
+          restaurant_id?: string | null
+          signature_valid?: boolean | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_webhook_events_provider_account_tenant_fkey"
+            columns: ["provider_account_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "payment_provider_accounts"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "payment_webhook_events_transaction_tenant_fkey"
+            columns: ["payment_transaction_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "payment_transactions"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
       menu_item_variations: {
         Row: {
           created_at: string
@@ -196,7 +550,11 @@ export type Database = {
           display_id: number | null
           id: string
           order_channel: string
+          payment_confirmed_at: string | null
+          payment_method: string | null
+          payment_processing_mode: string | null
           payment_status: string | null
+          payment_transaction_id: string | null
           restaurant_id: string
           status: string
           table_number: string | null
@@ -209,7 +567,11 @@ export type Database = {
           display_id?: number | null
           id?: string
           order_channel?: string
+          payment_confirmed_at?: string | null
+          payment_method?: string | null
+          payment_processing_mode?: string | null
           payment_status?: string | null
+          payment_transaction_id?: string | null
           restaurant_id: string
           status?: string
           table_number?: string | null
@@ -222,7 +584,11 @@ export type Database = {
           display_id?: number | null
           id?: string
           order_channel?: string
+          payment_confirmed_at?: string | null
+          payment_method?: string | null
+          payment_processing_mode?: string | null
           payment_status?: string | null
+          payment_transaction_id?: string | null
           restaurant_id?: string
           status?: string
           table_number?: string | null
@@ -244,6 +610,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "table_sessions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_payment_transaction_tenant_fkey"
+            columns: ["payment_transaction_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "payment_transactions"
+            referencedColumns: ["id", "restaurant_id"]
           },
         ]
       }
@@ -377,7 +750,61 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      apply_payment_transition: {
+        Args: {
+          p_effect_types?: string[] | null
+          p_expected_version: number
+          p_external_payment_id?: string | null
+          p_new_status: string
+          p_provider_status?: string | null
+          p_transaction_id: string
+          p_transitioned_at?: string
+        }
+        Returns: {
+          amount: number
+          cancelled_at: string | null
+          checkout_url: string | null
+          created_at: string
+          currency: string
+          expires_at: string | null
+          external_payment_id: string | null
+          failure_code: string | null
+          failure_message: string | null
+          id: string
+          idempotency_key: string
+          order_id: string
+          paid_at: string | null
+          manually_confirmed_by: string | null
+          payment_method: string | null
+          processing_mode: string
+          provider: string
+          provider_account_id: string | null
+          provider_payload: Json
+          provider_status: string | null
+          refunded_at: string | null
+          request_fingerprint: string
+          restaurant_id: string
+          status: string
+          updated_at: string
+          version: number
+        }
+      }
+      get_public_restaurant_by_slug: {
+        Args: { p_slug: string }
+        Returns: {
+          delivery_enabled: boolean
+          font_family: string
+          id: string
+          local_enabled: boolean
+          logo_url: string | null
+          max_pending_orders: number
+          name: string
+          payment_mode: string
+          primary_color: string
+          secondary_color: string
+          slug: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

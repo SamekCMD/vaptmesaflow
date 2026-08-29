@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useRef } from "react";
 import { useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, ChevronUp, Minus, Plus, RotateCcw, Store, Truck } from "lucide-react";
@@ -9,6 +10,16 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { fontFamilyMap, type RestaurantConfig } from "@/lib/restaurant-config";
 import { PublicMenuSkeleton } from "@/components/skeletons/DashboardSkeletons";
+import { createOrderIdempotencyKey, orderClient } from "@/lib/order-client";
+import { parseHostedCheckoutUrl } from "@/lib/hosted-checkout-url";
+import {
+  clearPendingCheckout,
+  paymentClient,
+  readPendingCheckout,
+  savePendingCheckout,
+  type PendingCheckout,
+} from "@/lib/payment-client";
+import { VaptApiClientError } from "@/lib/vapt-api-client";
 
 type RestaurantDeliveryRow = {
   id: string;
@@ -44,7 +55,33 @@ type CheckoutForm = {
   neighborhood: string;
 };
 
-type DeliveryOrderStatus = "pending" | "preparing" | "ready" | "out_for_delivery" | "delivered" | "cancelled";
+const hasTrimmedLength = (value: string, min: number, max: number) => {
+  const length = value.trim().length;
+  return length >= min && length <= max;
+};
+
+const isDeliveryAddressDraft = (value: unknown): value is CheckoutForm => {
+  if (!value || typeof value !== "object") return false;
+  const address = value as Partial<CheckoutForm>;
+
+  return (
+    typeof address.customerName === "string" &&
+    typeof address.phone === "string" &&
+    typeof address.street === "string" &&
+    typeof address.number === "string" &&
+    typeof address.neighborhood === "string"
+  );
+};
+
+const isValidDeliveryAddress = (address: CheckoutForm) =>
+  hasTrimmedLength(address.customerName, 2, 120) &&
+  hasTrimmedLength(address.phone, 8, 30) &&
+  hasTrimmedLength(address.street, 2, 180) &&
+  hasTrimmedLength(address.number, 1, 30) &&
+  hasTrimmedLength(address.neighborhood, 2, 120);
+
+type DeliveryOrderStatus = "waiting_payment" | "paid" | "pending" | "preparing" | "ready" | "out_for_delivery" | "delivered" | "cancelled";
+type DeliveryPaymentMode = "online" | "on_delivery";
 
 type SessionDeliveryOrderItem = {
   itemId: string;
@@ -54,6 +91,7 @@ type SessionDeliveryOrderItem = {
 };
 
 type SessionDeliveryOrderSnapshot = {
+  publicToken: string;
   id: string;
   displayId: number | null;
   status: DeliveryOrderStatus;
@@ -69,6 +107,8 @@ const DELIVERY_RECENT_ORDERS_STORAGE_KEY = "vapt_delivery_recent_orders";
 const DELIVERED_RETENTION_MS = 30 * 60 * 1000;
 
 const statusMeta: Record<DeliveryOrderStatus, { label: string; step: number }> = {
+  waiting_payment: { label: "Aguardando pagamento", step: 0 },
+  paid: { label: "Pagamento confirmado", step: 1 },
   pending: { label: "Pedido recebido", step: 1 },
   preparing: { label: "Em preparo", step: 2 },
   ready: { label: "Saiu para entrega", step: 3 },
@@ -78,6 +118,8 @@ const statusMeta: Record<DeliveryOrderStatus, { label: string; step: number }> =
 };
 
 const statusColorMap: Record<DeliveryOrderStatus, string> = {
+  waiting_payment: "#d97706",
+  paid: "#059669",
   pending: "#f59e0b",
   preparing: "#3b82f6",
   ready: "#6366f1",
@@ -88,6 +130,8 @@ const statusColorMap: Record<DeliveryOrderStatus, string> = {
 
 const normalizeDeliveryStatus = (status: string | null | undefined): DeliveryOrderStatus => {
   const normalized = (status || "").toLowerCase();
+  if (normalized === "waiting_payment") return "waiting_payment";
+  if (normalized === "paid") return "paid";
   if (normalized === "preparing") return "preparing";
   if (normalized === "ready") return "ready";
   if (normalized === "out_for_delivery") return "out_for_delivery";
@@ -105,8 +149,10 @@ const PublicDelivery = () => {
   const [cart, setCart] = useState<Record<string, CartItem>>({});
   const [submitting, setSubmitting] = useState(false);
   const [lastOrderCode, setLastOrderCode] = useState<string | null>(null);
+  const [lastOrderToken, setLastOrderToken] = useState<string | null>(null);
   const [lastOrderId, setLastOrderId] = useState<string | null>(null);
   const [lastOrderStatus, setLastOrderStatus] = useState<DeliveryOrderStatus | null>(null);
+  const [pendingCheckout, setPendingCheckout] = useState<PendingCheckout | null>(readPendingCheckout);
   const [recentOrders, setRecentOrders] = useState<SessionDeliveryOrderSnapshot[]>([]);
   const [statusExpanded, setStatusExpanded] = useState(false);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
@@ -118,6 +164,7 @@ const PublicDelivery = () => {
     number: "",
     neighborhood: "",
   });
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   const pruneDeliveredOrders = (orders: SessionDeliveryOrderSnapshot[]) => {
     const now = Date.now();
@@ -136,12 +183,10 @@ const PublicDelivery = () => {
       }
 
       const { data: restData, error: restError } = await supabase
-        .from("restaurants")
-        .select("id, name, slug, logo_url, primary_color, secondary_color, font_family, delivery_enabled")
-        .eq("slug", slug)
-        .single();
+        .rpc("get_public_restaurant_by_slug", { p_slug: slug })
+        .maybeSingle();
 
-      if (restError || !restData) {
+      if (restError || !restData || !restData.delivery_enabled) {
         setRestaurant(null);
         setLoading(false);
         return;
@@ -177,10 +222,10 @@ const PublicDelivery = () => {
     const rawAddress = localStorage.getItem(`${DELIVERY_ADDRESS_STORAGE_KEY}_${restaurant.id}`);
     if (rawAddress) {
       try {
-        const parsed = JSON.parse(rawAddress) as CheckoutForm;
-        if (parsed.customerName && parsed.phone && parsed.street && parsed.number && parsed.neighborhood) {
-          setSavedAddress(parsed);
+        const parsed: unknown = JSON.parse(rawAddress);
+        if (isDeliveryAddressDraft(parsed)) {
           setCheckoutForm(parsed);
+          setSavedAddress(isValidDeliveryAddress(parsed) ? parsed : null);
         }
       } catch {
         // no-op
@@ -192,11 +237,14 @@ const PublicDelivery = () => {
       try {
         const parsed = JSON.parse(rawOrders) as SessionDeliveryOrderSnapshot[];
         if (Array.isArray(parsed)) {
-          const cleaned = pruneDeliveredOrders(parsed);
+          const cleaned = pruneDeliveredOrders(
+            parsed.filter((order) => typeof order.publicToken === "string" && order.publicToken.length > 0),
+          );
           localStorage.setItem(`${DELIVERY_RECENT_ORDERS_STORAGE_KEY}_${restaurant.id}`, JSON.stringify(cleaned));
           setRecentOrders(cleaned);
           if (cleaned[0]) {
             setLastOrderId(cleaned[0].id);
+            setLastOrderToken(cleaned[0].publicToken);
             setLastOrderStatus(cleaned[0].status);
             setLastOrderCode(cleaned[0].displayId ? `#${cleaned[0].displayId}` : "recebido");
           }
@@ -208,34 +256,34 @@ const PublicDelivery = () => {
   }, [restaurant?.id]);
 
   useEffect(() => {
-    if (!restaurant?.id || !lastOrderId) return;
+    if (!restaurant?.id || !lastOrderId || !lastOrderToken) return;
 
     let active = true;
     const poll = async () => {
-      const { data } = await supabase
-        .from("orders")
-        .select("id, display_id, status")
-        .eq("id", lastOrderId)
-        .eq("restaurant_id", restaurant.id)
-        .single();
+      const data = await orderClient.get(lastOrderId, lastOrderToken).catch(() => null);
+      if (!active || !data?.orderId) return;
 
-      if (!active || !data?.id) return;
       const normalized = normalizeDeliveryStatus(data.status);
       setLastOrderStatus(normalized);
-      setLastOrderCode(data.display_id ? `#${data.display_id}` : "recebido");
+      setLastOrderCode(data.displayId ? `#${data.displayId}` : "recebido");
+
+      if (normalized !== "waiting_payment" && pendingCheckout?.orderId === data.orderId) {
+        clearPendingCheckout();
+        setPendingCheckout(null);
+      }
 
       setRecentOrders((current) => {
         const updated = current.map((order) => {
-          if (order.id !== data.id) return order;
+          if (order.id !== data.orderId) return order;
           if (normalized === "delivered" && !order.deliveredAt) {
             return {
               ...order,
-              displayId: data.display_id ?? order.displayId,
+              displayId: data.displayId ?? order.displayId,
               status: normalized,
               deliveredAt: new Date().toISOString(),
             };
           }
-          return { ...order, displayId: data.display_id ?? order.displayId, status: normalized };
+          return { ...order, displayId: data.displayId ?? order.displayId, status: normalized };
         });
 
         const cleaned = pruneDeliveredOrders(updated);
@@ -243,6 +291,7 @@ const PublicDelivery = () => {
 
         if (cleaned.length === 0) {
           setLastOrderId(null);
+          setLastOrderToken(null);
           setLastOrderCode(null);
           setLastOrderStatus(null);
         }
@@ -250,13 +299,13 @@ const PublicDelivery = () => {
       });
     };
 
-    poll();
-    const intervalId = window.setInterval(poll, 4000);
+    void poll();
+    const intervalId = window.setInterval(() => void poll(), 4000);
     return () => {
       active = false;
       window.clearInterval(intervalId);
     };
-  }, [lastOrderId, restaurant?.id]);
+  }, [lastOrderId, lastOrderToken, pendingCheckout?.orderId, restaurant?.id]);
 
   const categories = useMemo(() => Array.from(new Set(items.map((item) => item.category))), [items]);
   const filteredItems = useMemo(() => items.filter((item) => item.category === activeCategory), [items, activeCategory]);
@@ -265,6 +314,11 @@ const PublicDelivery = () => {
   const cartItemsCount = useMemo(() => cartItems.reduce((acc, current) => acc + current.quantity, 0), [cartItems]);
   const primaryColor = restaurant?.primary_color || DEFAULT_PRIMARY;
   const fontFamily = restaurant?.font_family || "modern";
+  const resumableCheckout =
+    lastOrderStatus === "waiting_payment" &&
+    pendingCheckout?.orderId === lastOrderId
+      ? pendingCheckout
+      : null;
 
   const addToCart = (item: DeliveryMenuItem) => {
     setCart((current) => {
@@ -294,22 +348,6 @@ const PublicDelivery = () => {
   };
 
   const saveAddress = () => {
-    if (
-      !checkoutForm.customerName.trim() ||
-      !checkoutForm.phone.trim() ||
-      !checkoutForm.street.trim() ||
-      !checkoutForm.number.trim() ||
-      !checkoutForm.neighborhood.trim()
-    ) {
-      toast({
-        title: "Dados incompletos",
-        description: "Preencha nome, telefone, rua, número e bairro.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!restaurant?.id) return;
-
     const normalized: CheckoutForm = {
       customerName: checkoutForm.customerName.trim(),
       phone: checkoutForm.phone.trim(),
@@ -317,6 +355,16 @@ const PublicDelivery = () => {
       number: checkoutForm.number.trim(),
       neighborhood: checkoutForm.neighborhood.trim(),
     };
+
+    if (!isValidDeliveryAddress(normalized)) {
+      toast({
+        title: "Revise o endereço",
+        description: "Informe um telefone com pelo menos 8 caracteres e confira os demais campos.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!restaurant?.id) return;
 
     localStorage.setItem(`${DELIVERY_ADDRESS_STORAGE_KEY}_${restaurant.id}`, JSON.stringify(normalized));
     setSavedAddress(normalized);
@@ -329,11 +377,13 @@ const PublicDelivery = () => {
       toast({ title: "Carrinho vazio", description: "Adicione ao menos 1 item.", variant: "destructive" });
       return false;
     }
-    if (!savedAddress) {
+    if (!savedAddress || !isValidDeliveryAddress(savedAddress)) {
+      if (savedAddress) setCheckoutForm(savedAddress);
+      setSavedAddress(null);
       setAddressModalOpen(true);
       toast({
-        title: "Endereço pendente",
-        description: "Defina seu endereço para confirmar o pedido.",
+        title: "Revise o endereço",
+        description: "Defina um endereço válido para confirmar o pedido.",
         variant: "destructive",
       });
       return false;
@@ -341,84 +391,98 @@ const PublicDelivery = () => {
     return true;
   };
 
-  const submitOrder = async () => {
+  const submitOrder = async (paymentMode: DeliveryPaymentMode) => {
     if (!restaurant || submitting) return;
     if (!validateCheckout() || !savedAddress) return;
     setSubmitting(true);
 
-    const deliveryNotes = `Delivery | Nome: ${savedAddress.customerName} | Telefone: ${savedAddress.phone} | Endereço: ${savedAddress.street}, ${savedAddress.number} - ${savedAddress.neighborhood}`;
+    try {
+      idempotencyKeyRef.current ??= createOrderIdempotencyKey();
+      const order = await orderClient.create(
+        {
+          restaurantSlug: restaurant.slug,
+          channel: "delivery",
+          items: cartItems.map((cartItem) => ({
+            menuItemId: cartItem.item.id,
+            quantity: cartItem.quantity,
+          })),
+          delivery: {
+            name: savedAddress.customerName,
+            phone: savedAddress.phone,
+            street: savedAddress.street,
+            number: savedAddress.number,
+            neighborhood: savedAddress.neighborhood,
+            paymentMode,
+          },
+        },
+        idempotencyKeyRef.current,
+      );
 
-    const { data: orderData, error: orderError } = await supabase
-      .from("orders")
-      .insert({
-        restaurant_id: restaurant.id,
-        total_price: cartTotal,
-        status: "pending",
-        order_channel: "delivery",
-        table_number: null,
-        table_session_id: null,
-      })
-      .select("id, display_id")
-      .single();
+      const snapshot: SessionDeliveryOrderSnapshot = {
+        id: order.orderId,
+        publicToken: order.publicToken,
+        displayId: order.displayId,
+        status: normalizeDeliveryStatus(order.status),
+        deliveredAt: null,
+        total: Number(order.totalPrice),
+        createdAt: new Date().toISOString(),
+        items: cartItems.map((cartItem) => ({
+          itemId: cartItem.item.id,
+          name: cartItem.item.name,
+          price: cartItem.item.price,
+          quantity: cartItem.quantity,
+        })),
+      };
 
-    if (orderError || !orderData) {
+      setRecentOrders((current) => {
+        const next = [snapshot, ...current.filter((saved) => saved.id !== snapshot.id)].slice(0, 4);
+        localStorage.setItem(`${DELIVERY_RECENT_ORDERS_STORAGE_KEY}_${restaurant.id}`, JSON.stringify(next));
+        return next;
+      });
+
+      setLastOrderId(order.orderId);
+      setLastOrderToken(order.publicToken);
+      setLastOrderStatus(normalizeDeliveryStatus(order.status));
+      setLastOrderCode(order.displayId ? `#${order.displayId}` : "recebido");
+
+      if (paymentMode === "online") {
+        const checkout = await paymentClient.startHosted(
+          order.orderId,
+          order.publicToken,
+          `checkout-${idempotencyKeyRef.current}`,
+        );
+        const checkoutUrl = parseHostedCheckoutUrl(checkout.checkoutUrl);
+
+        const pending: PendingCheckout = {
+          orderId: order.orderId,
+          publicToken: order.publicToken,
+          transactionId: checkout.transactionId,
+          returnPath: `${window.location.pathname}${window.location.search}`,
+          checkoutUrl: checkoutUrl.toString(),
+          expiresAt: checkout.expiresAt,
+        };
+        savePendingCheckout(pending);
+        setPendingCheckout(pending);
+        idempotencyKeyRef.current = null;
+        window.location.assign(checkoutUrl.toString());
+        return;
+      }
+
+      idempotencyKeyRef.current = null;
+      setCart({});
+      toast({
+        title: "Pedido enviado",
+        description: "O pagamento será feito na entrega. Acompanhe o preparo por aqui.",
+      });
+    } catch (error: unknown) {
       toast({
         title: "Erro ao enviar pedido",
-        description: "Não foi possível finalizar agora. Tente novamente.",
+        description: error instanceof VaptApiClientError ? error.message : "Não foi possível finalizar agora. Tente novamente.",
         variant: "destructive",
       });
+    } finally {
       setSubmitting(false);
-      return;
     }
-
-    const orderItemsPayload = cartItems.map((cartItem) => ({
-      order_id: orderData.id,
-      product_id: cartItem.item.id,
-      product_name: cartItem.item.name,
-      quantity: cartItem.quantity,
-      unit_price: cartItem.item.price,
-      notes: deliveryNotes,
-    }));
-
-    const { error: itemsError } = await supabase.from("order_items").insert(orderItemsPayload);
-    if (itemsError) {
-      await supabase.from("orders").delete().eq("id", orderData.id);
-      toast({
-        title: "Erro ao salvar itens",
-        description: "O pedido não foi concluído. Tente novamente.",
-        variant: "destructive",
-      });
-      setSubmitting(false);
-      return;
-    }
-
-    const snapshot: SessionDeliveryOrderSnapshot = {
-      id: orderData.id,
-      displayId: orderData.display_id ?? null,
-      status: "pending",
-      deliveredAt: null,
-      total: cartTotal,
-      createdAt: new Date().toISOString(),
-      items: cartItems.map((ci) => ({
-        itemId: ci.item.id,
-        name: ci.item.name,
-        price: ci.item.price,
-        quantity: ci.quantity,
-      })),
-    };
-
-    setRecentOrders((current) => {
-      const next = [snapshot, ...current].slice(0, 4);
-      localStorage.setItem(`${DELIVERY_RECENT_ORDERS_STORAGE_KEY}_${restaurant.id}`, JSON.stringify(next));
-      return next;
-    });
-
-    setLastOrderId(orderData.id);
-    setLastOrderStatus("pending");
-    setLastOrderCode(orderData.display_id ? `#${orderData.display_id}` : "recebido");
-    setCart({});
-    toast({ title: "Pedido enviado", description: "Recebemos seu pedido. Acompanhe o status abaixo." });
-    setSubmitting(false);
   };
 
   const reorder = (snapshot: SessionDeliveryOrderSnapshot) => {
@@ -595,9 +659,15 @@ const PublicDelivery = () => {
               )}
             </div>
 
-            <Button type="button" className="mt-5 hidden h-11 w-full rounded-xl text-sm font-semibold lg:inline-flex" style={{ backgroundColor: primaryColor }} onClick={submitOrder} disabled={submitting}>
-              {submitting ? "Enviando pedido..." : "Confirmar pedido"}
-            </Button>
+            <div className="mt-5 hidden grid-cols-1 gap-2 lg:grid">
+              <Button type="button" className="h-11 w-full rounded-xl text-sm font-semibold" style={{ backgroundColor: primaryColor }} onClick={() => submitOrder("online")} disabled={submitting}>
+                {submitting ? "Abrindo pagamento..." : "Pagar online"}
+              </Button>
+              <Button type="button" variant="outline" className="h-11 w-full rounded-xl text-sm font-semibold" onClick={() => submitOrder("on_delivery")} disabled={submitting}>
+                Pagar na entrega
+              </Button>
+              <p className="text-center text-[11px] leading-4 text-muted-foreground">No pagamento online, o pedido só entra em preparo após a confirmação.</p>
+            </div>
 
             {lastOrderCode && lastOrderStatus && (
               <div className="mt-4 rounded-xl border border-border bg-background p-3">
@@ -621,6 +691,11 @@ const PublicDelivery = () => {
                     </motion.div>
                   )}
                 </AnimatePresence>
+                {resumableCheckout && (
+                  <Button asChild className="mt-4 h-10 w-full rounded-lg text-sm font-semibold">
+                    <a href={resumableCheckout.checkoutUrl}>Continuar pagamento</a>
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -651,13 +726,16 @@ const PublicDelivery = () => {
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
-        <div className="mx-auto flex max-w-6xl items-center gap-3">
+        <div className="mx-auto flex max-w-6xl items-center gap-2">
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs text-muted-foreground">{cartItemsCount} itens</p>
             <p className="truncate text-sm font-semibold text-foreground">Total: R$ {cartTotal.toFixed(2).replace(".", ",")}</p>
           </div>
-          <Button type="button" className="h-11 min-w-[150px] rounded-xl text-sm font-semibold" style={{ backgroundColor: primaryColor }} onClick={submitOrder} disabled={submitting}>
-            {submitting ? "Enviando..." : "Confirmar pedido"}
+          <Button type="button" variant="outline" className="h-11 shrink-0 rounded-xl px-3 text-xs font-semibold" aria-label="Pagar na entrega" onClick={() => submitOrder("on_delivery")} disabled={submitting}>
+            Na entrega
+          </Button>
+          <Button type="button" className="h-11 min-w-[128px] shrink-0 rounded-xl px-4 text-sm font-semibold" aria-label="Continuar para pagamento online" style={{ backgroundColor: primaryColor }} onClick={() => submitOrder("online")} disabled={submitting}>
+            {submitting ? "Abrindo..." : "Pagar online"}
           </Button>
         </div>
       </div>
@@ -672,24 +750,24 @@ const PublicDelivery = () => {
               <div className="mt-4 space-y-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="delivery-name">Nome</Label>
-                  <Input id="delivery-name" value={checkoutForm.customerName} onChange={(event) => updateCheckoutField("customerName", event.target.value)} placeholder="Seu nome" className="h-11" />
+                  <Input id="delivery-name" value={checkoutForm.customerName} onChange={(event) => updateCheckoutField("customerName", event.target.value)} placeholder="Seu nome" minLength={2} maxLength={120} className="h-11" />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="delivery-phone">Telefone</Label>
-                  <Input id="delivery-phone" value={checkoutForm.phone} onChange={(event) => updateCheckoutField("phone", event.target.value)} placeholder="(00) 00000-0000" className="h-11" />
+                  <Input id="delivery-phone" value={checkoutForm.phone} onChange={(event) => updateCheckoutField("phone", event.target.value)} placeholder="(00) 00000-0000" inputMode="tel" minLength={8} maxLength={30} className="h-11" />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="delivery-street">Rua</Label>
-                  <Input id="delivery-street" value={checkoutForm.street} onChange={(event) => updateCheckoutField("street", event.target.value)} placeholder="Nome da rua" className="h-11" />
+                  <Input id="delivery-street" value={checkoutForm.street} onChange={(event) => updateCheckoutField("street", event.target.value)} placeholder="Nome da rua" minLength={2} maxLength={180} className="h-11" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="delivery-number">Número</Label>
-                    <Input id="delivery-number" value={checkoutForm.number} onChange={(event) => updateCheckoutField("number", event.target.value)} placeholder="123" className="h-11" />
+                    <Input id="delivery-number" value={checkoutForm.number} onChange={(event) => updateCheckoutField("number", event.target.value)} placeholder="123" maxLength={30} className="h-11" />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="delivery-neighborhood">Bairro</Label>
-                    <Input id="delivery-neighborhood" value={checkoutForm.neighborhood} onChange={(event) => updateCheckoutField("neighborhood", event.target.value)} placeholder="Centro" className="h-11" />
+                    <Input id="delivery-neighborhood" value={checkoutForm.neighborhood} onChange={(event) => updateCheckoutField("neighborhood", event.target.value)} placeholder="Centro" minLength={2} maxLength={120} className="h-11" />
                   </div>
                 </div>
               </div>

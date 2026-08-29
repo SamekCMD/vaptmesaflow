@@ -14,6 +14,9 @@ import { ArrowRightLeft, Calculator, Loader2, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 import type { TableSession } from "./TableCard";
+import ManualPaymentDialog, {
+  type ManualPaymentOrder,
+} from "@/components/payments/ManualPaymentDialog";
 
 interface OrderItem {
   id: string;
@@ -29,6 +32,8 @@ interface Order {
   total_price: number;
   status: string;
   created_at: string;
+  payment_status: string | null;
+  payment_confirmed_at: string | null;
   order_items: OrderItem[];
 }
 
@@ -48,10 +53,23 @@ const statusLabel: Record<string, string> = {
   delivered: "Entregue",
 };
 
+const paidStatuses = new Set([
+  "paid",
+  "confirmed",
+  "received",
+  "received_in_cash",
+  "payment_confirmed",
+  "payment_received",
+]);
+
+const isOrderPaid = (order: Order) => order.payment_confirmed_at !== null ||
+  paidStatuses.has(order.payment_status?.trim().toLowerCase() ?? "");
+
 const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSessionModalProps) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [splitBy, setSplitBy] = useState(1);
   const [newTableNumber, setNewTableNumber] = useState("");
   const [transferring, setTransferring] = useState(false);
@@ -61,11 +79,12 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
     setLoading(true);
     setSplitBy(1);
     setNewTableNumber("");
+    setPaymentDialogOpen(false);
 
     const fetchOrders = async () => {
       const { data } = await supabase
         .from("orders")
-        .select("id, display_id, total_price, status, created_at, order_items(*)")
+        .select("id, display_id, total_price, status, created_at, payment_status, payment_confirmed_at, order_items(*)")
         .eq("table_session_id", session.id)
         .order("created_at", { ascending: true });
 
@@ -80,7 +99,7 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
   const total = orders.reduce((s, o) => s + Number(o.total_price), 0);
   const perPerson = splitBy > 0 ? total / splitBy : total;
 
-  const handleClose = async () => {
+  const closeSessionAfterPayment = async () => {
     setClosing(true);
     try {
       const closedAt = new Date().toISOString();
@@ -89,7 +108,6 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
         .from("orders")
         .update({
           status: "delivered",
-          payment_status: "RECEIVED_IN_CASH",
           updated_at: closedAt,
         })
         .eq("table_session_id", session.id)
@@ -113,6 +131,18 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
       setClosing(false);
     }
   };
+
+  const handleClose = () => {
+    if (orders.every(isOrderPaid)) {
+      void closeSessionAfterPayment();
+      return;
+    }
+    setPaymentDialogOpen(true);
+  };
+
+  const manualPaymentOrders: ManualPaymentOrder[] = orders.map((order) => ({
+    id: order.id, displayId: order.display_id, totalPrice: Number(order.total_price), paymentStatus: order.payment_status, paymentConfirmedAt: order.payment_confirmed_at,
+  }));
 
   const handleTransfer = async () => {
     if (!newTableNumber.trim()) return;
@@ -142,6 +172,7 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -245,6 +276,22 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <ManualPaymentDialog
+      open={paymentDialogOpen}
+      onOpenChange={setPaymentDialogOpen}
+      orders={manualPaymentOrders}
+      onConfirmed={async () => {
+        const confirmedAt = new Date().toISOString();
+        setOrders((current) => current.map((order) => isOrderPaid(order) ? order : {
+          ...order,
+          payment_status: "paid",
+          payment_confirmed_at: confirmedAt,
+        }));
+        setPaymentDialogOpen(false);
+        await closeSessionAfterPayment();
+      }}
+    />
+  </>
   );
 };
 

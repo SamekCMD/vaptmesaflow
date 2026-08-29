@@ -1,20 +1,21 @@
 ﻿import { useState, useEffect } from "react";
+import { useCallback } from "react";
 import {
   Drawer,
+  DrawerClose,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
-  DrawerClose,
 } from "@/components/ui/drawer";
 import { Badge } from "@/components/ui/badge";
-import { X, Clock, Package } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { supabase } from "@/lib/supabase";
+import { Clock, Package, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import InlineOrderRatingCard from "@/components/menu/InlineOrderRatingCard";
+import { orderClient, readStoredOrderAccess, type PublicOrder } from "@/lib/order-client";
 
 interface OrderData {
   id: string;
-  display_id: number;
+  display_id: number | null;
   table_number: string | null;
   total_price: number;
   status: string;
@@ -40,99 +41,88 @@ const statusConfig: Record<string, { label: string; color: string }> = {
   delivered: { label: "Entregue", color: "bg-gray-400" },
 };
 
-const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor, tableSessionId, paymentMode }: MyOrdersDrawerProps) => {
+function mapPublicOrder(order: PublicOrder): OrderData {
+  return {
+    id: order.orderId,
+    display_id: order.displayId,
+    table_number: order.tableNumber,
+    total_price: Number(order.totalPrice),
+    status: order.status,
+    created_at: order.createdAt,
+    order_items: order.items.map((item) => ({
+      product_name: item.name,
+      quantity: item.quantity,
+      unit_price: Number(item.unitPrice),
+      notes: item.notes ?? "",
+    })),
+  };
+}
+
+const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor }: MyOrdersDrawerProps) => {
   const [orders, setOrders] = useState<OrderData[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const getStoredOrderIds = (): string[] => {
-    try {
-      const stored = localStorage.getItem(`orders_${restaurantId}`);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  };
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     setLoading(true);
+    const stored = readStoredOrderAccess(restaurantId);
 
-    if (paymentMode === "open_tab" && tableSessionId) {
-      // Fetch ALL orders from this session (including delivered)
-      const { data } = await supabase
-        .from("orders")
-        .select("*, order_items(*)")
-        .eq("table_session_id", tableSessionId)
-        .order("created_at", { ascending: false });
-
-      if (data) setOrders(data as unknown as OrderData[]);
-    } else {
-      const ids = getStoredOrderIds();
-      if (ids.length === 0) {
-        setOrders([]);
-        setLoading(false);
-        return;
-      }
-
-      const { data } = await supabase
-        .from("orders")
-        .select("*, order_items(*)")
-        .in("id", ids)
-        .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-        .order("created_at", { ascending: false });
-
-      if (data) setOrders(data as unknown as OrderData[]);
+    try {
+      const loaded = await Promise.all(
+        stored.map((access) =>
+          orderClient.get(access.orderId, access.publicToken).catch(() => null),
+        ),
+      );
+      setOrders(
+        loaded
+          .filter((order): order is PublicOrder => Boolean(order))
+          .map(mapPublicOrder)
+          .filter((order) => Date.now() - new Date(order.created_at).getTime() <= 24 * 60 * 60 * 1000)
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+      );
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
-  };
+  }, [restaurantId]);
 
   useEffect(() => {
-    if (open) fetchOrders();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+    if (open) void fetchOrders();
+  }, [fetchOrders, open]);
 
   useEffect(() => {
     if (!open) return;
-    const interval = setInterval(fetchOrders, 8000);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+    const interval = window.setInterval(() => void fetchOrders(), 8000);
+    return () => window.clearInterval(interval);
+  }, [fetchOrders, open]);
 
   const getElapsed = (dateStr: string) => {
     const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
-    return `${mins} min`;
+    return `${Math.max(0, mins)} min`;
   };
 
-  // Separate active vs delivered orders
-  const activeOrders = orders.filter((o) => !["delivered"].includes(o.status));
-  const deliveredOrders = orders.filter((o) => o.status === "delivered");
+  const activeOrders = orders.filter((order) => order.status !== "delivered");
+  const deliveredOrders = orders.filter((order) => order.status === "delivered");
+  const deviceTotal = orders.reduce((sum, order) => sum + order.total_price, 0);
 
-  // Session total (all orders)
-  const sessionTotal = orders.reduce((sum, o) => sum + Number(o.total_price), 0);
-
-  // Active comanda total
-  const comandaTotal = activeOrders.reduce((sum, o) => sum + Number(o.total_price), 0);
-
-  const renderOrderCard = (order: OrderData, i: number) => {
-    const sc = statusConfig[order.status] || statusConfig.pending;
+  const renderOrderCard = (order: OrderData, index: number) => {
+    const status = statusConfig[order.status] || statusConfig.pending;
     return (
       <motion.div
         key={order.id}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: i * 0.05 }}
-        className="p-4 rounded-xl bg-card border border-border space-y-2"
+        transition={{ delay: index * 0.05 }}
+        className="space-y-2 rounded-xl border border-border bg-card p-4"
       >
         <div className="flex items-center justify-between">
-          <span className="font-bold text-sm">Pedido #{order.display_id}</span>
-          <Badge className={`${sc.color} text-white text-xs`}>{sc.label}</Badge>
+          <span className="text-sm font-bold">Pedido #{order.display_id ?? "-"}</span>
+          <Badge className={`${status.color} text-xs text-white`}>{status.label}</Badge>
         </div>
 
         <ul className="space-y-0.5">
-          {order.order_items.map((item, j) => (
-            <li key={j} className="text-sm text-muted-foreground flex justify-between">
+          {order.order_items.map((item, itemIndex) => (
+            <li key={`${order.id}-${itemIndex}`} className="flex justify-between text-sm text-muted-foreground">
               <span>• {item.quantity}x {item.product_name}{item.notes ? ` (${item.notes})` : ""}</span>
-              <span className="text-xs">R$ {(item.quantity * Number(item.unit_price)).toFixed(2).replace(".", ",")}</span>
+              <span className="text-xs">R$ {(item.quantity * item.unit_price).toFixed(2).replace(".", ",")}</span>
             </li>
           ))}
         </ul>
@@ -143,16 +133,15 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor, tableSessio
             {getElapsed(order.created_at)}
           </div>
           <span className="font-semibold" style={{ color: primaryColor }}>
-            R$ {Number(order.total_price).toFixed(2).replace(".", ",")}
+            R$ {order.total_price.toFixed(2).replace(".", ",")}
           </span>
         </div>
 
-        {/* Só pedidos entregues entram no fluxo de avaliação. */}
         {order.status === "delivered" && (
           <InlineOrderRatingCard
             orderId={order.id}
             restaurantId={restaurantId}
-            displayId={order.display_id}
+            displayId={order.display_id ?? 0}
             primaryColor={primaryColor}
           />
         )}
@@ -161,64 +150,59 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor, tableSessio
   };
 
   return (
-    <Drawer open={open} onOpenChange={(o) => !o && onClose()}>
-      <DrawerContent className="max-w-md mx-auto max-h-[85vh]">
+    <Drawer open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+      <DrawerContent className="mx-auto max-h-[85vh] max-w-md">
         <DrawerHeader className="relative">
           <DrawerClose asChild>
-            <button aria-label="Fechar pedidos" className="absolute right-4 top-4 rounded-full p-1 bg-muted hover:bg-muted/80 transition-colors active:scale-90">
+            <button aria-label="Fechar pedidos" className="absolute right-4 top-4 rounded-full bg-muted p-1 transition-colors hover:bg-muted/80 active:scale-90">
               <X className="h-4 w-4" />
             </button>
           </DrawerClose>
           <DrawerTitle>Meus Pedidos</DrawerTitle>
         </DrawerHeader>
 
-        {/* Comanda Total */}
         {orders.length > 0 && (
-          <div className="mx-4 mb-3 p-3 rounded-xl border border-border bg-muted/30">
+          <div className="mx-4 mb-3 rounded-xl border border-border bg-muted/30 p-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold">Minha Comanda</span>
+              <span className="text-sm font-semibold">Pedidos deste dispositivo</span>
               <span className="text-lg font-bold" style={{ color: primaryColor }}>
-                R$ {sessionTotal.toFixed(2).replace(".", ",")}
+                R$ {deviceTotal.toFixed(2).replace(".", ",")}
               </span>
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {orders.length} {orders.length === 1 ? "pedido" : "pedidos"} nesta sessão
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {orders.length} {orders.length === 1 ? "pedido" : "pedidos"} nas últimas 24 horas
             </p>
           </div>
         )}
 
-        <div className="px-4 pb-6 overflow-y-auto flex-1 space-y-3">
-          {loading && (
-            <p className="text-center text-muted-foreground text-sm py-8">Carregando...</p>
-          )}
+        <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-6">
+          {loading && <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p>}
 
           {!loading && orders.length === 0 && (
-            <div className="text-center py-12 space-y-2">
-              <Package className="h-10 w-10 mx-auto text-muted-foreground" />
-              <p className="text-muted-foreground text-sm">Nenhum pedido realizado ainda.</p>
+            <div className="space-y-2 py-12 text-center">
+              <Package className="mx-auto h-10 w-10 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Nenhum pedido realizado ainda.</p>
             </div>
           )}
 
-          {/* Active orders */}
           {activeOrders.length > 0 && (
             <>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Em andamento ({activeOrders.length})
               </p>
               <AnimatePresence>
-                {activeOrders.map((order, i) => renderOrderCard(order, i))}
+                {activeOrders.map((order, index) => renderOrderCard(order, index))}
               </AnimatePresence>
             </>
           )}
 
-          {/* Delivered orders */}
           {deliveredOrders.length > 0 && (
             <>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mt-4">
+              <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Entregues ({deliveredOrders.length})
               </p>
               <AnimatePresence>
-                {deliveredOrders.map((order, i) => renderOrderCard(order, i))}
+                {deliveredOrders.map((order, index) => renderOrderCard(order, index))}
               </AnimatePresence>
             </>
           )}
@@ -229,4 +213,3 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor, tableSessio
 };
 
 export default MyOrdersDrawer;
-
