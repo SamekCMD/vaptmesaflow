@@ -1,33 +1,36 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import KitchenMonitor from "@/pages/dashboard/KitchenMonitor";
 
-const updateEq = vi.fn().mockResolvedValue({ error: null });
-const update = vi.fn(() => ({ eq: updateEq }));
+const mocks = vi.hoisted(() => {
+  const updateEq = vi.fn().mockResolvedValue({ error: null });
+  const update = vi.fn(() => ({ eq: updateEq }));
+  const orders = [
+    {
+      id: "order-1",
+      display_id: 110,
+      table_number: null,
+      total_price: 25,
+      status: "pending",
+      order_channel: "delivery",
+      payment_status: "CONFIRMED",
+      created_at: "2026-08-29T20:00:00.000Z",
+      updated_at: null,
+      order_items: [
+        {
+          id: "item-1",
+          product_name: "Hamburger",
+          quantity: 1,
+          unit_price: 25,
+          notes: "",
+        },
+      ],
+    },
+  ];
 
-const orders = [
-  {
-    id: "order-1",
-    display_id: 110,
-    table_number: null,
-    total_price: 25,
-    status: "pending",
-    order_channel: "delivery",
-    payment_status: "CONFIRMED",
-    created_at: "2026-08-29T20:00:00.000Z",
-    updated_at: null,
-    order_items: [
-      {
-        id: "item-1",
-        product_name: "Hamburger",
-        quantity: 1,
-        unit_price: 25,
-        notes: "",
-      },
-    ],
-  },
-];
+  return { updateEq, update, orders };
+});
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: { id: "user-1" } }),
@@ -47,19 +50,23 @@ vi.mock("@/lib/supabase", () => ({
       select: () => ({
         eq: () => ({
           in: () => ({
-            order: vi.fn().mockResolvedValue({ data: orders }),
+            order: vi.fn().mockResolvedValue({ data: mocks.orders }),
           }),
         }),
       }),
-      update,
+      update: mocks.update,
     })),
   },
 }));
 
+afterEach(() => {
+  cleanup();
+});
+
 describe("KDS touch interactions", () => {
   beforeEach(() => {
-    update.mockClear();
-    updateEq.mockClear();
+    mocks.update.mockClear();
+    mocks.updateEq.mockClear();
   });
 
   it("does not advance an order when the card itself is touched", async () => {
@@ -72,7 +79,7 @@ describe("KDS touch interactions", () => {
     const card = await screen.findByTestId("kds-order-card-order-1");
     fireEvent.click(card);
 
-    expect(update).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 
   it("advances an order only from the explicit action button", async () => {
@@ -86,7 +93,7 @@ describe("KDS touch interactions", () => {
     fireEvent.click(action);
 
     await waitFor(() => {
-      expect(update).toHaveBeenCalledWith({ status: "preparing" });
+      expect(mocks.update).toHaveBeenCalledWith({ status: "preparing" });
     });
   });
 });
