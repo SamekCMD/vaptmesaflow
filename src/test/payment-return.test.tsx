@@ -39,6 +39,8 @@ function saveCheckoutContext() {
     publicToken: "opaque-public-order-token-that-is-long-enough",
     transactionId: "40000000-0000-4000-8000-000000000001",
     returnPath: "/menu/restaurante-teste?table=4",
+    checkoutUrl: "https://sandbox.mercadopago.com.br/checkout/v1/redirect/test",
+    expiresAt: null,
   });
 }
 

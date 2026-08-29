@@ -12,7 +12,13 @@ import { fontFamilyMap, type RestaurantConfig } from "@/lib/restaurant-config";
 import { PublicMenuSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { createOrderIdempotencyKey, orderClient } from "@/lib/order-client";
 import { parseHostedCheckoutUrl } from "@/lib/hosted-checkout-url";
-import { paymentClient, savePendingCheckout } from "@/lib/payment-client";
+import {
+  clearPendingCheckout,
+  paymentClient,
+  readPendingCheckout,
+  savePendingCheckout,
+  type PendingCheckout,
+} from "@/lib/payment-client";
 import { VaptApiClientError } from "@/lib/vapt-api-client";
 
 type RestaurantDeliveryRow = {
@@ -121,6 +127,7 @@ const PublicDelivery = () => {
   const [lastOrderToken, setLastOrderToken] = useState<string | null>(null);
   const [lastOrderId, setLastOrderId] = useState<string | null>(null);
   const [lastOrderStatus, setLastOrderStatus] = useState<DeliveryOrderStatus | null>(null);
+  const [pendingCheckout, setPendingCheckout] = useState<PendingCheckout | null>(readPendingCheckout);
   const [recentOrders, setRecentOrders] = useState<SessionDeliveryOrderSnapshot[]>([]);
   const [statusExpanded, setStatusExpanded] = useState(false);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
@@ -235,6 +242,11 @@ const PublicDelivery = () => {
       setLastOrderStatus(normalized);
       setLastOrderCode(data.displayId ? `#${data.displayId}` : "recebido");
 
+      if (normalized !== "waiting_payment" && pendingCheckout?.orderId === data.orderId) {
+        clearPendingCheckout();
+        setPendingCheckout(null);
+      }
+
       setRecentOrders((current) => {
         const updated = current.map((order) => {
           if (order.id !== data.orderId) return order;
@@ -268,7 +280,7 @@ const PublicDelivery = () => {
       active = false;
       window.clearInterval(intervalId);
     };
-  }, [lastOrderId, lastOrderToken, restaurant?.id]);
+  }, [lastOrderId, lastOrderToken, pendingCheckout?.orderId, restaurant?.id]);
 
   const categories = useMemo(() => Array.from(new Set(items.map((item) => item.category))), [items]);
   const filteredItems = useMemo(() => items.filter((item) => item.category === activeCategory), [items, activeCategory]);
@@ -277,6 +289,11 @@ const PublicDelivery = () => {
   const cartItemsCount = useMemo(() => cartItems.reduce((acc, current) => acc + current.quantity, 0), [cartItems]);
   const primaryColor = restaurant?.primary_color || DEFAULT_PRIMARY;
   const fontFamily = restaurant?.font_family || "modern";
+  const resumableCheckout =
+    lastOrderStatus === "waiting_payment" &&
+    pendingCheckout?.orderId === lastOrderId
+      ? pendingCheckout
+      : null;
 
   const addToCart = (item: DeliveryMenuItem) => {
     setCart((current) => {
@@ -415,12 +432,16 @@ const PublicDelivery = () => {
         );
         const checkoutUrl = parseHostedCheckoutUrl(checkout.checkoutUrl);
 
-        savePendingCheckout({
+        const pending: PendingCheckout = {
           orderId: order.orderId,
           publicToken: order.publicToken,
           transactionId: checkout.transactionId,
           returnPath: `${window.location.pathname}${window.location.search}`,
-        });
+          checkoutUrl: checkoutUrl.toString(),
+          expiresAt: checkout.expiresAt,
+        };
+        savePendingCheckout(pending);
+        setPendingCheckout(pending);
         idempotencyKeyRef.current = null;
         window.location.assign(checkoutUrl.toString());
         return;
@@ -649,6 +670,11 @@ const PublicDelivery = () => {
                     </motion.div>
                   )}
                 </AnimatePresence>
+                {resumableCheckout && (
+                  <Button asChild className="mt-4 h-10 w-full rounded-lg text-sm font-semibold">
+                    <a href={resumableCheckout.checkoutUrl}>Continuar pagamento</a>
+                  </Button>
+                )}
               </div>
             )}
           </div>

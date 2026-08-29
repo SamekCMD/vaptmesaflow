@@ -4,7 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { orderClient } from "@/lib/order-client";
-import { readPendingCheckout } from "@/lib/payment-client";
+import { clearPendingCheckout, readPendingCheckout } from "@/lib/payment-client";
 
 type PaymentView = "checking" | "paid" | "failed" | "missing";
 
@@ -85,6 +85,7 @@ export default function PaymentReturn() {
         setConnectionIssue(false);
         const nextView = viewForPaymentStatus(order.paymentStatus);
         setView(nextView);
+        if (nextView !== "checking") clearPendingCheckout();
         if (nextView !== "checking" || attempts >= 29) return;
       } catch {
         if (cancelled) return;

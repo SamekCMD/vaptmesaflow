@@ -137,6 +137,8 @@ const OrderSummaryDrawer = ({
           publicToken: order.publicToken,
           transactionId: checkout.transactionId,
           returnPath: `${window.location.pathname}${window.location.search}`,
+          checkoutUrl: checkoutUrl.toString(),
+          expiresAt: checkout.expiresAt,
         });
         idempotencyKeyRef.current = null;
         window.location.assign(checkoutUrl.toString());

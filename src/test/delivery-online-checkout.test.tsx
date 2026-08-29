@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { orderClient } from "@/lib/order-client";
-import { paymentClient } from "@/lib/payment-client";
+import { paymentClient, savePendingCheckout } from "@/lib/payment-client";
 import PublicDelivery from "@/pages/delivery/PublicDelivery";
 
 const restaurant = {
@@ -159,5 +159,41 @@ describe("checkout online do delivery", () => {
       expect.any(String),
     ));
     expect(paymentClient.startHosted).not.toHaveBeenCalled();
+  });
+
+  it("permite continuar um checkout pendente sem criar outro pedido", async () => {
+    localStorage.setItem(`vapt_delivery_recent_orders_${restaurant.id}`, JSON.stringify([{
+      id: "20000000-0000-4000-8000-000000000001",
+      publicToken: "opaque-public-order-token-that-is-long-enough",
+      displayId: 42,
+      status: "waiting_payment",
+      deliveredAt: null,
+      total: 23,
+      createdAt: "2026-08-19T12:00:00.000Z",
+      items: [{ itemId: menuItem.id, name: menuItem.name, price: 23, quantity: 1 }],
+    }]));
+    savePendingCheckout({
+      orderId: "20000000-0000-4000-8000-000000000001",
+      publicToken: "opaque-public-order-token-that-is-long-enough",
+      transactionId: "40000000-0000-4000-8000-000000000001",
+      returnPath: "/delivery/restaurante-teste",
+      checkoutUrl: "https://sandbox.mercadopago.com.br/checkout/v1/redirect/pending",
+      expiresAt: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/delivery/restaurante-teste"]}>
+        <Routes>
+          <Route path="/delivery/:slug" element={<PublicDelivery />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const resumeLink = await screen.findByRole("link", { name: /continuar pagamento/i });
+    expect(resumeLink).toHaveAttribute(
+      "href",
+      "https://sandbox.mercadopago.com.br/checkout/v1/redirect/pending",
+    );
+    expect(orderClient.create).not.toHaveBeenCalled();
   });
 });

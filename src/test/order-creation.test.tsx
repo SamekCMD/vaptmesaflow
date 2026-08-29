@@ -103,7 +103,9 @@ describe("criação pública de pedidos", () => {
       "Idempotency-Key": "checkout-attempt-0001",
       "X-Vapt-Order-Token": "opaque-public-order-token-that-is-long-enough",
     });
-    expect(JSON.parse(String(options.body))).toEqual({});
+    expect(JSON.parse(String(options.body))).toEqual({
+      returnOrigin: window.location.origin,
+    });
     expect(url).toContain(
       "/public/orders/20000000-0000-4000-8000-000000000001/payments/checkout",
     );
@@ -115,6 +117,8 @@ describe("criação pública de pedidos", () => {
       publicToken: "opaque-public-order-token-that-is-long-enough",
       transactionId: "40000000-0000-4000-8000-000000000001",
       returnPath: "/menu/restaurante-teste?table=4",
+      checkoutUrl: "https://sandbox.mercadopago.com.br/checkout/v1/redirect/test",
+      expiresAt: null,
     });
 
     expect(readPendingCheckout()).toEqual({
@@ -122,6 +126,8 @@ describe("criação pública de pedidos", () => {
       publicToken: "opaque-public-order-token-that-is-long-enough",
       transactionId: "40000000-0000-4000-8000-000000000001",
       returnPath: "/menu/restaurante-teste?table=4",
+      checkoutUrl: "https://sandbox.mercadopago.com.br/checkout/v1/redirect/test",
+      expiresAt: null,
     });
   });
 

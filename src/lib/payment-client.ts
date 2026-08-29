@@ -1,4 +1,5 @@
 import { vaptApiRequest } from "@/lib/vapt-api-client";
+import { parseHostedCheckoutUrl } from "@/lib/hosted-checkout-url";
 
 export type ManualPaymentMethod =
   | "cash"
@@ -37,6 +38,8 @@ export type PendingCheckout = {
   publicToken: string;
   transactionId: string;
   returnPath: string;
+  checkoutUrl: string;
+  expiresAt: string | null;
 };
 
 export type PaymentEnvironment = "sandbox" | "production";
@@ -62,7 +65,11 @@ function isSafeReturnPath(value: unknown): value is string {
 }
 
 export function savePendingCheckout(checkout: PendingCheckout): void {
-  localStorage.setItem(PENDING_CHECKOUT_STORAGE_KEY, JSON.stringify(checkout));
+  const checkoutUrl = parseHostedCheckoutUrl(checkout.checkoutUrl).toString();
+  localStorage.setItem(PENDING_CHECKOUT_STORAGE_KEY, JSON.stringify({
+    ...checkout,
+    checkoutUrl,
+  }));
 }
 
 export function readPendingCheckout(): PendingCheckout | null {
@@ -74,11 +81,22 @@ export function readPendingCheckout(): PendingCheckout | null {
       typeof (value as PendingCheckout).orderId !== "string" ||
       typeof (value as PendingCheckout).publicToken !== "string" ||
       typeof (value as PendingCheckout).transactionId !== "string" ||
+      typeof (value as PendingCheckout).checkoutUrl !== "string" ||
+      !(
+        (value as PendingCheckout).expiresAt === null ||
+        typeof (value as PendingCheckout).expiresAt === "string"
+      ) ||
       !isSafeReturnPath((value as PendingCheckout).returnPath)
     ) {
       return null;
     }
-    return value as PendingCheckout;
+    const checkout = value as PendingCheckout;
+    const checkoutUrl = parseHostedCheckoutUrl(checkout.checkoutUrl).toString();
+    if (checkout.expiresAt && new Date(checkout.expiresAt).getTime() <= Date.now()) {
+      clearPendingCheckout();
+      return null;
+    }
+    return { ...checkout, checkoutUrl };
   } catch {
     return null;
   }
@@ -101,7 +119,9 @@ export const paymentClient = {
         "Idempotency-Key": idempotencyKey,
         "X-Vapt-Order-Token": publicToken,
       },
-      body: {},
+      body: {
+        returnOrigin: window.location.origin,
+      },
     });
   },
 
