@@ -298,8 +298,6 @@ const KitchenMonitor = () => {
     const next = nextStatus[order.status];
     const canAdvance = Boolean(next) && !isUpdating && !isReady;
     const orderChannel = getOrderChannel(order);
-    const visibleItems = order.order_items.slice(0, 4);
-    const hiddenItems = Math.max(0, order.order_items.length - visibleItems.length);
 
     return (
       <Card
@@ -333,7 +331,7 @@ const KitchenMonitor = () => {
           <div className="my-3 border-t border-border/70" />
 
           <ul className="space-y-1">
-            {visibleItems.map((item) => (
+            {order.order_items.map((item) => (
               <li key={item.id} className="text-[13px] leading-snug text-foreground">
                 <span className="font-semibold">{item.quantity}×</span> {item.product_name}
                 {item.notes ? (
@@ -344,10 +342,6 @@ const KitchenMonitor = () => {
               </li>
             ))}
           </ul>
-
-          {hiddenItems > 0 ? (
-            <div className="mt-2 text-[11px] font-medium text-muted-foreground">+ {hiddenItems} item(ns)</div>
-          ) : null}
 
           {canAdvance ? (
             <Button
@@ -407,7 +401,7 @@ const KitchenMonitor = () => {
   };
 
   return (
-    <div className="flex min-h-[calc(100dvh-9rem)] flex-col gap-4">
+    <div className="flex h-[calc(100dvh-10rem)] min-h-[520px] flex-col gap-4">
       {guideMode && (
         <OnboardingGuideCard
           module="kitchen"
@@ -477,7 +471,7 @@ const KitchenMonitor = () => {
         </Button>
       </div>
 
-      <div className="grid shrink-0 grid-cols-3 gap-1 rounded-lg border bg-muted/30 p-1 md:hidden">
+      <div className="grid shrink-0 grid-cols-3 gap-1 rounded-lg border bg-muted/30 p-1 min-[900px]:hidden">
         {columns.map((column) => {
           const active = mobileColumn === column.key;
           return (
@@ -497,11 +491,11 @@ const KitchenMonitor = () => {
         })}
       </div>
 
-      <div className="min-h-[500px] flex-1 md:hidden">
+      <div className="min-h-0 flex-1 min-[900px]:hidden">
         {renderColumn(mobileColumn, true)}
       </div>
 
-      <div className="hidden min-h-[520px] flex-1 gap-3 md:grid md:grid-cols-3 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="hidden min-h-0 flex-1 gap-3 min-[900px]:grid min-[900px]:grid-cols-3 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,1fr)]">
         {columns.map((column) => renderColumn(column.key))}
       </div>
     </div>
