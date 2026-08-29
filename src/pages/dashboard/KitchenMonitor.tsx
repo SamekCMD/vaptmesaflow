@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, ArrowRight, RefreshCw, Bell, BellOff, Loader2 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { ArrowRight, Bell, BellOff, Clock, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { KitchenSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { supabase } from "@/lib/supabase";
@@ -63,10 +63,32 @@ interface Order {
   order_items: OrderItem[];
 }
 
-const columns = [
-  { key: "pending" as const, label: "Na Fila", dotColor: "bg-[hsl(44_51%_54%)]" },
-  { key: "preparing" as const, label: "Preparando", dotColor: "bg-[hsl(216_34%_64%)]" },
-  { key: "ready" as const, label: "Prontos", dotColor: "bg-primary" },
+type ColumnKey = "pending" | "preparing" | "ready";
+
+const columns: Array<{
+  key: ColumnKey;
+  label: string;
+  dotColor: string;
+  panelClass: string;
+}> = [
+  {
+    key: "pending",
+    label: "Na Fila",
+    dotColor: "bg-[hsl(44_51%_54%)]",
+    panelClass: "border-[hsl(44_51%_54%/0.25)] bg-[hsl(44_51%_54%/0.035)]",
+  },
+  {
+    key: "preparing",
+    label: "Preparando",
+    dotColor: "bg-[hsl(216_34%_64%)]",
+    panelClass: "border-[hsl(216_34%_64%/0.25)] bg-[hsl(216_34%_64%/0.035)]",
+  },
+  {
+    key: "ready",
+    label: "Prontos",
+    dotColor: "bg-primary",
+    panelClass: "border-primary/20 bg-primary/[0.025]",
+  },
 ];
 
 const nextStatus: Record<string, string> = {
@@ -81,7 +103,7 @@ const actionLabels: Record<string, string> = {
   preparing: "Finalizar",
 };
 
-const isOrderInColumn = (order: Order, columnKey: (typeof columns)[number]["key"]) => {
+const isOrderInColumn = (order: Order, columnKey: ColumnKey) => {
   if (columnKey === "pending") {
     return order.status === "paid" || order.status === "pending";
   }
@@ -103,12 +125,12 @@ const getTimerDisplay = (order: Order, isReady: boolean) => {
 
   if (minutes < 10) {
     borderClass = "border-border";
-    textClass = "text-[hsl(153_33%_62%)]";
+    textClass = "text-[hsl(153_33%_52%)]";
   } else if (minutes < 20) {
-    borderClass = "border-[hsl(35_31%_18%)]";
-    textClass = "text-[hsl(44_51%_54%)]";
+    borderClass = "border-[hsl(44_51%_54%/0.7)]";
+    textClass = "text-[hsl(44_51%_46%)]";
   } else {
-    borderClass = "border-[hsl(0_23%_19%)]";
+    borderClass = "border-destructive/60";
     textClass = "text-destructive";
   }
 
@@ -124,6 +146,7 @@ const KitchenMonitor = () => {
   const [loading, setLoading] = useState(true);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [channelFilter, setChannelFilter] = useState<"all" | "local" | "delivery">("all");
+  const [mobileColumn, setMobileColumn] = useState<ColumnKey>("pending");
   const [soundEnabled, setSoundEnabled] = useState(() => {
     const stored = localStorage.getItem("vapt_kds_sound_enabled");
     return stored !== null ? stored === "true" : true;
@@ -218,20 +241,33 @@ const KitchenMonitor = () => {
   const advance = async (order: Order) => {
     const next = nextStatus[order.status];
     if (!next) return;
+
     setUpdatingOrderId(order.id);
     const previousStatus = order.status;
+    const previousUpdatedAt = order.updated_at;
+    const optimisticUpdatedAt = new Date().toISOString();
+
     setOrders((prev) =>
       prev.map((o) =>
-        o.id === order.id ? { ...o, status: next as Order["status"], updated_at: new Date().toISOString() } : o,
+        o.id === order.id
+          ? { ...o, status: next as Order["status"], updated_at: optimisticUpdatedAt }
+          : o,
       ),
     );
+
     const { error } = await supabase.from("orders").update({ status: next }).eq("id", order.id);
     setUpdatingOrderId(null);
+
     if (error) {
-      setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, status: previousStatus } : o)));
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === order.id ? { ...o, status: previousStatus, updated_at: previousUpdatedAt } : o,
+        ),
+      );
       toast({ title: "Erro", description: error.message, variant: "destructive" });
       return;
     }
+
     toast({
       title: `Pedido #${order.display_id} atualizado`,
       description: `Movido para "${columns.find((c) => c.key === next)?.label ?? "Próxima etapa"}"`,
@@ -253,8 +289,125 @@ const KitchenMonitor = () => {
   const allCount = orders.length;
   const filteredOrders = getOrdersByFilter(orders);
 
+  const columnOrders = (key: ColumnKey) => filteredOrders.filter((order) => isOrderInColumn(order, key));
+
+  const renderOrderCard = (order: Order, columnKey: ColumnKey) => {
+    const isReady = columnKey === "ready";
+    const timer = getTimerDisplay(order, isReady);
+    const isUpdating = updatingOrderId === order.id;
+    const next = nextStatus[order.status];
+    const canAdvance = Boolean(next) && !isUpdating && !isReady;
+    const orderChannel = getOrderChannel(order);
+    const visibleItems = order.order_items.slice(0, 4);
+    const hiddenItems = Math.max(0, order.order_items.length - visibleItems.length);
+
+    return (
+      <Card
+        key={order.id}
+        data-testid={`kds-order-card-${order.id}`}
+        className={`${timer.borderClass} bg-card shadow-sm transition-shadow`}
+      >
+        <CardContent className="p-3 sm:p-3.5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-base font-semibold leading-none">#{order.display_id}</span>
+                <Badge
+                  variant={orderChannel === "delivery" ? "default" : "outline"}
+                  className="h-5 px-1.5 text-[10px] normal-case tracking-normal"
+                >
+                  {orderChannel === "delivery" ? "Delivery" : "Local"}
+                </Badge>
+              </div>
+              <div className="mt-1 text-[11px] text-muted-foreground">
+                {order.table_number ? `Mesa ${order.table_number}` : "Sem mesa"}
+              </div>
+            </div>
+
+            <div className={`flex shrink-0 items-center gap-1 font-mono text-xs font-semibold ${timer.textClass}`}>
+              <Clock className="h-3.5 w-3.5" strokeWidth={1.7} />
+              {timer.display}
+            </div>
+          </div>
+
+          <div className="my-3 border-t border-border/70" />
+
+          <ul className="space-y-1">
+            {visibleItems.map((item) => (
+              <li key={item.id} className="text-[13px] leading-snug text-foreground">
+                <span className="font-semibold">{item.quantity}×</span> {item.product_name}
+                {item.notes ? (
+                  <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                    {item.notes}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+
+          {hiddenItems > 0 ? (
+            <div className="mt-2 text-[11px] font-medium text-muted-foreground">+ {hiddenItems} item(ns)</div>
+          ) : null}
+
+          {canAdvance ? (
+            <Button
+              type="button"
+              onClick={() => advance(order)}
+              disabled={isUpdating}
+              aria-label={`${actionLabels[order.status]} pedido #${order.display_id}`}
+              className="mt-3 h-11 w-full touch-manipulation justify-between px-3 text-sm font-semibold sm:h-12"
+            >
+              <span className="flex items-center gap-2">
+                {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {actionLabels[order.status]}
+              </span>
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          ) : isReady ? (
+            <div className="mt-3 flex h-10 items-center justify-center rounded-md border border-primary/20 bg-primary/5 text-xs font-semibold text-primary">
+              Pronto para retirada
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const renderColumn = (key: ColumnKey, mobile = false) => {
+    const column = columns.find((item) => item.key === key)!;
+    const items = columnOrders(key);
+    const queueGrid = key === "pending" && !mobile ? "min-[1450px]:grid-cols-2" : "";
+
+    return (
+      <section
+        key={column.key}
+        className={`flex min-h-0 flex-col overflow-hidden rounded-xl border ${column.panelClass}`}
+      >
+        <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/70 px-3">
+          <div className={`h-2.5 w-2.5 rounded-full ${column.dotColor}`} />
+          <h2 className="text-sm font-semibold">{column.label}</h2>
+          <Badge variant="outline" className="ml-auto h-6 min-w-6 justify-center px-1.5 text-[11px]">
+            {items.length}
+          </Badge>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2.5 [scrollbar-gutter:stable]">
+          {items.length > 0 ? (
+            <div className={`grid grid-cols-1 gap-2.5 ${queueGrid}`}>
+              {items.map((order) => renderOrderCard(order, key))}
+            </div>
+          ) : (
+            <div className="flex h-full min-h-36 items-center justify-center text-center text-xs text-muted-foreground">
+              Nenhum pedido
+            </div>
+          )}
+        </div>
+      </section>
+    );
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="flex min-h-[calc(100dvh-9rem)] flex-col gap-4">
       {guideMode && (
         <OnboardingGuideCard
           module="kitchen"
@@ -264,147 +417,92 @@ const KitchenMonitor = () => {
           onComplete={handleGuideComplete}
         />
       )}
-      <div className="flex items-center justify-between">
+
+      <div className="flex shrink-0 flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Monitor da Cozinha</h1>
-          <p className="text-muted-foreground text-sm">Acompanhe os pedidos em tempo real</p>
+          <p className="text-sm text-muted-foreground">Acompanhe os pedidos em tempo real</p>
         </div>
+
         <div className="flex items-center gap-2">
           <Button
             variant={soundEnabled ? "outline" : "ghost"}
-            size="sm"
+            size="icon"
             onClick={toggleSound}
             title={soundEnabled ? "Som ativado" : "Som desativado"}
+            aria-label={soundEnabled ? "Desativar som do KDS" : "Ativar som do KDS"}
+            className="h-11 w-11 touch-manipulation"
           >
-            {soundEnabled ? <Bell className="h-4 w-4" strokeWidth={1.5} /> : <BellOff className="h-4 w-4" strokeWidth={1.5} />}
+            {soundEnabled ? (
+              <Bell className="h-4 w-4" strokeWidth={1.5} />
+            ) : (
+              <BellOff className="h-4 w-4" strokeWidth={1.5} />
+            )}
           </Button>
-          <Button variant="outline" size="sm" onClick={fetchOrders}>
-            <RefreshCw className="h-4 w-4 mr-1" strokeWidth={1.5} />
+          <Button
+            variant="outline"
+            onClick={fetchOrders}
+            className="h-11 touch-manipulation px-4"
+          >
+            <RefreshCw className="mr-2 h-4 w-4" strokeWidth={1.5} />
             Atualizar
           </Button>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
         <Button
           type="button"
-          size="sm"
           variant={channelFilter === "all" ? "default" : "outline"}
           onClick={() => setChannelFilter("all")}
-          className="h-9 min-w-[110px] justify-center"
+          className="h-11 min-w-[104px] touch-manipulation justify-center px-3"
         >
-          Todos ({allCount})
+          Todos <span className="ml-1.5 opacity-70">{allCount}</span>
         </Button>
         <Button
           type="button"
-          size="sm"
           variant={channelFilter === "local" ? "default" : "outline"}
           onClick={() => setChannelFilter("local")}
-          className="h-9 min-w-[110px] justify-center"
+          className="h-11 min-w-[104px] touch-manipulation justify-center px-3"
         >
-          Local ({localCount})
+          Local <span className="ml-1.5 opacity-70">{localCount}</span>
         </Button>
         <Button
           type="button"
-          size="sm"
           variant={channelFilter === "delivery" ? "default" : "outline"}
           onClick={() => setChannelFilter("delivery")}
-          className="h-9 min-w-[110px] justify-center"
+          className="h-11 min-w-[104px] touch-manipulation justify-center px-3"
         >
-          Delivery ({deliveryCount})
+          Delivery <span className="ml-1.5 opacity-70">{deliveryCount}</span>
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-        {columns.map((col) => (
-          <div key={col.key} className="min-w-0">
-            <div className="mb-4 flex items-center gap-2">
-              <div className={`h-2 w-2 rounded-full ${col.dotColor}`} />
-              <h2 className="text-sm font-medium">{col.label}</h2>
-              <Badge variant="outline" className="ml-auto text-[10px] normal-case tracking-normal">
-                {filteredOrders.filter((o) => isOrderInColumn(o, col.key)).length}
-              </Badge>
-            </div>
+      <div className="grid shrink-0 grid-cols-3 gap-1 rounded-lg border bg-muted/30 p-1 md:hidden">
+        {columns.map((column) => {
+          const active = mobileColumn === column.key;
+          return (
+            <button
+              key={column.key}
+              type="button"
+              onClick={() => setMobileColumn(column.key)}
+              className={`flex min-h-12 touch-manipulation items-center justify-center gap-1.5 rounded-md px-2 text-xs font-semibold transition-colors ${
+                active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+              }`}
+            >
+              <span className={`h-2 w-2 rounded-full ${column.dotColor}`} />
+              <span className="truncate">{column.label}</span>
+              <span className="font-mono text-[10px] opacity-70">{columnOrders(column.key).length}</span>
+            </button>
+          );
+        })}
+      </div>
 
-            <div className="space-y-2">
-              {filteredOrders
-                .filter((o) => isOrderInColumn(o, col.key))
-                .map((order) => {
-                  const isReady = col.key === "ready";
-                  const timer = getTimerDisplay(order, isReady);
-                  const isUpdating = updatingOrderId === order.id;
-                  const next = nextStatus[order.status];
-                  const canAdvance = Boolean(next) && !isUpdating && col.key !== "ready";
-                  const orderChannel = getOrderChannel(order);
+      <div className="min-h-[500px] flex-1 md:hidden">
+        {renderColumn(mobileColumn, true)}
+      </div>
 
-                  return (
-                    <Card
-                      key={order.id}
-                      className={`${timer.borderClass} bg-card transition-colors ${
-                        canAdvance ? "cursor-pointer hover:bg-accent/40" : ""
-                      }`}
-                      onClick={canAdvance ? () => advance(order) : undefined}
-                      role={canAdvance ? "button" : undefined}
-                      tabIndex={canAdvance ? 0 : undefined}
-                      onKeyDown={
-                        canAdvance
-                          ? (event) => {
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                advance(order);
-                              }
-                            }
-                          : undefined
-                      }
-                    >
-                      <CardContent className="p-3">
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="font-mono text-sm font-medium">#{order.display_id}</span>
-                          <div className="flex items-center gap-1.5">
-                            <Badge
-                              variant={orderChannel === "delivery" ? "default" : "outline"}
-                              className="text-[10px] normal-case tracking-normal"
-                            >
-                              {orderChannel === "delivery" ? "Delivery" : "Local"}
-                            </Badge>
-                            <Badge variant="outline" className="text-[10px] normal-case tracking-normal">
-                              {order.table_number ? `Mesa ${order.table_number}` : "S/ mesa"}
-                            </Badge>
-                          </div>
-                        </div>
-                        <ul className="mb-2 space-y-0.5">
-                          {order.order_items.map((item) => (
-                            <li key={item.id} className="text-xs text-muted-foreground">
-                              • {item.quantity}x {item.product_name}
-                              {item.notes ? ` (${item.notes})` : ""}
-                            </li>
-                          ))}
-                        </ul>
-                        <div className="flex items-center justify-between">
-                          {col.key !== "ready" && canAdvance ? (
-                            <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-                              {isUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                              <span>{actionLabels[order.status]}</span>
-                              <ArrowRight className="h-3 w-3" />
-                            </div>
-                          ) : (
-                            <div />
-                          )}
-                          <div className={`ml-auto flex items-center gap-1 font-mono text-xs font-medium ${timer.textClass}`}>
-                            <Clock className="h-3 w-3" strokeWidth={1.5} />
-                            {timer.display}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              {filteredOrders.filter((o) => isOrderInColumn(o, col.key)).length === 0 && (
-                <p className="py-8 text-center text-xs text-muted-foreground">Nenhum pedido</p>
-              )}
-            </div>
-          </div>
-        ))}
+      <div className="hidden min-h-[520px] flex-1 gap-3 md:grid md:grid-cols-3 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,1fr)]">
+        {columns.map((column) => renderColumn(column.key))}
       </div>
     </div>
   );
