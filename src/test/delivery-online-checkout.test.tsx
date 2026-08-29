@@ -161,6 +161,31 @@ describe("checkout online do delivery", () => {
     expect(paymentClient.startHosted).not.toHaveBeenCalled();
   });
 
+  it("impede o envio de um endereco salvo que nao atende ao contrato da API", async () => {
+    localStorage.setItem(`vapt_delivery_address_${restaurant.id}`, JSON.stringify({
+      customerName: "Cliente Teste",
+      phone: "345235",
+      street: "Rua Um",
+      number: "42",
+      neighborhood: "Centro",
+    }));
+
+    render(
+      <MemoryRouter initialEntries={["/delivery/restaurante-teste"]}>
+        <Routes>
+          <Route path="/delivery/:slug" element={<PublicDelivery />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /adicionar/i }));
+    fireEvent.click(screen.getByRole("button", { name: /pagar online/i }));
+
+    expect(await screen.findByLabelText("Telefone")).toBeInTheDocument();
+    expect(orderClient.create).not.toHaveBeenCalled();
+    expect(paymentClient.startHosted).not.toHaveBeenCalled();
+  });
+
   it("permite continuar um checkout pendente sem criar outro pedido", async () => {
     localStorage.setItem(`vapt_delivery_recent_orders_${restaurant.id}`, JSON.stringify([{
       id: "20000000-0000-4000-8000-000000000001",

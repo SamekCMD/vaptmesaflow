@@ -55,6 +55,31 @@ type CheckoutForm = {
   neighborhood: string;
 };
 
+const hasTrimmedLength = (value: string, min: number, max: number) => {
+  const length = value.trim().length;
+  return length >= min && length <= max;
+};
+
+const isDeliveryAddressDraft = (value: unknown): value is CheckoutForm => {
+  if (!value || typeof value !== "object") return false;
+  const address = value as Partial<CheckoutForm>;
+
+  return (
+    typeof address.customerName === "string" &&
+    typeof address.phone === "string" &&
+    typeof address.street === "string" &&
+    typeof address.number === "string" &&
+    typeof address.neighborhood === "string"
+  );
+};
+
+const isValidDeliveryAddress = (address: CheckoutForm) =>
+  hasTrimmedLength(address.customerName, 2, 120) &&
+  hasTrimmedLength(address.phone, 8, 30) &&
+  hasTrimmedLength(address.street, 2, 180) &&
+  hasTrimmedLength(address.number, 1, 30) &&
+  hasTrimmedLength(address.neighborhood, 2, 120);
+
 type DeliveryOrderStatus = "waiting_payment" | "paid" | "pending" | "preparing" | "ready" | "out_for_delivery" | "delivered" | "cancelled";
 type DeliveryPaymentMode = "online" | "on_delivery";
 
@@ -197,10 +222,10 @@ const PublicDelivery = () => {
     const rawAddress = localStorage.getItem(`${DELIVERY_ADDRESS_STORAGE_KEY}_${restaurant.id}`);
     if (rawAddress) {
       try {
-        const parsed = JSON.parse(rawAddress) as CheckoutForm;
-        if (parsed.customerName && parsed.phone && parsed.street && parsed.number && parsed.neighborhood) {
-          setSavedAddress(parsed);
+        const parsed: unknown = JSON.parse(rawAddress);
+        if (isDeliveryAddressDraft(parsed)) {
           setCheckoutForm(parsed);
+          setSavedAddress(isValidDeliveryAddress(parsed) ? parsed : null);
         }
       } catch {
         // no-op
@@ -323,22 +348,6 @@ const PublicDelivery = () => {
   };
 
   const saveAddress = () => {
-    if (
-      !checkoutForm.customerName.trim() ||
-      !checkoutForm.phone.trim() ||
-      !checkoutForm.street.trim() ||
-      !checkoutForm.number.trim() ||
-      !checkoutForm.neighborhood.trim()
-    ) {
-      toast({
-        title: "Dados incompletos",
-        description: "Preencha nome, telefone, rua, número e bairro.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!restaurant?.id) return;
-
     const normalized: CheckoutForm = {
       customerName: checkoutForm.customerName.trim(),
       phone: checkoutForm.phone.trim(),
@@ -346,6 +355,16 @@ const PublicDelivery = () => {
       number: checkoutForm.number.trim(),
       neighborhood: checkoutForm.neighborhood.trim(),
     };
+
+    if (!isValidDeliveryAddress(normalized)) {
+      toast({
+        title: "Revise o endereço",
+        description: "Informe um telefone com pelo menos 8 caracteres e confira os demais campos.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!restaurant?.id) return;
 
     localStorage.setItem(`${DELIVERY_ADDRESS_STORAGE_KEY}_${restaurant.id}`, JSON.stringify(normalized));
     setSavedAddress(normalized);
@@ -358,11 +377,13 @@ const PublicDelivery = () => {
       toast({ title: "Carrinho vazio", description: "Adicione ao menos 1 item.", variant: "destructive" });
       return false;
     }
-    if (!savedAddress) {
+    if (!savedAddress || !isValidDeliveryAddress(savedAddress)) {
+      if (savedAddress) setCheckoutForm(savedAddress);
+      setSavedAddress(null);
       setAddressModalOpen(true);
       toast({
-        title: "Endereço pendente",
-        description: "Defina seu endereço para confirmar o pedido.",
+        title: "Revise o endereço",
+        description: "Defina um endereço válido para confirmar o pedido.",
         variant: "destructive",
       });
       return false;
@@ -729,24 +750,24 @@ const PublicDelivery = () => {
               <div className="mt-4 space-y-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="delivery-name">Nome</Label>
-                  <Input id="delivery-name" value={checkoutForm.customerName} onChange={(event) => updateCheckoutField("customerName", event.target.value)} placeholder="Seu nome" className="h-11" />
+                  <Input id="delivery-name" value={checkoutForm.customerName} onChange={(event) => updateCheckoutField("customerName", event.target.value)} placeholder="Seu nome" minLength={2} maxLength={120} className="h-11" />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="delivery-phone">Telefone</Label>
-                  <Input id="delivery-phone" value={checkoutForm.phone} onChange={(event) => updateCheckoutField("phone", event.target.value)} placeholder="(00) 00000-0000" className="h-11" />
+                  <Input id="delivery-phone" value={checkoutForm.phone} onChange={(event) => updateCheckoutField("phone", event.target.value)} placeholder="(00) 00000-0000" inputMode="tel" minLength={8} maxLength={30} className="h-11" />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="delivery-street">Rua</Label>
-                  <Input id="delivery-street" value={checkoutForm.street} onChange={(event) => updateCheckoutField("street", event.target.value)} placeholder="Nome da rua" className="h-11" />
+                  <Input id="delivery-street" value={checkoutForm.street} onChange={(event) => updateCheckoutField("street", event.target.value)} placeholder="Nome da rua" minLength={2} maxLength={180} className="h-11" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="delivery-number">Número</Label>
-                    <Input id="delivery-number" value={checkoutForm.number} onChange={(event) => updateCheckoutField("number", event.target.value)} placeholder="123" className="h-11" />
+                    <Input id="delivery-number" value={checkoutForm.number} onChange={(event) => updateCheckoutField("number", event.target.value)} placeholder="123" maxLength={30} className="h-11" />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="delivery-neighborhood">Bairro</Label>
-                    <Input id="delivery-neighborhood" value={checkoutForm.neighborhood} onChange={(event) => updateCheckoutField("neighborhood", event.target.value)} placeholder="Centro" className="h-11" />
+                    <Input id="delivery-neighborhood" value={checkoutForm.neighborhood} onChange={(event) => updateCheckoutField("neighborhood", event.target.value)} placeholder="Centro" minLength={2} maxLength={120} className="h-11" />
                   </div>
                 </div>
               </div>
