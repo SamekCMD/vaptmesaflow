@@ -55,6 +55,10 @@ const SettingsPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const defaultTab = requestedTab === "payments" || requestedTab === "account"
+    ? requestedTab
+    : "restaurant";
   const [form, setForm] = useState({
     name: "",
     address: "",
@@ -257,21 +261,27 @@ const SettingsPage = () => {
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Configurações</h1>
         <p className="text-muted-foreground text-sm">
-          Gerencie seu restaurante e sua conta
+          Gerencie seu restaurante, pagamentos e conta
         </p>
       </div>
 
-      <Tabs defaultValue="restaurant" className="w-full">
-        <TabsList className="bg-transparent border-b border-border rounded-none w-full justify-start gap-0 h-auto p-0">
+      <Tabs defaultValue={defaultTab} className="w-full">
+        <TabsList className="grid h-auto w-full grid-cols-3 gap-0 rounded-none border-b border-border bg-transparent p-0">
           <TabsTrigger
             value="restaurant"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground data-[state=active]:font-medium text-muted-foreground text-sm px-4 py-2.5"
+            className="min-h-11 min-w-0 rounded-none border-b-2 border-transparent px-2 py-2.5 text-xs text-muted-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-medium data-[state=active]:text-foreground data-[state=active]:shadow-none sm:px-4 sm:text-sm"
           >
             Restaurante
           </TabsTrigger>
           <TabsTrigger
+            value="payments"
+            className="min-h-11 min-w-0 rounded-none border-b-2 border-transparent px-2 py-2.5 text-xs text-muted-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-medium data-[state=active]:text-foreground data-[state=active]:shadow-none sm:px-4 sm:text-sm"
+          >
+            Pagamentos
+          </TabsTrigger>
+          <TabsTrigger
             value="account"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-foreground data-[state=active]:font-medium text-muted-foreground text-sm px-4 py-2.5"
+            className="min-h-11 min-w-0 rounded-none border-b-2 border-transparent px-2 py-2.5 text-xs text-muted-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-medium data-[state=active]:text-foreground data-[state=active]:shadow-none sm:px-4 sm:text-sm"
           >
             Conta
           </TabsTrigger>
@@ -442,7 +452,9 @@ const SettingsPage = () => {
               </Button>
             </CardContent>
           </Card>
+        </TabsContent>
 
+        <TabsContent value="payments" className="space-y-6 pt-6">
           <CurrentPaymentMethodsCard />
 
           {restaurantId && (
