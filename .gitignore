@@ -38,6 +38,7 @@ lovable.*
 docs/current-backlog.md
 tools/
 vapt-api/
+.worktrees/
 
 # Scratch files
 *.new
