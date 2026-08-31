@@ -67,21 +67,37 @@ email. O frontend solicita esse código na rota `/verify-email`; um template que
 contenha apenas `{{ .ConfirmationURL }}` não atende esse fluxo. Faça um envio de
 teste e confirme que o código aparece sem expor dados sensíveis.
 
-Adicione também a rota pública de recuperação à allowlist de redirects do
-GoTrue, ajustando o domínio real:
+Use o domínio estável do frontend para hospedar o template e o host público do
+Supabase para construir o endpoint de confirmação:
 
 ```dotenv
-ADDITIONAL_REDIRECT_URLS=https://app.seu-dominio.com/reset-password
+SITE_URL=https://vapt.app.br
+API_EXTERNAL_URL=https://samuel-supabase.br8r5p.easypanel.host
+SUPABASE_PUBLIC_URL=https://samuel-supabase.br8r5p.easypanel.host
+MAILER_SUBJECTS_CONFIRMATION=Seu código de verificação chegou
+MAILER_TEMPLATES_CONFIRMATION=https://vapt.app.br/auth-email-confirmation.html
+```
+
+`API_EXTERNAL_URL` deve ser uma origem HTTPS sem `/auth/v1` no final. Ela é
+usada pelo GoTrue para construir `{{ .ConfirmationURL }}` e nunca pode apontar
+para `localhost` em produção.
+
+Autorize os domínios do frontend e suas rotas, incluindo recuperação e o
+redirecionamento após confirmação. Não abra a allowlist para outros hosts:
+
+```dotenv
+ADDITIONAL_REDIRECT_URLS=https://vapt.app.br/**,https://www.vapt.app.br/**,https://vaptmesaflow-*-contatoupboost-2301s-projects.vercel.app/**
 ```
 
 O template de recuperação deve manter `{{ .ConfirmationURL }}`. O link abre
 `/reset-password`; o SDK estabelece a sessão temporária e emite o evento
 `PASSWORD_RECOVERY` antes de permitir a atualização da senha.
 
-## 4. GoTrue no Docker Compose
+## 4. GoTrue no compose do EasyPanel
 
-Confirme que o serviço `auth` recebe todas as variáveis. Adicione ao bloco
-`services.auth.environment` se ainda não existirem:
+O EasyPanel obtém a stack pelo source GitHub. Não edite containers ou arquivos
+internos da VPS. Mantenha um fork versionado de `easypanel-io/compose`, baseado
+na branch atualmente fixada, e adicione ao bloco `services.auth.environment`:
 
 ```yaml
 GOTRUE_SMTP_MAX_FREQUENCY: ${AUTH_SMTP_MAX_FREQUENCY}
@@ -89,22 +105,33 @@ GOTRUE_RATE_LIMIT_EMAIL_SENT: ${AUTH_RATE_LIMIT_EMAIL_SENT}
 GOTRUE_SECURITY_CAPTCHA_ENABLED: ${AUTH_CAPTCHA_ENABLED}
 GOTRUE_SECURITY_CAPTCHA_PROVIDER: ${AUTH_CAPTCHA_PROVIDER}
 GOTRUE_SECURITY_CAPTCHA_SECRET: ${AUTH_CAPTCHA_SECRET}
+GOTRUE_MAILER_SUBJECTS_CONFIRMATION: ${MAILER_SUBJECTS_CONFIRMATION}
+GOTRUE_MAILER_TEMPLATES_CONFIRMATION: ${MAILER_TEMPLATES_CONFIRMATION}
 ```
 
 As variáveis SMTP padrão da distribuição oficial também devem permanecer
 mapeadas para `GOTRUE_SMTP_HOST`, `GOTRUE_SMTP_PORT`, `GOTRUE_SMTP_USER`,
 `GOTRUE_SMTP_PASS`, `GOTRUE_SMTP_ADMIN_EMAIL` e
-`GOTRUE_SMTP_SENDER_NAME`.
+`GOTRUE_SMTP_SENDER_NAME`. Não altere imagem, volumes, banco ou outros serviços
+para habilitar o template.
 
-Recrie somente o serviço de autenticação para aplicar as configurações:
+Ordem de rollout:
 
-```bash
-docker compose up -d --force-recreate auth
-docker compose logs --tail=100 auth
-```
+1. Publique o frontend e confirme HTTP 200 em
+   `https://vapt.app.br/auth-email-confirmation.html`.
+2. Publique no fork as duas variáveis `GOTRUE_MAILER_*`.
+3. No EasyPanel, mantenha build path `/supabase/code`, compose file
+   `docker-compose.yml` e selecione a branch versionada do fork.
+4. Confira as variáveis no Environment sem revelar seus valores secretos.
+5. Use o botão `Deploy` da aplicação compose para recriar os serviços.
+6. Faça um cadastro com email descartável e valide código e botão.
 
 Não registre nem compartilhe a saída completa de ambiente do container, pois
 ela contém segredos.
+
+Se o template impedir cadastros, remova `MAILER_TEMPLATES_CONFIRMATION` do
+Environment e faça novo `Deploy`. Preserve `API_EXTERNAL_URL`; restaurar
+`localhost` não é um rollback válido.
 
 ## 5. Validação manual
 
