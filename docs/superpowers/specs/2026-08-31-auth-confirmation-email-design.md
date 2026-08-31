@@ -126,4 +126,3 @@ A conta usada na investigação deve ser removida por `auth.users`. As relaçõe
 legadas `profiles` e `user_roles`, além de `account_preferences`, possuem cascata
 de exclusão. Eventos históricos de auditoria podem permanecer como registro
 operacional e não representam uma conta ativa.
-
