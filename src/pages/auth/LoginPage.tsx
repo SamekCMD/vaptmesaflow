@@ -7,6 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { z } from "zod";
+import { mapAuthError } from "@/features/auth/auth-errors";
+import { TurnstileWidget } from "@/features/auth/TurnstileWidget";
+import { ENV } from "@/lib/env";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Email inválido").max(255),
@@ -15,18 +18,22 @@ const loginSchema = z.object({
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { signIn, user, loading: authLoading } = useAuth();
+  const { recoveryMode, signIn, user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
   useEffect(() => {
-    if (!authLoading && user) {
+    if (!authLoading && recoveryMode) {
+      navigate("/reset-password", { replace: true });
+    } else if (!authLoading && user) {
       navigate("/dashboard", { replace: true });
     }
-  }, [authLoading, user, navigate]);
+  }, [authLoading, recoveryMode, user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,13 +45,25 @@ const LoginPage = () => {
       setErrors(fieldErrors);
       return;
     }
+    if (ENV.turnstileEnabled && !captchaToken) return;
     setLoading(true);
-    const { error } = await signIn(email, password);
-    setLoading(false);
-    if (error) {
-      setErrors({ email: "Email ou senha incorretos" });
-    } else {
+    const handleFailure = (error: unknown, fallback: string) => {
+      setErrors({ email: mapAuthError(error, fallback) });
+      setCaptchaToken(null);
+      setCaptchaResetKey((key) => key + 1);
+    };
+
+    try {
+      const { error } = await signIn(email, password, captchaToken ?? "");
+      if (error) {
+        handleFailure(error, "Email ou senha incorretos");
+        return;
+      }
       navigate("/dashboard");
+    } catch (error) {
+      handleFailure(error, "Não foi possível entrar. Tente novamente.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -71,10 +90,18 @@ const LoginPage = () => {
                 </button>
               </div>
               {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
+              <div className="text-right">
+                <Link to="/forgot-password" className="text-xs text-muted-foreground hover:underline">
+                  Esqueci minha senha
+                </Link>
+              </div>
             </div>
+            {ENV.turnstileEnabled && (
+              <TurnstileWidget action="login" onToken={setCaptchaToken} resetKey={captchaResetKey} />
+            )}
           </CardContent>
           <CardFooter className="flex-col gap-3">
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || (ENV.turnstileEnabled && !captchaToken)}>
               {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Entrar
             </Button>

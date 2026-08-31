@@ -6,7 +6,8 @@ import { useTheme } from "@/hooks/useTheme";
 import TrialBanner from "@/components/dashboard/TrialBanner";
 import PushNotificationBanner from "@/components/dashboard/PushNotificationBanner";
 import { registerServiceWorker } from "@/lib/push-notifications";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { useAccountBootstrap } from "@/features/auth/use-account-bootstrap";
+import { resolveCurrentRestaurant } from "@/features/restaurants/current-restaurant";
 import { Switch } from "@/components/ui/switch";
 import {
   LayoutDashboard,
@@ -47,30 +48,19 @@ const navItems = [
 
 const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
-  const [restaurantSlug, setRestaurantSlug] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const bootstrapQuery = useAccountBootstrap();
+  const currentRestaurant = resolveCurrentRestaurant(bootstrapQuery.data);
+  const restaurantId = currentRestaurant?.id ?? null;
+  const restaurantSlug = currentRestaurant?.slug ?? null;
   const { isActive, loading: planLoading, planType, isTrialing, trialDaysLeft } = useSubscription();
   const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     registerServiceWorker();
   }, []);
-
-  useEffect(() => {
-    if (!user) return;
-    fetchOwnedRestaurant<{ id: string; slug: string; owner_id: string; updated_at: string }>(
-      user.id,
-      "id, slug, owner_id, updated_at",
-    ).then((data) => {
-      if (data) {
-        setRestaurantId(data.id);
-        setRestaurantSlug(data.slug);
-      }
-    });
-  }, [user]);
 
   useEffect(() => {
     if (!planLoading && !isActive && !location.pathname.includes("/settings") && !location.pathname.includes("/subscription")) {

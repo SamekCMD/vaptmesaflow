@@ -29,6 +29,8 @@ export const ENV = {
   vaptApiBaseUrl: readRequiredEnv("VITE_VAPT_API_BASE_URL"),
   paymentEnvironment: readPaymentEnvironment(),
   vapidPublicKey: readEnv("VITE_VAPID_PUBLIC_KEY"),
+  turnstileSiteKey: readEnv("VITE_TURNSTILE_SITE_KEY"),
+  turnstileEnabled: readEnv("VITE_TURNSTILE_ENABLED", "true") !== "false",
 } as const;
 
 export const buildSupabaseStoragePublicUrl = (bucket: string, path: string): string =>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -44,12 +44,6 @@ const OnboardingPage = () => {
   const [dishDescription, setDishDescription] = useState("");
   const [dishCategory, setDishCategory] = useState("Pratos Principais");
   const [setupComplete, setSetupComplete] = useState(false);
-  const trialEndsAt = useMemo(() => {
-    const date = new Date();
-    date.setDate(date.getDate() + 3);
-    return date.toISOString();
-  }, []);
-
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -92,9 +86,6 @@ const OnboardingPage = () => {
           whatsapp: whatsapp.trim() || null,
           primary_color: primaryColor,
           secondary_color: secondaryColor,
-          plan_type: "starter",
-          plan_status: "trialing",
-          trial_ends_at: trialEndsAt,
           total_tables: Math.max(1, Number.parseInt(tableCount, 10) || 1),
           max_tables: Math.max(1, Number.parseInt(tableCount, 10) || 1),
           onboarding_completed: true,

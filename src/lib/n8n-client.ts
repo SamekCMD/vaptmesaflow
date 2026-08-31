@@ -32,6 +32,7 @@ type RequestOptions = {
 };
 
 type StripeCreateInput = {
+  organizationId: string;
   restaurantId: string;
   email: string;
   planType: string;
@@ -39,6 +40,7 @@ type StripeCreateInput = {
 };
 
 type StripeChangeInput = {
+  organizationId: string;
   restaurantId: string;
   targetPlanType: string;
   targetPriceId: string;
@@ -170,6 +172,7 @@ export const n8nClient = {
       }>({
         route: "billing/stripe/checkout",
         body: {
+          organizationId: input.organizationId,
           restaurantId: input.restaurantId,
           email: input.email,
           planType: input.planType,
@@ -186,6 +189,7 @@ export const n8nClient = {
       }>({
         route: "billing/stripe/subscription/change",
         body: {
+          organizationId: input.organizationId,
           restaurantId: input.restaurantId,
           targetPlanType: input.targetPlanType,
           targetPriceId: input.targetPriceId,

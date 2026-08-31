@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { z } from "zod";
+import { mapAuthError } from "@/features/auth/auth-errors";
+import { TurnstileWidget } from "@/features/auth/TurnstileWidget";
+import { ENV } from "@/lib/env";
+import {
+  clearPendingSignupEmail,
+  normalizeAuthEmail,
+  setPendingSignupEmail,
+} from "@/features/auth/auth-service";
 
 const signupSchema = z.object({
   fullName: z.string().trim().min(2, "Nome muito curto").max(100),
@@ -20,17 +28,13 @@ const signupSchema = z.object({
 
 const SignupPage = () => {
   const navigate = useNavigate();
-  const { signUp, user, loading: authLoading } = useAuth();
+  const { signUp } = useAuth();
   const [form, setForm] = useState({ fullName: "", email: "", password: "", confirmPassword: "" });
   const [showPw, setShowPw] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!authLoading && user) {
-      navigate("/dashboard", { replace: true });
-    }
-  }, [authLoading, user, navigate]);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((p) => ({ ...p, [field]: e.target.value }));
@@ -45,13 +49,40 @@ const SignupPage = () => {
       setErrors(fieldErrors);
       return;
     }
+    if (ENV.turnstileEnabled && !captchaToken) return;
     setLoading(true);
-    const { error } = await signUp(form.email, form.password, form.fullName);
-    setLoading(false);
-    if (error) {
-      setErrors({ email: error.message });
-    } else {
+    const handleFailure = (error: unknown) => {
+      setErrors({
+        email: mapAuthError(error, "Não foi possível criar sua conta. Tente novamente."),
+      });
+      setCaptchaToken(null);
+      setCaptchaResetKey((key) => key + 1);
+    };
+
+    try {
+      const normalizedEmail = normalizeAuthEmail(form.email);
+      const { error, session } = await signUp(
+        normalizedEmail,
+        form.password,
+        form.fullName,
+        captchaToken ?? "",
+      );
+      if (error) {
+        handleFailure(error);
+        return;
+      }
+      if (!session) {
+        setPendingSignupEmail(normalizedEmail);
+        navigate("/verify-email");
+        return;
+      }
+
+      clearPendingSignupEmail();
       navigate("/onboarding");
+    } catch (error) {
+      handleFailure(error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -89,9 +120,12 @@ const SignupPage = () => {
               <Input id="confirmPassword" type="password" placeholder="Repita a senha" value={form.confirmPassword} onChange={set("confirmPassword")} autoComplete="new-password" />
               {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword}</p>}
             </div>
+            {ENV.turnstileEnabled && (
+              <TurnstileWidget action="signup" onToken={setCaptchaToken} resetKey={captchaResetKey} />
+            )}
           </CardContent>
           <CardFooter className="flex-col gap-3">
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || (ENV.turnstileEnabled && !captchaToken)}>
               {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Criar Conta
             </Button>

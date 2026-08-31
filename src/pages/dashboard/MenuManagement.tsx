@@ -18,11 +18,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, Pencil, Trash2, Search, Loader2, Upload, X, Star, Tag, Sparkles, ChefHat } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { MenuTableSkeleton } from "@/components/skeletons/DashboardSkeletons";
-import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { buildSupabaseStoragePublicUrl } from "@/lib/env";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { useCurrentRestaurant } from "@/features/restaurants/current-restaurant";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import {
   completeGuideModule,
@@ -117,9 +116,9 @@ function resizeImage(file: File, maxSize = 1200): Promise<Blob> {
 }
 
 const MenuManagement = () => {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { restaurantId } = useCurrentRestaurant();
   const [items, setItems] = useState<MenuItem[]>([]);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -127,8 +126,6 @@ const MenuManagement = () => {
   const [form, setForm] = useState({ name: "", price: "", category: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
-
   // Extended form state
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -145,20 +142,15 @@ const MenuManagement = () => {
 
   useEffect(() => {
     const fetchItems = async () => {
-      if (!user) return;
+      if (!restaurantId) {
+        setLoading(false);
+        return;
+      }
       try {
-        const rest = await fetchOwnedRestaurant<{ id: string; owner_id: string; updated_at: string }>(
-          user.id,
-          "id, owner_id, updated_at"
-        );
-
-        if (!rest) { setLoading(false); return; }
-        setRestaurantId(rest.id);
-
         const { data: menuData, error } = await supabase
           .from("menu_items")
           .select("*")
-          .eq("restaurant_id", rest.id)
+          .eq("restaurant_id", restaurantId)
           .order("created_at", { ascending: false });
 
         if (error) throw error;
@@ -207,7 +199,7 @@ const MenuManagement = () => {
       }
     };
     fetchItems();
-  }, [user]);
+  }, [restaurantId]);
 
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("menu");

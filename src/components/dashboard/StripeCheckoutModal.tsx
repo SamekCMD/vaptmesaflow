@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Lock, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useAccountBootstrap } from "@/features/auth/use-account-bootstrap";
 import type { PlanDefinition } from "@/lib/plans";
 import { STRIPE_PUBLISHABLE_KEY } from "@/lib/constants";
 import { n8nClient, N8nClientError } from "@/lib/n8n-client";
@@ -93,6 +94,8 @@ interface StripeCheckoutModalProps {
 
 export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCharged }: StripeCheckoutModalProps) {
   const { user } = useAuth();
+  const { data: bootstrap } = useAccountBootstrap();
+  const organizationId = bootstrap?.currentOrganizationId ?? null;
   const { restaurantId, planStatus } = useSubscription();
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [fetchingSecret, setFetchingSecret] = useState(false);
@@ -100,7 +103,7 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!open || !plan || !user || !restaurantId) {
+    if (!open || !plan || !user || !organizationId || !restaurantId) {
       setClientSecret(null);
       setFetchError(null);
       return;
@@ -114,11 +117,13 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
         const data =
           planStatus === "active"
             ? await n8nClient.stripe.changeSubscription({
+                organizationId,
                 restaurantId,
                 targetPlanType: plan.id,
                 targetPriceId: plan.priceId,
               })
             : await n8nClient.stripe.createSubscription({
+                organizationId,
                 restaurantId,
                 email: user.email || "",
                 planType: plan.id,
@@ -150,7 +155,7 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
     };
 
     createSession();
-  }, [open, plan, user, restaurantId, planStatus, onAutoCharged, onOpenChange]);
+  }, [open, plan, user, organizationId, restaurantId, planStatus, onAutoCharged, onOpenChange]);
 
   if (!plan) return null;
 

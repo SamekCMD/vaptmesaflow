@@ -93,7 +93,7 @@ describe("onboarding flow", () => {
     expect(screen.getByText(/você pode alterar isso depois nas configurações\./i)).toBeInTheDocument();
   });
 
-  it("creates the restaurant with trial defaults and the starter menu item on finish", async () => {
+  it("creates the restaurant without writing legacy subscription fields", async () => {
     const restaurantInsert = vi.fn(() => ({
       select: () => ({
         single: async () => ({ data: { id: "rest-1" }, error: null }),
@@ -142,11 +142,8 @@ describe("onboarding flow", () => {
           owner_id: "user-1",
           name: "Vapt Burger",
           slug: "vapt-burger",
-          plan_type: "starter",
-          plan_status: "trialing",
           total_tables: 3,
           max_tables: 3,
-          trial_ends_at: expect.any(String),
         })
       );
       expect(menuInsert).toHaveBeenCalledWith(
@@ -157,6 +154,11 @@ describe("onboarding flow", () => {
         })
       );
     });
+
+    const restaurantPayload = restaurantInsert.mock.calls[0][0];
+    expect(restaurantPayload).not.toHaveProperty("plan_type");
+    expect(restaurantPayload).not.toHaveProperty("plan_status");
+    expect(restaurantPayload).not.toHaveProperty("trial_ends_at");
   });
 
   it("shows the post-setup choice state with caixa and guide actions after finish", async () => {

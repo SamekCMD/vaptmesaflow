@@ -3,7 +3,21 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SettingsPage from "@/pages/dashboard/SettingsPage";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+
+const restaurantRow = vi.hoisted(() => ({
+  id: "10000000-0000-4000-8000-000000000001",
+  cnpj: null,
+  name: "Restaurante Teste",
+  address: "Rua Teste, 1",
+  phone: "61999999999",
+  hours: "18h as 23h",
+  description: "Restaurante de teste",
+  payment_mode: "prepaid",
+  max_pending_orders: 3,
+  max_tables: 20,
+  local_enabled: true,
+  delivery_enabled: true,
+}));
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
@@ -15,13 +29,21 @@ vi.mock("@/contexts/AuthContext", () => ({
   }),
 }));
 
-vi.mock("@/lib/restaurants", () => ({
-  fetchOwnedRestaurant: vi.fn(),
+vi.mock("@/features/restaurants/current-restaurant", () => ({
+  useCurrentRestaurant: () => ({
+    restaurantId: "10000000-0000-4000-8000-000000000001",
+  }),
 }));
 
 vi.mock("@/lib/supabase", () => ({
   supabase: {
-    from: vi.fn(),
+    from: vi.fn(() => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: () => Promise.resolve({ data: restaurantRow, error: null }),
+        }),
+      }),
+    })),
     auth: { updateUser: vi.fn() },
   },
 }));
@@ -38,27 +60,9 @@ vi.mock("@/components/payments/MercadoPagoSettingsCard", () => ({
   default: () => <div>Mercado Pago de teste</div>,
 }));
 
-const mockedFetchOwnedRestaurant = vi.mocked(fetchOwnedRestaurant);
-
 describe("aba de pagamentos nas configuracoes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedFetchOwnedRestaurant.mockResolvedValue({
-      id: "10000000-0000-4000-8000-000000000001",
-      owner_id: "20000000-0000-4000-8000-000000000001",
-      updated_at: "2026-08-29T12:00:00.000Z",
-      cnpj: null,
-      name: "Restaurante Teste",
-      address: "Rua Teste, 1",
-      phone: "61999999999",
-      hours: "18h as 23h",
-      description: "Restaurante de teste",
-      payment_mode: "prepaid",
-      max_pending_orders: 3,
-      max_tables: 20,
-      local_enabled: true,
-      delivery_enabled: true,
-    });
   });
 
   it("separa pagamentos e mantem as tres abas acessiveis no mobile", async () => {

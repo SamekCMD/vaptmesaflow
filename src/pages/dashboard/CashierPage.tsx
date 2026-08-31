@@ -3,8 +3,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
-import { useAuth } from "@/contexts/AuthContext";
+import { useCurrentRestaurant } from "@/features/restaurants/current-restaurant";
 import TableCard, { type TableSession } from "@/components/cashier/TableCard";
 import TableSessionModal from "@/components/cashier/TableSessionModal";
 import FeatureGate from "@/components/FeatureGate";
@@ -62,10 +61,9 @@ const playBellSound = () => {
 };
 
 const CashierPage = () => {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const { restaurantId } = useCurrentRestaurant();
   const [totalTables, setTotalTables] = useState(20);
   const [sessions, setSessions] = useState<TableSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<TableSession | null>(null);
@@ -75,20 +73,20 @@ const CashierPage = () => {
   const knownOrderCountRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
-    if (!user) return;
+    if (!restaurantId) return;
     const fetch = async () => {
-      const data = await fetchOwnedRestaurant<RestaurantCashierRow & { owner_id: string; updated_at: string }>(
-        user.id,
-        "id, owner_id, total_tables, max_tables, updated_at",
-      );
+      const { data } = await supabase
+        .from("restaurants")
+        .select("id, total_tables, max_tables")
+        .eq("id", restaurantId)
+        .maybeSingle();
       if (data) {
         const row = data as RestaurantCashierRow;
-        setRestaurantId(row.id);
         setTotalTables(row.max_tables || row.total_tables || 20);
       }
     };
     fetch();
-  }, [user]);
+  }, [restaurantId]);
 
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("cashier");

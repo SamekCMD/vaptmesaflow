@@ -1,8 +1,8 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { useAccountBootstrap } from "@/features/auth/use-account-bootstrap";
+import { resolveCurrentRestaurant } from "@/features/restaurants/current-restaurant";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -230,7 +230,9 @@ export function getOverviewSatisfactionSummary({
 }
 
 const Overview = ({ guideProgress }: OverviewProps) => {
-  const { user } = useAuth();
+  const bootstrapQuery = useAccountBootstrap();
+  const currentRestaurant = resolveCurrentRestaurant(bootstrapQuery.data);
+  const currentRestaurantId = currentRestaurant?.id ?? null;
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -290,15 +292,24 @@ const Overview = ({ guideProgress }: OverviewProps) => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user) return;
+      if (!currentRestaurantId) {
+        setRestaurant(null);
+        setOrders([]);
+        setFeedbackRecords([]);
+        setLoading(false);
+        return;
+      }
 
       try {
         setLoading(true);
 
-        const restData = await fetchOwnedRestaurant<RestaurantOverviewRecord & { owner_id: string; updated_at: string }>(
-          user.id,
-          "id, owner_id, updated_at, name, payment_mode, onboarding_completed, delivery_enabled"
-        );
+        const { data: restData, error: restaurantError } = await supabase
+          .from("restaurants")
+          .select("id, name, payment_mode, onboarding_completed, delivery_enabled")
+          .eq("id", currentRestaurantId)
+          .maybeSingle();
+
+        if (restaurantError) throw restaurantError;
         setRestaurant(restData as RestaurantOverviewRecord);
 
         if (restData) {
@@ -333,7 +344,7 @@ const Overview = ({ guideProgress }: OverviewProps) => {
     };
 
     fetchData();
-  }, [user, period]);
+  }, [currentRestaurantId, period]);
 
   const completedOrders = useMemo(
     () => orders.filter((o) => ["ready", "delivered"].includes(o.status)),

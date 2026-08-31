@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-const SUBSCRIPTION_UPDATED_EVENT = "vapt:subscription-updated";
+import { useAccountBootstrap } from "@/features/auth/use-account-bootstrap";
+import { supabase } from "@/lib/supabase";
 
 export type PlanType = "starter" | "pro" | "business" | "trial";
 export type PlanStatus = "trialing" | "active" | "canceled" | "expired";
@@ -28,10 +28,10 @@ export interface SubscriptionData {
   refetch: () => void;
 }
 
-type RestaurantSubscriptionRow = {
-  id: string;
-  plan_type: Exclude<PlanType, "trial"> | null;
-  plan_status: PlanStatus | null;
+type OrganizationSubscriptionRow = {
+  organization_id: string;
+  plan_type: string | null;
+  plan_status: string | null;
   trial_ends_at: string | null;
 };
 
@@ -61,167 +61,71 @@ const normalizePlanStatus = (planStatus: string | null | undefined): PlanStatus 
   return "trialing";
 };
 
-type SubscriptionSnapshot = {
-  planType: PlanType;
-  planStatus: PlanStatus;
-  trialEndsAt: Date | null;
-  restaurantId: string | null;
-  loading: boolean;
-};
+async function fetchOrganizationSubscription(
+  organizationId: string,
+): Promise<OrganizationSubscriptionRow | null> {
+  const response = await supabase
+    .from("organization_subscriptions")
+    .select("organization_id, plan_type, plan_status, trial_ends_at")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
 
-const DEFAULT_SNAPSHOT: SubscriptionSnapshot = {
-  planType: "trial",
-  planStatus: "trialing",
-  trialEndsAt: null,
-  restaurantId: null,
-  loading: true,
-};
-
-let subscriptionSnapshot: SubscriptionSnapshot = DEFAULT_SNAPSHOT;
-let inFlightFetch: Promise<void> | null = null;
-const listeners = new Set<(snapshot: SubscriptionSnapshot) => void>();
-
-const emitSnapshot = () => {
-  listeners.forEach((listener) => listener(subscriptionSnapshot));
-};
-
-const setSnapshot = (partial: Partial<SubscriptionSnapshot>) => {
-  subscriptionSnapshot = { ...subscriptionSnapshot, ...partial };
-  emitSnapshot();
-};
-
-const resetSnapshot = () => {
-  subscriptionSnapshot = { ...DEFAULT_SNAPSHOT, loading: false };
-  emitSnapshot();
-};
-
-async function loadSubscriptionSnapshot(userId: string): Promise<void> {
-  if (inFlightFetch) {
-    return inFlightFetch;
+  if (response.error) {
+    throw response.error;
   }
 
-  inFlightFetch = (async () => {
-    try {
-      const data = await fetchOwnedRestaurant<RestaurantSubscriptionRow & { owner_id: string }>(
-        userId,
-        "id, owner_id, plan_type, plan_status, trial_ends_at, updated_at",
-      );
-
-      if (import.meta.env.DEV) {
-        console.info("[useSubscription] selected restaurant", {
-          userId,
-          restaurant: data,
-        });
-      }
-
-      if (data) {
-        const row = data as RestaurantSubscriptionRow;
-        const planStatus = normalizePlanStatus(row.plan_status);
-        const planType = normalizePlanType(row.plan_type);
-
-        setSnapshot({
-          restaurantId: row.id,
-          planType: planStatus === "trialing" ? "trial" : planType,
-          planStatus,
-          trialEndsAt: row.trial_ends_at ? new Date(row.trial_ends_at) : null,
-          loading: false,
-        });
-      } else {
-        resetSnapshot();
-      }
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error("[useSubscription] failed to fetch restaurant subscription", error);
-      }
-      resetSnapshot();
-    } finally {
-      inFlightFetch = null;
-    }
-  })();
-
-  return inFlightFetch;
+  return response.data as OrganizationSubscriptionRow | null;
 }
 
 export function useSubscription(): SubscriptionData {
-  const { user } = useAuth();
-  const [snapshot, setLocalSnapshot] = useState<SubscriptionSnapshot>(subscriptionSnapshot);
+  const bootstrapQuery = useAccountBootstrap();
+  const organizationId = bootstrapQuery.data?.currentOrganizationId ?? null;
+  const restaurantId = bootstrapQuery.data?.currentRestaurantId ?? null;
+  const subscriptionQuery = useQuery({
+    queryKey: ["organization-subscription", organizationId],
+    queryFn: () => fetchOrganizationSubscription(organizationId as string),
+    enabled: organizationId !== null,
+    staleTime: 30_000,
+  });
 
-  const fetchPlan = useCallback(async () => {
-    if (!user) {
-      resetSnapshot();
-      return;
-    }
-    setSnapshot({ loading: true });
-    await loadSubscriptionSnapshot(user.id);
-  }, [user]);
-
-  const refetch = useCallback(async () => {
-    await fetchPlan();
-
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent(SUBSCRIPTION_UPDATED_EVENT));
-    }
-  }, [fetchPlan]);
-
-  useEffect(() => {
-    fetchPlan();
-  }, [fetchPlan]);
-
-  useEffect(() => {
-    const listener = (nextSnapshot: SubscriptionSnapshot) => {
-      setLocalSnapshot(nextSnapshot);
-    };
-
-    listeners.add(listener);
-
-    if (typeof window === "undefined") return;
-
-    const handleSubscriptionUpdated = () => {
-      fetchPlan();
-    };
-
-    window.addEventListener(SUBSCRIPTION_UPDATED_EVENT, handleSubscriptionUpdated);
-
-    return () => {
-      listeners.delete(listener);
-      window.removeEventListener(SUBSCRIPTION_UPDATED_EVENT, handleSubscriptionUpdated);
-    };
-  }, [fetchPlan]);
-
+  const row = subscriptionQuery.data;
+  const planStatus = normalizePlanStatus(row?.plan_status);
+  const normalizedPlanType = normalizePlanType(row?.plan_type);
+  const planType: PlanType = planStatus === "trialing" ? "trial" : normalizedPlanType;
+  const trialEndsAt = row?.trial_ends_at ? new Date(row.trial_ends_at) : null;
   const now = new Date();
-  const trialDaysLeft = snapshot.trialEndsAt
-    ? Math.max(0, Math.ceil((snapshot.trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+  const trialDaysLeft = trialEndsAt
+    ? Math.max(0, Math.ceil((trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
     : 0;
-
-  const isTrialing =
-    snapshot.planStatus === "trialing" &&
-    snapshot.trialEndsAt !== null &&
-    snapshot.trialEndsAt > now;
-
-  const isActive = snapshot.planStatus === "active" || isTrialing;
+  const isTrialing = planStatus === "trialing" && trialEndsAt !== null && trialEndsAt > now;
+  const isActive = planStatus === "active" || isTrialing;
 
   const canAccess = useCallback(
     (feature: string): boolean => {
       if (isTrialing) return true;
-      if (snapshot.planStatus !== "active") return false;
+      if (planStatus !== "active") return false;
       const allowed = featureAccess[feature];
       if (!allowed) return true;
-      const actualPlan = snapshot.planType === "trial" ? "starter" : snapshot.planType;
+      const actualPlan = planType === "trial" ? "starter" : planType;
       return allowed.includes(actualPlan);
     },
-    [isTrialing, snapshot.planStatus, snapshot.planType]
+    [isTrialing, planStatus, planType],
   );
 
+  const refetch = useCallback(() => {
+    void subscriptionQuery.refetch();
+  }, [subscriptionQuery]);
+
   return {
-    planType: snapshot.planType,
-    planStatus: snapshot.planStatus,
-    trialEndsAt: snapshot.trialEndsAt,
+    planType,
+    planStatus,
+    trialEndsAt,
     trialDaysLeft,
     isTrialing,
     isActive,
-    restaurantId: snapshot.restaurantId,
+    restaurantId,
     canAccess,
-    loading: snapshot.loading,
+    loading: bootstrapQuery.isLoading || (organizationId !== null && subscriptionQuery.isPending),
     refetch,
   };
 }

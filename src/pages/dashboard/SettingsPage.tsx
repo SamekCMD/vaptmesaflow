@@ -16,7 +16,7 @@ import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import CurrentPaymentMethodsCard from "@/components/payments/CurrentPaymentMethodsCard";
 import MercadoPagoSettingsCard from "@/components/payments/MercadoPagoSettingsCard";
 import { ENV } from "@/lib/env";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { useCurrentRestaurant } from "@/features/restaurants/current-restaurant";
 import {
   completeGuideModule,
   getGuideModuleHref,
@@ -53,6 +53,7 @@ type RestaurantSettingsUpdate = {
 
 const SettingsPage = () => {
   const { user } = useAuth();
+  const { restaurantId } = useCurrentRestaurant();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
@@ -82,26 +83,28 @@ const SettingsPage = () => {
     confirm_password: "",
   });
   const [loading, setLoading] = useState(true);
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
   const [savingAccount, setSavingAccount] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user) return;
+      if (!user || !restaurantId) {
+        setLoading(false);
+        return;
+      }
 
       try {
-        const data = await fetchOwnedRestaurant<
-          RestaurantSettingsRow & { owner_id: string; updated_at: string }
-        >(
-          user.id,
-          "id, owner_id, updated_at, name, cnpj, address, phone, hours, description, payment_mode, max_pending_orders, max_tables, local_enabled, delivery_enabled"
-        );
+        const { data, error } = await supabase
+          .from("restaurants")
+          .select("id, name, cnpj, address, phone, hours, description, payment_mode, max_pending_orders, max_tables, local_enabled, delivery_enabled")
+          .eq("id", restaurantId)
+          .maybeSingle();
+
+        if (error) throw error;
 
         if (data) {
           const row = data as RestaurantSettingsRow;
-          setRestaurantId(row.id ?? null);
           setForm({
             name: row.name || "",
             address: row.address || "",
@@ -141,7 +144,7 @@ const SettingsPage = () => {
     };
 
     fetchData();
-  }, [user]);
+  }, [restaurantId, user]);
 
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("settings");

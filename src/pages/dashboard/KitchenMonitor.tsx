@@ -6,8 +6,7 @@ import { Clock, ArrowRight, RefreshCw, Bell, BellOff, Loader2 } from "lucide-rea
 import { toast } from "@/hooks/use-toast";
 import { KitchenSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts/AuthContext";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { useCurrentRestaurant } from "@/features/restaurants/current-restaurant";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import {
@@ -116,11 +115,10 @@ const getTimerDisplay = (order: Order, isReady: boolean) => {
 };
 
 const KitchenMonitor = () => {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const { restaurantId } = useCurrentRestaurant();
   const [loading, setLoading] = useState(true);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [channelFilter, setChannelFilter] = useState<"all" | "local" | "delivery">("all");
@@ -158,18 +156,6 @@ const KitchenMonitor = () => {
     }, 1000);
     return () => clearInterval(interval);
   }, []);
-
-  useEffect(() => {
-    if (!user) return;
-    const fetchRestaurant = async () => {
-      const data = await fetchOwnedRestaurant<{ id: string; owner_id: string; updated_at: string }>(
-        user.id,
-        "id, owner_id, updated_at",
-      );
-      if (data) setRestaurantId(data.id);
-    };
-    fetchRestaurant();
-  }, [user]);
 
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("kitchen");

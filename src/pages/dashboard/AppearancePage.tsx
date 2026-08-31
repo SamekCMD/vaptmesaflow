@@ -12,10 +12,11 @@ import { Upload, Smartphone, ExternalLink, Loader2, UtensilsCrossed } from "luci
 import { AppearanceFormSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { useCurrentRestaurant } from "@/features/restaurants/current-restaurant";
 
 const AppearancePage = () => {
   const { user } = useAuth();
+  const { restaurantId } = useCurrentRestaurant();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading] = useState(true);
@@ -40,12 +41,20 @@ const AppearancePage = () => {
   // Fetch restaurant data
   useEffect(() => {
     const fetch = async () => {
-      if (!user) return;
+      if (!restaurantId) {
+        setLoading(false);
+        return;
+      }
       try {
-        const data = await fetchOwnedRestaurant<{
+        const { data, error } = await supabase
+          .from("restaurants")
+          .select("id, name, slug, logo_url, primary_color, secondary_color, font_family, delivery_enabled")
+          .eq("id", restaurantId)
+          .maybeSingle();
+
+        if (error) throw error;
+        const row = data as {
           id: string;
-          owner_id: string;
-          updated_at: string;
           name: string | null;
           slug: string | null;
           logo_url: string | null;
@@ -53,24 +62,21 @@ const AppearancePage = () => {
           secondary_color: string | null;
           font_family: string | null;
           delivery_enabled: boolean | null;
-        }>(
-          user.id,
-          "id, owner_id, updated_at, name, slug, logo_url, primary_color, secondary_color, font_family, delivery_enabled"
-        );
+        } | null;
 
-        if (data) {
-          setDeliveryEnabled(Boolean(data.delivery_enabled));
+        if (row) {
+          setDeliveryEnabled(Boolean(row.delivery_enabled));
           setConfig({
-            id: data.id,
-            name: data.name || "",
-            slug: data.slug || "",
-            logoUrl: data.logo_url || "",
-            primaryColor: data.primary_color || "#0ea573",
-            secondaryColor: data.secondary_color || "#1e293b",
-            fontFamily: (data.font_family as RestaurantConfig["fontFamily"]) || "modern",
+            id: row.id,
+            name: row.name || "",
+            slug: row.slug || "",
+            logoUrl: row.logo_url || "",
+            primaryColor: row.primary_color || "#0ea573",
+            secondaryColor: row.secondary_color || "#1e293b",
+            fontFamily: (row.font_family as RestaurantConfig["fontFamily"]) || "modern",
             activeModules: { menu: true, kds: true, metrics: true },
           });
-          setLogoPreview(data.logo_url || "");
+          setLogoPreview(row.logo_url || "");
         }
       } catch (err: unknown) {
         if (import.meta.env.DEV) {
@@ -81,7 +87,7 @@ const AppearancePage = () => {
       }
     };
     fetch();
-  }, [user]);
+  }, [restaurantId]);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
