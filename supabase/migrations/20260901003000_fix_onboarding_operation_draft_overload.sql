@@ -1,5 +1,11 @@
 -- The operation-aware overload must require all arguments. Defaults on its
 -- trailing parameters also made nine-argument calls match this function.
+begin;
+
+drop function if exists public.save_onboarding_draft(
+  text, text, integer, uuid, uuid, text, text, text, integer, boolean, boolean
+);
+
 create or replace function public.save_onboarding_draft(
   p_name text,
   p_slug text,
@@ -75,3 +81,5 @@ grant execute on function public.save_onboarding_draft(text, text, integer, uuid
   to authenticated;
 
 notify pgrst, 'reload schema';
+
+commit;
