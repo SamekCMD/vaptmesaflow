@@ -89,6 +89,24 @@ describe("onboarding flow", () => {
     await waitFor(() => expect(onboardingMocks.mutateAsync).toHaveBeenCalledTimes(expectedSaveCount));
   };
 
+  const fillBasics = () => {
+    fireEvent.change(screen.getByLabelText(/nome do restaurante/i), {
+      target: { value: "Vapt Burger" },
+    });
+  };
+
+  const mockRestaurantCompletion = () => {
+    const eq = vi.fn().mockResolvedValue({ error: null });
+    const update = vi.fn(() => ({ eq }));
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === "restaurants") {
+        return { update } as unknown as ReturnType<typeof supabase.from>;
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    return { update, eq };
+  };
+
   it("restores the saved fields and step after reopening onboarding", async () => {
     onboardingMocks.draft = {
       id: "rest-1",
@@ -100,6 +118,8 @@ describe("onboarding flow", () => {
       secondaryColor: "#1e293b",
       totalTables: 8,
       onboardingStep: 2,
+      localEnabled: true,
+      deliveryEnabled: false,
     };
 
     render(
@@ -108,56 +128,30 @@ describe("onboarding flow", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole("heading", { name: "Primeiro prato" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Pronto para começar" })).toBeInTheDocument();
+    expect(screen.getByText("Salão")).toBeInTheDocument();
+    expect(screen.getByText("8")).toBeInTheDocument();
   });
 
-  it("keeps the starter menu inputs on step 2 and the operation setup on step 3", async () => {
+  it("uses the focused basics, operation and ready steps without forced activation tasks", async () => {
     render(
       <MemoryRouter>
         <OnboardingPage />
       </MemoryRouter>
     );
 
-    fireEvent.change(screen.getByLabelText("Nome do Restaurante"), {
-      target: { value: "Vapt Burger" },
-    });
+    fillBasics();
     await clickNext(1);
-    await clickNext(2);
-
-    expect(screen.getByRole("heading", { name: "Primeiro prato" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Nome do Prato")).toBeInTheDocument();
-    expect(screen.getByLabelText("Preço (R$)")).toBeInTheDocument();
-    expect(screen.getByLabelText("Categoria")).toBeInTheDocument();
-    expect(screen.getByLabelText("Descrição")).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText("Nome do Prato"), {
-      target: { value: "X-Burguer Especial" },
-    });
-    fireEvent.change(screen.getByLabelText("Preço (R$)"), {
-      target: { value: "29.90" },
-    });
-    await clickNext(3);
-
-    expect(screen.getByRole("heading", { name: "Primeira operação" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Como você atende hoje?" })).toBeInTheDocument();
+    expect(screen.queryByText("Logo do Restaurante")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Nome do Prato")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Número inicial de mesas")).toBeInTheDocument();
-    expect(screen.getByText(/você pode alterar isso depois nas configurações\./i)).toBeInTheDocument();
+    await clickNext(2);
+    expect(screen.getByRole("heading", { name: "Pronto para começar" })).toBeInTheDocument();
   });
 
   it("reuses the persisted draft without writing legacy subscription fields", async () => {
-    const menuInsert = vi.fn().mockResolvedValue({ error: null });
-    const restaurantUpdate = vi.fn(() => ({
-      eq: vi.fn().mockResolvedValue({ error: null }),
-    }));
-
-    vi.mocked(supabase.from).mockImplementation((table: string) => {
-      if (table === "restaurants") {
-        return { update: restaurantUpdate } as unknown as ReturnType<typeof supabase.from>;
-      }
-      if (table === "menu_items") {
-        return { insert: menuInsert } as unknown as ReturnType<typeof supabase.from>;
-      }
-      throw new Error(`Unexpected table: ${table}`);
-    });
+    const { update, eq } = mockRestaurantCompletion();
 
     render(
       <MemoryRouter>
@@ -165,23 +159,12 @@ describe("onboarding flow", () => {
       </MemoryRouter>
     );
 
-    fireEvent.change(screen.getByLabelText("Nome do Restaurante"), {
-      target: { value: "Vapt Burger" },
-    });
+    fillBasics();
     await clickNext(1);
-    await clickNext(2);
-
-    fireEvent.change(screen.getByLabelText("Nome do Prato"), {
-      target: { value: "X-Burguer Especial" },
-    });
-    fireEvent.change(screen.getByLabelText("Preço (R$)"), {
-      target: { value: "29.90" },
-    });
-    await clickNext(3);
-
-    fireEvent.change(screen.getByLabelText("Número inicial de mesas"), {
+    fireEvent.change(screen.getByLabelText(/número inicial de mesas/i), {
       target: { value: "3" },
     });
+    await clickNext(2);
     fireEvent.click(screen.getByRole("button", { name: "Finalizar" }));
 
     await waitFor(() => {
@@ -191,16 +174,13 @@ describe("onboarding flow", () => {
           name: "Vapt Burger",
           slug: "vapt-burger",
           totalTables: 3,
-          onboardingStep: 3,
+          localEnabled: true,
+          deliveryEnabled: false,
+          onboardingStep: 2,
         })
       );
-      expect(menuInsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          restaurant_id: "rest-1",
-          name: "X-Burguer Especial",
-          price: 29.9,
-        })
-      );
+      expect(update).toHaveBeenCalledWith({ onboarding_completed: true });
+      expect(eq).toHaveBeenCalledWith("id", "rest-1");
     });
 
     const restaurantPayload = onboardingMocks.mutateAsync.mock.calls.at(-1)?.[0];
@@ -210,20 +190,7 @@ describe("onboarding flow", () => {
   });
 
   it("shows the post-setup choice state with caixa and guide actions after finish", async () => {
-    const menuInsert = vi.fn().mockResolvedValue({ error: null });
-    const restaurantUpdate = vi.fn(() => ({
-      eq: vi.fn().mockResolvedValue({ error: null }),
-    }));
-
-    vi.mocked(supabase.from).mockImplementation((table: string) => {
-      if (table === "restaurants") {
-        return { update: restaurantUpdate } as unknown as ReturnType<typeof supabase.from>;
-      }
-      if (table === "menu_items") {
-        return { insert: menuInsert } as unknown as ReturnType<typeof supabase.from>;
-      }
-      throw new Error(`Unexpected table: ${table}`);
-    });
+    mockRestaurantCompletion();
 
     render(
       <MemoryRouter>
@@ -231,23 +198,9 @@ describe("onboarding flow", () => {
       </MemoryRouter>
     );
 
-    fireEvent.change(screen.getByLabelText("Nome do Restaurante"), {
-      target: { value: "Vapt Burger" },
-    });
+    fillBasics();
     await clickNext(1);
     await clickNext(2);
-
-    fireEvent.change(screen.getByLabelText("Nome do Prato"), {
-      target: { value: "X-Burguer Especial" },
-    });
-    fireEvent.change(screen.getByLabelText("Preço (R$)"), {
-      target: { value: "29.90" },
-    });
-    await clickNext(3);
-
-    fireEvent.change(screen.getByLabelText("Número inicial de mesas"), {
-      target: { value: "3" },
-    });
     fireEvent.click(screen.getByRole("button", { name: "Finalizar" }));
 
     await waitFor(() => {
@@ -259,6 +212,99 @@ describe("onboarding flow", () => {
       ).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Operação pronta" })).toBeInTheDocument();
     });
+  });
+
+  it("hides the table count for delivery and persists the selected mode", async () => {
+    render(
+      <MemoryRouter>
+        <OnboardingPage />
+      </MemoryRouter>
+    );
+
+    fillBasics();
+    await clickNext(1);
+    fireEvent.click(screen.getByRole("radio", { name: /delivery pedidos/i }));
+
+    expect(screen.queryByLabelText(/número inicial de mesas/i)).not.toBeInTheDocument();
+    await clickNext(2);
+    expect(onboardingMocks.mutateAsync).toHaveBeenLastCalledWith(
+      expect.objectContaining({ localEnabled: false, deliveryEnabled: true, onboardingStep: 2 })
+    );
+  });
+
+  it("saves before returning to the basics step", async () => {
+    render(
+      <MemoryRouter>
+        <OnboardingPage />
+      </MemoryRouter>
+    );
+
+    fillBasics();
+    await clickNext(1);
+    fireEvent.click(screen.getByRole("button", { name: /voltar/i }));
+
+    await waitFor(() => expect(onboardingMocks.mutateAsync).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("heading", { name: "Vamos criar seu restaurante" })).toBeInTheDocument();
+    expect(onboardingMocks.mutateAsync).toHaveBeenLastCalledWith(
+      expect.objectContaining({ restaurantId: "rest-1", onboardingStep: 0 })
+    );
+  });
+
+  it("maps a duplicate slug to the field and keeps the entered data", async () => {
+    onboardingMocks.mutateAsync.mockRejectedValueOnce({ code: "23505" });
+    render(
+      <MemoryRouter>
+        <OnboardingPage />
+      </MemoryRouter>
+    );
+
+    fillBasics();
+    fireEvent.click(screen.getByRole("button", { name: /próximo/i }));
+
+    expect(await screen.findByText("Este endereço de cardápio já está em uso.")).toBeInTheDocument();
+    expect(screen.getByLabelText(/nome do restaurante/i)).toHaveValue("Vapt Burger");
+    expect(screen.getByRole("heading", { name: "Vamos criar seu restaurante" })).toBeInTheDocument();
+  });
+
+  it("keeps the current operation step when saving fails", async () => {
+    render(
+      <MemoryRouter>
+        <OnboardingPage />
+      </MemoryRouter>
+    );
+
+    fillBasics();
+    await clickNext(1);
+    fireEvent.click(screen.getByRole("radio", { name: /ambos salão/i }));
+    onboardingMocks.mutateAsync.mockRejectedValueOnce(new Error("Falha temporária"));
+    fireEvent.click(screen.getByRole("button", { name: /próximo/i }));
+
+    await waitFor(() => expect(onboardingMocks.mutateAsync).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("heading", { name: "Como você atende hoje?" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /ambos salão/i })).toBeChecked();
+  });
+
+  it("disables navigation and ignores duplicate clicks while saving", async () => {
+    let releaseSave: ((value: Record<string, unknown>) => void) | undefined;
+    onboardingMocks.mutateAsync.mockImplementationOnce(
+      () => new Promise<Record<string, unknown>>((resolve) => { releaseSave = resolve; })
+    );
+    render(
+      <MemoryRouter>
+        <OnboardingPage />
+      </MemoryRouter>
+    );
+
+    fillBasics();
+    const nextButton = screen.getByRole("button", { name: /próximo/i });
+    fireEvent.click(nextButton);
+
+    expect(nextButton).toBeDisabled();
+    fireEvent.click(nextButton);
+    expect(onboardingMocks.mutateAsync).toHaveBeenCalledTimes(1);
+
+    releaseSave?.({ id: "rest-1" });
+    expect(await screen.findByRole("heading", { name: "Como você atende hoje?" })).toBeInTheDocument();
   });
 
   it("shows overview checklist only when guide modules remain incomplete", () => {

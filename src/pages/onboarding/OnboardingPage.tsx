@@ -1,56 +1,59 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/lib/supabase";
-import { Progress } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ArrowLeft, ArrowRight, Check, Upload, UtensilsCrossed, Palette, Store, Loader2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { Link } from "react-router-dom";
-import {
-  GUIDE_MODULES,
-  POST_SETUP_PRIMARY_ACTION,
-  POST_SETUP_SECONDARY_ACTION,
-  saveGuideProgress,
-} from "@/lib/onboarding";
-import { useAccountBootstrap } from "@/features/auth/use-account-bootstrap";
-import { useOnboardingDraft, useSaveOnboardingDraft } from "@/features/onboarding/use-onboarding-draft";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 
-const STEPS = [
-  { title: "Boas-vindas", icon: Store },
-  { title: "Sua Marca", icon: Palette },
-  { title: "Primeiro prato", icon: UtensilsCrossed },
-  { title: "Operação", icon: UtensilsCrossed },
-];
+import { Button } from "@/components/ui/button";
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAccountBootstrap } from "@/features/auth/use-account-bootstrap";
+import {
+  applyOperationMode,
+  createSlug,
+  mapOnboardingSaveError,
+  validateBasics,
+  validateOperation,
+  type OnboardingFieldErrors,
+  type OnboardingForm,
+  type OperationMode,
+} from "@/features/onboarding/onboarding-form";
+import { OperationStep } from "@/features/onboarding/steps/OperationStep";
+import { ReadyStep } from "@/features/onboarding/steps/ReadyStep";
+import { RestaurantBasicsStep } from "@/features/onboarding/steps/RestaurantBasicsStep";
+import { useOnboardingDraft, useSaveOnboardingDraft } from "@/features/onboarding/use-onboarding-draft";
+import { useToast } from "@/hooks/use-toast";
+import { POST_SETUP_PRIMARY_ACTION, POST_SETUP_SECONDARY_ACTION } from "@/lib/onboarding";
+import { supabase } from "@/lib/supabase";
+
+const STEPS = ["Dados básicos", "Operação", "Pronto"] as const;
+const DEFAULT_FORM: OnboardingForm = {
+  name: "",
+  slug: "",
+  whatsapp: "",
+  totalTables: 10,
+  localEnabled: true,
+  deliveryEnabled: false,
+};
 
 const OnboardingPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
   const [step, setStep] = useState(0);
+  const [form, setForm] = useState<OnboardingForm>(DEFAULT_FORM);
+  const [errors, setErrors] = useState<OnboardingFieldErrors>({});
   const [saving, setSaving] = useState(false);
-  const progress = ((step + 1) / STEPS.length) * 100;
-
-  const [restaurantName, setRestaurantName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [whatsapp, setWhatsapp] = useState("");
-  const [primaryColor, setPrimaryColor] = useState("#0ea573");
-  const [secondaryColor, setSecondaryColor] = useState("#1e293b");
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [tableCount, setTableCount] = useState("10");
-  const [dishName, setDishName] = useState("");
-  const [dishPrice, setDishPrice] = useState("");
-  const [dishDescription, setDishDescription] = useState("");
-  const [dishCategory, setDishCategory] = useState("Pratos Principais");
   const [setupComplete, setSetupComplete] = useState(false);
-  const bootstrapQuery = useAccountBootstrap();
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const [branding, setBranding] = useState({ primaryColor: "#0ea573", secondaryColor: "#1e293b" });
+  const slugManuallyEdited = useRef(false);
+  const hydratedDraftId = useRef<string | null>(null);
+
+  const bootstrapQuery = useAccountBootstrap();
   const organizationId = bootstrapQuery.data?.currentOrganizationId ?? null;
   const draftQuery = useOnboardingDraft(restaurantId);
   const saveDraft = useSaveOnboardingDraft();
+  const progress = ((step + 1) / STEPS.length) * 100;
 
   useEffect(() => {
     if (bootstrapQuery.data?.currentRestaurantId) {
@@ -60,102 +63,135 @@ const OnboardingPage = () => {
 
   useEffect(() => {
     const draft = draftQuery.data;
-    if (!draft) return;
-    setRestaurantName(draft.name);
-    setSlug(draft.slug);
-    setWhatsapp(draft.whatsapp);
-    setPrimaryColor(draft.primaryColor);
-    setSecondaryColor(draft.secondaryColor);
-    setTableCount(String(draft.totalTables));
-    setStep(draft.onboardingStep);
+    if (!draft || hydratedDraftId.current === draft.id) return;
+
+    hydratedDraftId.current = draft.id;
+    slugManuallyEdited.current = true;
+    setForm({
+      name: draft.name,
+      slug: draft.slug,
+      whatsapp: draft.whatsapp,
+      totalTables: draft.totalTables,
+      localEnabled: draft.localEnabled,
+      deliveryEnabled: draft.deliveryEnabled,
+    });
+    setBranding({ primaryColor: draft.primaryColor, secondaryColor: draft.secondaryColor });
+    setStep(Math.min(draft.onboardingStep, STEPS.length - 1));
   }, [draftQuery.data]);
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setLogoPreview(reader.result as string);
-      reader.readAsDataURL(file);
-    }
+
+  const updateForm = (values: Partial<OnboardingForm>) => {
+    setForm((current) => ({ ...current, ...values }));
   };
 
-  const handleNameChange = (value: string) => {
-    setRestaurantName(value);
-    setSlug(
-      value
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "")
-    );
+  const handleNameChange = (name: string) => {
+    updateForm({ name, ...(!slugManuallyEdited.current ? { slug: createSlug(name) } : {}) });
+    setErrors((current) => ({ ...current, name: undefined }));
   };
 
-  const canAdvance = () => {
-    if (step === 0) return restaurantName.trim().length >= 2;
-    if (step === 1) return true;
-    if (step === 2) return dishName.trim().length >= 2 && dishPrice.trim().length > 0;
-    if (step === 3) return Number.parseInt(tableCount, 10) >= 1;
-    return false;
+  const handleSlugChange = (slug: string) => {
+    slugManuallyEdited.current = true;
+    updateForm({ slug: createSlug(slug) });
+    setErrors((current) => ({ ...current, slug: undefined }));
+  };
+
+  const handleModeChange = (mode: OperationMode) => {
+    updateForm(applyOperationMode(mode));
+    setErrors((current) => ({ ...current, operationMode: undefined, totalTables: undefined }));
+  };
+
+  const validateStep = (targetStep: number) => {
+    const nextErrors = targetStep === 0 ? validateBasics(form) : validateOperation(form);
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
   const persistDraft = async (onboardingStep: number) => {
     const draft = await saveDraft.mutateAsync({
       restaurantId,
       organizationId,
-      name: restaurantName.trim(),
-      slug: slug.trim(),
-      whatsapp: whatsapp.trim(),
-      primaryColor,
-      secondaryColor,
-      totalTables: Math.max(1, Number.parseInt(tableCount, 10) || 1),
+      name: form.name.trim(),
+      slug: form.slug.trim(),
+      whatsapp: form.whatsapp.trim(),
+      primaryColor: branding.primaryColor,
+      secondaryColor: branding.secondaryColor,
+      totalTables: form.localEnabled ? form.totalTables : Math.max(1, form.totalTables),
+      localEnabled: form.localEnabled,
+      deliveryEnabled: form.deliveryEnabled,
       onboardingStep,
     });
     setRestaurantId(draft.id);
     return draft;
   };
 
+  const handleSaveError = (error: unknown) => {
+    const mappedError = mapOnboardingSaveError(error);
+    if (mappedError.field === "slug") {
+      setErrors({ slug: mappedError.message });
+      setStep(0);
+      return;
+    }
+    toast({ title: "Erro ao salvar rascunho", description: mappedError.message, variant: "destructive" });
+  };
+
   const handleNext = async () => {
+    if (saving || !validateStep(step)) return;
+
     setSaving(true);
     try {
       const nextStep = step + 1;
       await persistDraft(nextStep);
+      setErrors({});
       setStep(nextStep);
-    } catch (err: unknown) {
-      const description = err instanceof Error ? err.message : "Tente novamente.";
-      toast({ title: "Erro ao salvar rascunho", description, variant: "destructive" });
+    } catch (error: unknown) {
+      handleSaveError(error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleBack = async () => {
+    if (saving || step === 0) return;
+
+    setSaving(true);
+    try {
+      const previousStep = step - 1;
+      await persistDraft(previousStep);
+      setErrors({});
+      setStep(previousStep);
+    } catch (error: unknown) {
+      handleSaveError(error);
     } finally {
       setSaving(false);
     }
   };
 
   const handleFinish = async () => {
-    if (!user) return;
+    if (!user || saving) return;
+
+    const basicsErrors = validateBasics(form);
+    if (Object.keys(basicsErrors).length > 0) {
+      setErrors(basicsErrors);
+      setStep(0);
+      return;
+    }
+    if (!validateStep(1)) {
+      setStep(1);
+      return;
+    }
+
     setSaving(true);
     try {
-      const restaurant = await persistDraft(3);
-      const { error: menuError } = await supabase.from("menu_items").insert({
-        restaurant_id: restaurant.id,
-        name: dishName.trim(),
-        price: parseFloat(dishPrice),
-        description: dishDescription.trim() || null,
-        category: dishCategory.trim(),
-      });
-      if (menuError) throw menuError;
-      const { error: restError } = await supabase
+      const restaurant = await persistDraft(2);
+      const { error } = await supabase
         .from("restaurants")
         .update({ onboarding_completed: true })
         .eq("id", restaurant.id);
-      if (restError) throw restError;
-      const completedGuideProgress = GUIDE_MODULES.reduce(
-        (acc, module) => ({ ...acc, [module]: true }),
-        {} as Record<(typeof GUIDE_MODULES)[number], boolean>
-      );
-      saveGuideProgress(completedGuideProgress);
+      if (error) throw error;
+
       toast({ title: "Restaurante criado com sucesso!" });
       setSetupComplete(true);
-    } catch (err: unknown) {
-      const description = err instanceof Error ? err.message : "Tente novamente.";
-      toast({ title: "Erro ao salvar", description, variant: "destructive" });
+    } catch (error: unknown) {
+      handleSaveError(error);
     } finally {
       setSaving(false);
     }
@@ -163,10 +199,10 @@ const OnboardingPage = () => {
 
   if (setupComplete) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4 py-12">
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
         <Card className="w-full max-w-lg">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">Operação pronta</CardTitle>
+            <CardTitle>Operação pronta</CardTitle>
             <CardDescription>
               Seu restaurante já está configurado. Agora você pode ir direto para o caixa ou continuar o guia.
             </CardDescription>
@@ -175,11 +211,7 @@ const OnboardingPage = () => {
             <Button asChild className="w-full sm:w-auto">
               <Link to={POST_SETUP_PRIMARY_ACTION.to}>{POST_SETUP_PRIMARY_ACTION.label}</Link>
             </Button>
-            <Button
-              variant="outline"
-              className="w-full sm:w-auto"
-              onClick={() => navigate(POST_SETUP_SECONDARY_ACTION.to)}
-            >
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => navigate(POST_SETUP_SECONDARY_ACTION.to)}>
               {POST_SETUP_SECONDARY_ACTION.label}
             </Button>
           </CardFooter>
@@ -189,226 +221,69 @@ const OnboardingPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <div className="px-4 pt-6 pb-2 max-w-lg mx-auto w-full">
-        <div className="flex items-center justify-between mb-2">
-          {STEPS.map((s, i) => (
-            <div key={i} className="flex items-center gap-1.5">
+    <div className="flex min-h-screen flex-col bg-background">
+      <div className="mx-auto w-full max-w-2xl px-4 pb-2 pt-6">
+        <div className="mb-3 grid grid-cols-3 gap-2">
+          {STEPS.map((title, index) => (
+            <div key={title} className="flex items-center gap-2">
               <div
-                className={`h-7 w-7 rounded-md flex items-center justify-center text-xs font-medium ${
-                  i <= step ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                  index <= step ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                 }`}
               >
-                {i < step ? <Check className="h-3.5 w-3.5" /> : i + 1}
+                {index < step ? <Check className="h-3.5 w-3.5" /> : index + 1}
               </div>
-              <span className="text-xs font-medium hidden sm:inline">{s.title}</span>
+              <span className="hidden text-xs font-medium sm:inline">{title}</span>
             </div>
           ))}
         </div>
         <Progress value={progress} className="h-1.5" />
       </div>
 
-      <div className="flex-1 flex items-start justify-center px-4 pt-6 pb-12">
-        <Card className="w-full max-w-lg">
-          {step === 0 && (
-            <>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Store className="h-4 w-4 text-primary" strokeWidth={1.5} /> Boas-vindas ao Vapt!
-                </CardTitle>
-                <CardDescription>Vamos configurar seu restaurante em poucos minutos.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="restaurant-name">Nome do Restaurante</Label>
-                  <Input
-                    id="restaurant-name"
-                    placeholder="Ex: Hamburgueria do Chef"
-                    value={restaurantName}
-                    onChange={(e) => handleNameChange(e.target.value)}
-                    maxLength={80}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>URL do Cardápio</Label>
-                  <div className="flex items-center gap-0 rounded-md border border-border overflow-hidden">
-                    <span className="bg-secondary px-3 py-2 text-sm text-muted-foreground whitespace-nowrap">vapt.app/menu/</span>
-                    <Input className="border-0 focus:ring-0 rounded-none" value={slug} onChange={(e) => setSlug(e.target.value)} maxLength={60} />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>WhatsApp (opcional)</Label>
-                  <Input placeholder="(11) 99999-9999" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} maxLength={20} />
-                </div>
-              </CardContent>
-            </>
-          )}
+      <main className="flex flex-1 items-start justify-center px-4 pb-12 pt-6">
+        <Card className="w-full max-w-2xl">
+          {step === 0 ? (
+            <RestaurantBasicsStep
+              form={form}
+              errors={errors}
+              disabled={saving}
+              onNameChange={handleNameChange}
+              onSlugChange={handleSlugChange}
+              onWhatsappChange={(whatsapp) => updateForm({ whatsapp })}
+            />
+          ) : null}
+          {step === 1 ? (
+            <OperationStep
+              form={form}
+              errors={errors}
+              disabled={saving}
+              onModeChange={handleModeChange}
+              onTableCountChange={(totalTables) => {
+                updateForm({ totalTables });
+                setErrors((current) => ({ ...current, totalTables: undefined }));
+              }}
+            />
+          ) : null}
+          {step === 2 ? <ReadyStep form={form} /> : null}
 
-          {step === 1 && (
-            <>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Palette className="h-4 w-4 text-primary" strokeWidth={1.5} /> Sua Marca
-                </CardTitle>
-                <CardDescription>Escolha as cores e suba seu logotipo.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Logo do Restaurante</Label>
-                  <label className="flex flex-col items-center justify-center h-32 border border-dashed border-border rounded-lg cursor-pointer hover:border-primary/50 transition-colors duration-150">
-                    {logoPreview ? (
-                      <img src={logoPreview} alt="Logo" className="h-24 w-24 object-contain rounded-lg" />
-                    ) : (
-                      <>
-                        <Upload className="h-6 w-6 text-muted-foreground mb-2" strokeWidth={1.5} />
-                        <span className="text-sm text-muted-foreground">Clique para enviar</span>
-                      </>
-                    )}
-                    <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-                  </label>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Cor Primária</Label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={primaryColor}
-                        onChange={(e) => setPrimaryColor(e.target.value)}
-                        className="h-9 w-9 rounded-md border border-border cursor-pointer"
-                      />
-                      <Input value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="font-mono text-sm" maxLength={7} />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Cor Secundária</Label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={secondaryColor}
-                        onChange={(e) => setSecondaryColor(e.target.value)}
-                        className="h-9 w-9 rounded-md border border-border cursor-pointer"
-                      />
-                      <Input value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} className="font-mono text-sm" maxLength={7} />
-                    </div>
-                  </div>
-                </div>
-                <div className="rounded-lg overflow-hidden border border-border">
-                  <div className="h-12 flex items-center justify-center text-white text-sm font-medium" style={{ backgroundColor: primaryColor }}>
-                    {restaurantName || "Seu Restaurante"}
-                  </div>
-                  <div className="p-3 bg-card">
-                    <div className="h-3 w-2/3 rounded bg-secondary mb-2" />
-                    <div className="h-3 w-1/2 rounded bg-secondary" />
-                    <Button size="sm" className="mt-3 text-xs" style={{ backgroundColor: primaryColor }}>
-                      Exemplo de Botão
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <UtensilsCrossed className="h-4 w-4 text-primary" strokeWidth={1.5} /> Primeiro prato
-                </CardTitle>
-                <CardDescription>Adicione um item ao cardápio para começar a operação.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="dish-name">Nome do Prato</Label>
-                  <Input
-                    id="dish-name"
-                    placeholder="Ex: X-Burguer Especial"
-                    value={dishName}
-                    onChange={(e) => setDishName(e.target.value)}
-                    maxLength={80}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="dish-price">Preço (R$)</Label>
-                    <Input
-                      id="dish-price"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="29.90"
-                      value={dishPrice}
-                      onChange={(e) => setDishPrice(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="dish-category">Categoria</Label>
-                    <Input
-                      id="dish-category"
-                      placeholder="Ex: Pratos Principais"
-                      value={dishCategory}
-                      onChange={(e) => setDishCategory(e.target.value)}
-                      maxLength={40}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dish-description">Descrição</Label>
-                  <Input
-                    id="dish-description"
-                    placeholder="Descreva os ingredientes ou detalhes..."
-                    value={dishDescription}
-                    onChange={(e) => setDishDescription(e.target.value)}
-                    maxLength={200}
-                  />
-                </div>
-              </CardContent>
-            </>
-          )}
-
-          {step === 3 && (
-            <>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <UtensilsCrossed className="h-4 w-4 text-primary" strokeWidth={1.5} /> Primeira operação
-                </CardTitle>
-                <CardDescription>Defina quantas mesas começam ativas e deixe tudo pronto para operar.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="table-count">Número inicial de mesas</Label>
-                  <Input
-                    id="table-count"
-                    type="number"
-                    min="1"
-                    placeholder="Ex: 10"
-                    value={tableCount}
-                    onChange={(e) => setTableCount(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">Você pode alterar isso depois nas configurações.</p>
-                </div>
-              </CardContent>
-            </>
-          )}
-
-          <CardFooter className="flex justify-between">
-            <Button variant="outline" disabled={step === 0} onClick={() => setStep((s) => s - 1)}>
-              <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
+          <CardFooter className="flex justify-between border-t pt-6">
+            <Button variant="outline" disabled={step === 0 || saving} onClick={handleBack}>
+              <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
             </Button>
             {step < STEPS.length - 1 ? (
-              <Button disabled={!canAdvance() || saving} onClick={handleNext}>
-                {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
-                Próximo <ArrowRight className="h-4 w-4 ml-1" />
+              <Button disabled={saving} onClick={handleNext}>
+                {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+                Próximo <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
             ) : (
-              <Button disabled={!canAdvance() || saving} onClick={handleFinish}>
-                {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
+              <Button disabled={saving} onClick={handleFinish}>
+                {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />}
                 Finalizar
               </Button>
             )}
           </CardFooter>
         </Card>
-      </div>
+      </main>
     </div>
   );
 };
