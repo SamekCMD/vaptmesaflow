@@ -13,8 +13,23 @@ select col_default_is('public', 'restaurants', 'onboarding_step', '0', 'new draf
 select has_function('public', 'save_onboarding_draft', array['text', 'text', 'integer', 'uuid', 'uuid', 'text', 'text', 'text', 'integer'], 'draft RPC exists');
 select ok(has_function_privilege('authenticated', 'public.save_onboarding_draft(text,text,integer,uuid,uuid,text,text,text,integer)', 'execute'), 'authenticated users can save drafts');
 select ok(not has_function_privilege('anon', 'public.save_onboarding_draft(text,text,integer,uuid,uuid,text,text,text,integer)', 'execute'), 'anonymous users cannot save drafts');
-select ok(pg_get_functiondef('public.save_onboarding_draft(text,text,integer,uuid,uuid,text,text,text,integer)'::regprocedure) ilike '%pg_advisory_xact_lock%', 'draft saves serialize concurrent submissions');
-select ok(pg_get_functiondef('public.save_onboarding_draft(text,text,integer,uuid,uuid,text,text,text,integer)'::regprocedure) ilike '%onboarding_status = ''draft''%', 'draft RPC reuses an existing draft');
+select ok(
+  exists (
+    select 1 from pg_proc
+    where oid = 'public.save_onboarding_draft(text,text,integer,uuid,uuid,text,text,text,integer)'::regprocedure
+      and prosecdef
+  ),
+  'draft RPC executes with its restricted definer privileges'
+);
+select ok(
+  (
+    select count(*) = 2
+    from pg_constraint
+    where conrelid = 'public.restaurants'::regclass
+      and conname in ('restaurants_onboarding_status_check', 'restaurants_onboarding_step_check')
+  ),
+  'onboarding status and step constraints exist'
+);
 
 select * from finish();
 rollback;

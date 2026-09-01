@@ -178,7 +178,9 @@ end;
 $$;
 
 revoke all on function public.save_onboarding_draft(text, text, integer, uuid, uuid, text, text, text, integer) from public;
+revoke all on function public.save_onboarding_draft(text, text, integer, uuid, uuid, text, text, text, integer) from anon;
 grant execute on function public.save_onboarding_draft(text, text, integer, uuid, uuid, text, text, text, integer) to authenticated;
 
 -- Internal helpers are reached through trusted triggers/RPCs, never directly by clients.
-revoke all on function public.get_or_create_default_owner_organization(uuid, text, timestamptz) from public;
+revoke all on function public.get_or_create_default_owner_organization(uuid, text, timestamptz) from public, anon, authenticated;
+revoke all on function public.sync_restaurant_onboarding_state() from public, anon, authenticated;
