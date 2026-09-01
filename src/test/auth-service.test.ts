@@ -44,7 +44,7 @@ describe("authService", () => {
       email: "owner@vapt.test",
       options: {
         captchaToken: "captcha-token",
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: `${window.location.origin}/onboarding`,
       },
     });
   });

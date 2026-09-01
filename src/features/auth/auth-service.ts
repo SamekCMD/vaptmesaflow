@@ -4,6 +4,9 @@ export const PENDING_SIGNUP_EMAIL_KEY = "vapt_pending_signup_email";
 
 export const normalizeAuthEmail = (email: string) => email.trim().toLowerCase();
 
+const getSignupConfirmationRedirectUrl = () =>
+  `${window.location.origin}/onboarding`;
+
 export const getPendingSignupEmail = () =>
   sessionStorage.getItem(PENDING_SIGNUP_EMAIL_KEY) ?? "";
 
@@ -21,7 +24,7 @@ export const authService = {
       options: {
         captchaToken,
         data: { full_name: fullName.trim() },
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: getSignupConfirmationRedirectUrl(),
       },
     }),
 
@@ -38,7 +41,7 @@ export const authService = {
       email: normalizeAuthEmail(email),
       options: {
         captchaToken,
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: getSignupConfirmationRedirectUrl(),
       },
     }),
 

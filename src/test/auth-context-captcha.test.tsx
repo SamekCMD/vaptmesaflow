@@ -95,7 +95,7 @@ describe("AuthProvider captcha", () => {
         options: {
           captchaToken: "captcha-token",
           data: { full_name: "Owner" },
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: `${window.location.origin}/onboarding`,
         },
       }),
     );
