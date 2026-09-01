@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -16,6 +16,8 @@ import {
   POST_SETUP_SECONDARY_ACTION,
   saveGuideProgress,
 } from "@/lib/onboarding";
+import { useAccountBootstrap } from "@/features/auth/use-account-bootstrap";
+import { useOnboardingDraft, useSaveOnboardingDraft } from "@/features/onboarding/use-onboarding-draft";
 
 const STEPS = [
   { title: "Boas-vindas", icon: Store },
@@ -44,6 +46,29 @@ const OnboardingPage = () => {
   const [dishDescription, setDishDescription] = useState("");
   const [dishCategory, setDishCategory] = useState("Pratos Principais");
   const [setupComplete, setSetupComplete] = useState(false);
+  const bootstrapQuery = useAccountBootstrap();
+  const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const organizationId = bootstrapQuery.data?.currentOrganizationId ?? null;
+  const draftQuery = useOnboardingDraft(restaurantId);
+  const saveDraft = useSaveOnboardingDraft();
+
+  useEffect(() => {
+    if (bootstrapQuery.data?.currentRestaurantId) {
+      setRestaurantId(bootstrapQuery.data.currentRestaurantId);
+    }
+  }, [bootstrapQuery.data?.currentRestaurantId]);
+
+  useEffect(() => {
+    const draft = draftQuery.data;
+    if (!draft) return;
+    setRestaurantName(draft.name);
+    setSlug(draft.slug);
+    setWhatsapp(draft.whatsapp);
+    setPrimaryColor(draft.primaryColor);
+    setSecondaryColor(draft.secondaryColor);
+    setTableCount(String(draft.totalTables));
+    setStep(draft.onboardingStep);
+  }, [draftQuery.data]);
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -73,27 +98,41 @@ const OnboardingPage = () => {
     return false;
   };
 
+  const persistDraft = async (onboardingStep: number) => {
+    const draft = await saveDraft.mutateAsync({
+      restaurantId,
+      organizationId,
+      name: restaurantName.trim(),
+      slug: slug.trim(),
+      whatsapp: whatsapp.trim(),
+      primaryColor,
+      secondaryColor,
+      totalTables: Math.max(1, Number.parseInt(tableCount, 10) || 1),
+      onboardingStep,
+    });
+    setRestaurantId(draft.id);
+    return draft;
+  };
+
+  const handleNext = async () => {
+    setSaving(true);
+    try {
+      const nextStep = step + 1;
+      await persistDraft(nextStep);
+      setStep(nextStep);
+    } catch (err: unknown) {
+      const description = err instanceof Error ? err.message : "Tente novamente.";
+      toast({ title: "Erro ao salvar rascunho", description, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleFinish = async () => {
     if (!user) return;
     setSaving(true);
     try {
-      const { data: restaurant, error: restError } = await supabase
-        .from("restaurants")
-        .insert({
-          owner_id: user.id,
-          name: restaurantName.trim(),
-          slug: slug.trim(),
-          whatsapp: whatsapp.trim() || null,
-          primary_color: primaryColor,
-          secondary_color: secondaryColor,
-          total_tables: Math.max(1, Number.parseInt(tableCount, 10) || 1),
-          max_tables: Math.max(1, Number.parseInt(tableCount, 10) || 1),
-          onboarding_completed: true,
-          onboarding_completed_at: new Date().toISOString(),
-        })
-        .select("id")
-        .single();
-      if (restError) throw restError;
+      const restaurant = await persistDraft(3);
       const { error: menuError } = await supabase.from("menu_items").insert({
         restaurant_id: restaurant.id,
         name: dishName.trim(),
@@ -102,6 +141,11 @@ const OnboardingPage = () => {
         category: dishCategory.trim(),
       });
       if (menuError) throw menuError;
+      const { error: restError } = await supabase
+        .from("restaurants")
+        .update({ onboarding_completed: true })
+        .eq("id", restaurant.id);
+      if (restError) throw restError;
       const completedGuideProgress = GUIDE_MODULES.reduce(
         (acc, module) => ({ ...acc, [module]: true }),
         {} as Record<(typeof GUIDE_MODULES)[number], boolean>
@@ -352,7 +396,8 @@ const OnboardingPage = () => {
               <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
             </Button>
             {step < STEPS.length - 1 ? (
-              <Button disabled={!canAdvance()} onClick={() => setStep((s) => s + 1)}>
+              <Button disabled={!canAdvance() || saving} onClick={handleNext}>
+                {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
                 Próximo <ArrowRight className="h-4 w-4 ml-1" />
               </Button>
             ) : (

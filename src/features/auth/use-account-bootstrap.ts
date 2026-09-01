@@ -31,6 +31,7 @@ type RestaurantRow = {
   name: string;
   slug: string;
   onboarding_completed: boolean | null;
+  onboarding_status: "draft" | "complete";
 };
 
 async function fetchAccountBootstrap(userId: string, routeRestaurantId: string | null): Promise<AccountBootstrap> {
@@ -65,7 +66,7 @@ async function fetchAccountBootstrap(userId: string, routeRestaurantId: string |
   if (organizationIds.length > 0) {
     const restaurantResponse = await supabase
       .from("restaurants")
-      .select("id, organization_id, name, slug, onboarding_completed")
+      .select("id, organization_id, name, slug, onboarding_completed, onboarding_status")
       .in("organization_id", organizationIds);
 
     if (restaurantResponse.error) {
@@ -77,7 +78,7 @@ async function fetchAccountBootstrap(userId: string, routeRestaurantId: string |
       organizationId: restaurant.organization_id,
       name: restaurant.name,
       slug: restaurant.slug,
-      onboardingStatus: restaurant.onboarding_completed ? "complete" : "draft",
+      onboardingStatus: restaurant.onboarding_status ?? (restaurant.onboarding_completed ? "complete" : "draft"),
     }));
   }
 

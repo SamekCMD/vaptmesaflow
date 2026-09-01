@@ -637,6 +637,10 @@ export type Database = {
           name: string
           onboarding_completed: boolean
           onboarding_completed_at: string | null
+          onboarding_status: string
+          onboarding_step: number
+          onboarding_updated_at: string
+          organization_id: string
           owner_id: string
           payment_mode: string
           phone: string | null
@@ -666,6 +670,10 @@ export type Database = {
           name: string
           onboarding_completed?: boolean
           onboarding_completed_at?: string | null
+          onboarding_status?: string
+          onboarding_step?: number
+          onboarding_updated_at?: string
+          organization_id: string
           owner_id: string
           payment_mode?: string
           phone?: string | null
@@ -695,6 +703,10 @@ export type Database = {
           name?: string
           onboarding_completed?: boolean
           onboarding_completed_at?: string | null
+          onboarding_status?: string
+          onboarding_step?: number
+          onboarding_updated_at?: string
+          organization_id?: string
           owner_id?: string
           payment_mode?: string
           phone?: string | null
@@ -803,6 +815,32 @@ export type Database = {
           primary_color: string
           secondary_color: string
           slug: string
+        }[]
+      }
+      save_onboarding_draft: {
+        Args: {
+          p_name: string
+          p_slug: string
+          p_onboarding_step: number
+          p_restaurant_id?: string | null
+          p_organization_id?: string | null
+          p_whatsapp?: string | null
+          p_primary_color?: string
+          p_secondary_color?: string
+          p_total_tables?: number
+        }
+        Returns: {
+          id: string
+          organization_id: string
+          name: string
+          slug: string
+          whatsapp: string | null
+          primary_color: string
+          secondary_color: string
+          total_tables: number
+          onboarding_status: string
+          onboarding_step: number
+          onboarding_updated_at: string
         }[]
       }
     }

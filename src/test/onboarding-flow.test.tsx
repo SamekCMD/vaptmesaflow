@@ -1,7 +1,23 @@
 ﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const onboardingMocks = vi.hoisted(() => ({
+  draft: null as null | Record<string, unknown>,
+  mutateAsync: vi.fn(),
+}));
+
+vi.mock("@/features/auth/use-account-bootstrap", () => ({
+  useAccountBootstrap: () => ({
+    data: { currentOrganizationId: "org-1", currentRestaurantId: null },
+  }),
+}));
+
+vi.mock("@/features/onboarding/use-onboarding-draft", () => ({
+  useOnboardingDraft: () => ({ data: onboardingMocks.draft }),
+  useSaveOnboardingDraft: () => ({ mutateAsync: onboardingMocks.mutateAsync }),
+}));
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
@@ -56,12 +72,46 @@ import {
 
 afterEach(() => {
   vi.clearAllMocks();
+  onboardingMocks.draft = null;
+});
+
+beforeEach(() => {
+  onboardingMocks.mutateAsync.mockImplementation(async (input) => ({
+    ...input,
+    id: input.restaurantId ?? "rest-1",
+    organizationId: input.organizationId ?? "org-1",
+  }));
 });
 
 describe("onboarding flow", () => {
-  const clickNext = () => fireEvent.click(screen.getByRole("button", { name: /próximo/i }));
+  const clickNext = async (expectedSaveCount: number) => {
+    fireEvent.click(screen.getByRole("button", { name: /próximo/i }));
+    await waitFor(() => expect(onboardingMocks.mutateAsync).toHaveBeenCalledTimes(expectedSaveCount));
+  };
 
-  it("keeps the starter menu inputs on step 2 and the operation setup on step 3", () => {
+  it("restores the saved fields and step after reopening onboarding", async () => {
+    onboardingMocks.draft = {
+      id: "rest-1",
+      organizationId: "org-1",
+      name: "Vapt Burger",
+      slug: "vapt-burger",
+      whatsapp: "11999999999",
+      primaryColor: "#0ea573",
+      secondaryColor: "#1e293b",
+      totalTables: 8,
+      onboardingStep: 2,
+    };
+
+    render(
+      <MemoryRouter>
+        <OnboardingPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole("heading", { name: "Primeiro prato" })).toBeInTheDocument();
+  });
+
+  it("keeps the starter menu inputs on step 2 and the operation setup on step 3", async () => {
     render(
       <MemoryRouter>
         <OnboardingPage />
@@ -71,8 +121,8 @@ describe("onboarding flow", () => {
     fireEvent.change(screen.getByLabelText("Nome do Restaurante"), {
       target: { value: "Vapt Burger" },
     });
-    clickNext();
-    clickNext();
+    await clickNext(1);
+    await clickNext(2);
 
     expect(screen.getByRole("heading", { name: "Primeiro prato" })).toBeInTheDocument();
     expect(screen.getByLabelText("Nome do Prato")).toBeInTheDocument();
@@ -86,24 +136,22 @@ describe("onboarding flow", () => {
     fireEvent.change(screen.getByLabelText("Preço (R$)"), {
       target: { value: "29.90" },
     });
-    clickNext();
+    await clickNext(3);
 
     expect(screen.getByRole("heading", { name: "Primeira operação" })).toBeInTheDocument();
     expect(screen.getByLabelText("Número inicial de mesas")).toBeInTheDocument();
     expect(screen.getByText(/você pode alterar isso depois nas configurações\./i)).toBeInTheDocument();
   });
 
-  it("creates the restaurant without writing legacy subscription fields", async () => {
-    const restaurantInsert = vi.fn(() => ({
-      select: () => ({
-        single: async () => ({ data: { id: "rest-1" }, error: null }),
-      }),
-    }));
+  it("reuses the persisted draft without writing legacy subscription fields", async () => {
     const menuInsert = vi.fn().mockResolvedValue({ error: null });
+    const restaurantUpdate = vi.fn(() => ({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    }));
 
     vi.mocked(supabase.from).mockImplementation((table: string) => {
       if (table === "restaurants") {
-        return { insert: restaurantInsert } as unknown as ReturnType<typeof supabase.from>;
+        return { update: restaurantUpdate } as unknown as ReturnType<typeof supabase.from>;
       }
       if (table === "menu_items") {
         return { insert: menuInsert } as unknown as ReturnType<typeof supabase.from>;
@@ -120,8 +168,8 @@ describe("onboarding flow", () => {
     fireEvent.change(screen.getByLabelText("Nome do Restaurante"), {
       target: { value: "Vapt Burger" },
     });
-    clickNext();
-    clickNext();
+    await clickNext(1);
+    await clickNext(2);
 
     fireEvent.change(screen.getByLabelText("Nome do Prato"), {
       target: { value: "X-Burguer Especial" },
@@ -129,7 +177,7 @@ describe("onboarding flow", () => {
     fireEvent.change(screen.getByLabelText("Preço (R$)"), {
       target: { value: "29.90" },
     });
-    clickNext();
+    await clickNext(3);
 
     fireEvent.change(screen.getByLabelText("Número inicial de mesas"), {
       target: { value: "3" },
@@ -137,13 +185,13 @@ describe("onboarding flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Finalizar" }));
 
     await waitFor(() => {
-      expect(restaurantInsert).toHaveBeenCalledWith(
+      expect(onboardingMocks.mutateAsync).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          owner_id: "user-1",
+          restaurantId: "rest-1",
           name: "Vapt Burger",
           slug: "vapt-burger",
-          total_tables: 3,
-          max_tables: 3,
+          totalTables: 3,
+          onboardingStep: 3,
         })
       );
       expect(menuInsert).toHaveBeenCalledWith(
@@ -155,23 +203,21 @@ describe("onboarding flow", () => {
       );
     });
 
-    const restaurantPayload = restaurantInsert.mock.calls[0][0];
+    const restaurantPayload = onboardingMocks.mutateAsync.mock.calls.at(-1)?.[0];
     expect(restaurantPayload).not.toHaveProperty("plan_type");
     expect(restaurantPayload).not.toHaveProperty("plan_status");
     expect(restaurantPayload).not.toHaveProperty("trial_ends_at");
   });
 
   it("shows the post-setup choice state with caixa and guide actions after finish", async () => {
-    const restaurantInsert = vi.fn(() => ({
-      select: () => ({
-        single: async () => ({ data: { id: "rest-1" }, error: null }),
-      }),
-    }));
     const menuInsert = vi.fn().mockResolvedValue({ error: null });
+    const restaurantUpdate = vi.fn(() => ({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    }));
 
     vi.mocked(supabase.from).mockImplementation((table: string) => {
       if (table === "restaurants") {
-        return { insert: restaurantInsert } as unknown as ReturnType<typeof supabase.from>;
+        return { update: restaurantUpdate } as unknown as ReturnType<typeof supabase.from>;
       }
       if (table === "menu_items") {
         return { insert: menuInsert } as unknown as ReturnType<typeof supabase.from>;
@@ -188,8 +234,8 @@ describe("onboarding flow", () => {
     fireEvent.change(screen.getByLabelText("Nome do Restaurante"), {
       target: { value: "Vapt Burger" },
     });
-    clickNext();
-    clickNext();
+    await clickNext(1);
+    await clickNext(2);
 
     fireEvent.change(screen.getByLabelText("Nome do Prato"), {
       target: { value: "X-Burguer Especial" },
@@ -197,7 +243,7 @@ describe("onboarding flow", () => {
     fireEvent.change(screen.getByLabelText("Preço (R$)"), {
       target: { value: "29.90" },
     });
-    clickNext();
+    await clickNext(3);
 
     fireEvent.change(screen.getByLabelText("Número inicial de mesas"), {
       target: { value: "3" },
