@@ -16,6 +16,7 @@ describe("onboarding draft service", () => {
         id: "rest-1", organization_id: "org-1", name: "Vapt Burger",
         slug: "vapt-burger", whatsapp: null, primary_color: "#0ea573",
         secondary_color: "#1e293b", total_tables: 10, onboarding_step: 1,
+        local_enabled: true, delivery_enabled: true,
       }],
       error: null,
     } as never);
@@ -24,6 +25,7 @@ describe("onboarding draft service", () => {
       restaurantId: "rest-1", organizationId: "org-1", name: "Vapt Burger",
       slug: "vapt-burger", whatsapp: "", primaryColor: "#0ea573",
       secondaryColor: "#1e293b", totalTables: 10, onboardingStep: 1,
+      localEnabled: true, deliveryEnabled: true,
     });
 
     expect(supabase.rpc).toHaveBeenCalledWith("save_onboarding_draft", {
@@ -36,6 +38,8 @@ describe("onboarding draft service", () => {
       p_primary_color: "#0ea573",
       p_secondary_color: "#1e293b",
       p_total_tables: 10,
+      p_local_enabled: true,
+      p_delivery_enabled: true,
     });
     expect(vi.mocked(supabase.rpc).mock.calls[0][1]).not.toHaveProperty("onboarding_updated_at");
   });

@@ -10,6 +10,8 @@ export type OnboardingDraft = {
   secondaryColor: string;
   totalTables: number;
   onboardingStep: number;
+  localEnabled: boolean;
+  deliveryEnabled: boolean;
 };
 
 export type SaveOnboardingDraftInput = Omit<OnboardingDraft, "id" | "organizationId"> & {
@@ -27,6 +29,8 @@ type OnboardingDraftRow = {
   secondary_color: string;
   total_tables: number;
   onboarding_step: number;
+  local_enabled: boolean;
+  delivery_enabled: boolean;
 };
 
 const mapDraft = (row: OnboardingDraftRow): OnboardingDraft => ({
@@ -39,6 +43,8 @@ const mapDraft = (row: OnboardingDraftRow): OnboardingDraft => ({
   secondaryColor: row.secondary_color,
   totalTables: row.total_tables,
   onboardingStep: row.onboarding_step,
+  localEnabled: row.local_enabled,
+  deliveryEnabled: row.delivery_enabled,
 });
 
 export async function fetchOnboardingDraft(restaurantId: string | null) {
@@ -46,7 +52,7 @@ export async function fetchOnboardingDraft(restaurantId: string | null) {
 
   const { data, error } = await supabase
     .from("restaurants")
-    .select("id, organization_id, name, slug, whatsapp, primary_color, secondary_color, total_tables, onboarding_step")
+    .select("id, organization_id, name, slug, whatsapp, primary_color, secondary_color, total_tables, onboarding_step, local_enabled, delivery_enabled")
     .eq("id", restaurantId)
     .eq("onboarding_status", "draft")
     .maybeSingle();
@@ -66,6 +72,8 @@ export async function saveOnboardingDraft(input: SaveOnboardingDraftInput) {
     p_primary_color: input.primaryColor,
     p_secondary_color: input.secondaryColor,
     p_total_tables: input.totalTables,
+    p_local_enabled: input.localEnabled,
+    p_delivery_enabled: input.deliveryEnabled,
   });
 
   if (error) throw error;
@@ -73,4 +81,3 @@ export async function saveOnboardingDraft(input: SaveOnboardingDraftInput) {
   if (!row) throw new Error("O rascunho do onboarding não foi retornado.");
   return mapDraft(row);
 }
-

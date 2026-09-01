@@ -8,7 +8,7 @@ create temporary table onboarding_tap_results (
   result text not null
 ) on commit drop;
 
-insert into onboarding_tap_results values (0, plan(10));
+insert into onboarding_tap_results values (0, plan(13));
 
 insert into onboarding_tap_results values (1, has_column('public', 'restaurants', 'onboarding_status', 'onboarding status exists'));
 insert into onboarding_tap_results values (2, has_column('public', 'restaurants', 'onboarding_step', 'onboarding step exists'));
@@ -35,9 +35,12 @@ insert into onboarding_tap_results values (10, ok(
   ),
   'onboarding status and step constraints exist'
 ));
+insert into onboarding_tap_results values (11, has_function('public', 'save_onboarding_draft', array['text', 'text', 'integer', 'uuid', 'uuid', 'text', 'text', 'text', 'integer', 'boolean', 'boolean'], 'operation-aware draft RPC exists'));
+insert into onboarding_tap_results values (12, ok(has_function_privilege('authenticated', 'public.save_onboarding_draft(text,text,integer,uuid,uuid,text,text,text,integer,boolean,boolean)', 'execute'), 'authenticated users can save operation mode'));
+insert into onboarding_tap_results values (13, ok(not has_function_privilege('anon', 'public.save_onboarding_draft(text,text,integer,uuid,uuid,text,text,text,integer,boolean,boolean)', 'execute'), 'anonymous users cannot save operation mode'));
 
 insert into onboarding_tap_results
-select 11, finish();
+select 14, finish();
 
 select sequence, result
 from onboarding_tap_results

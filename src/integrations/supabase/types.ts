@@ -828,6 +828,8 @@ export type Database = {
           p_primary_color?: string
           p_secondary_color?: string
           p_total_tables?: number
+          p_local_enabled?: boolean
+          p_delivery_enabled?: boolean
         }
         Returns: {
           id: string
@@ -841,6 +843,8 @@ export type Database = {
           onboarding_status: string
           onboarding_step: number
           onboarding_updated_at: string
+          local_enabled: boolean
+          delivery_enabled: boolean
         }[]
       }
     }
