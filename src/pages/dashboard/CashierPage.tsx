@@ -8,8 +8,8 @@ import TableCard, { type TableSession } from "@/components/cashier/TableCard";
 import TableSessionModal from "@/components/cashier/TableSessionModal";
 import FeatureGate from "@/components/FeatureGate";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
+import { useCompleteActivationModule } from "@/features/onboarding/use-activation-progress";
 import {
-  completeGuideModule,
   getGuideModuleHref,
   getNextGuideModule,
   GUIDE_MODULE_CONTENT,
@@ -64,6 +64,7 @@ const CashierPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { restaurantId } = useCurrentRestaurant();
+  const completeActivationModule = useCompleteActivationModule(restaurantId);
   const [totalTables, setTotalTables] = useState(20);
   const [sessions, setSessions] = useState<TableSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<TableSession | null>(null);
@@ -91,8 +92,8 @@ const CashierPage = () => {
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("cashier");
 
-  const handleGuideComplete = () => {
-    completeGuideModule("cashier");
+  const handleGuideComplete = async () => {
+    await completeActivationModule.mutateAsync("cashier");
     navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
   };
 

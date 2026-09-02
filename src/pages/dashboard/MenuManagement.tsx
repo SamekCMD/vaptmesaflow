@@ -27,8 +27,8 @@ import {
   validateRestaurantImage,
 } from "@/features/restaurants/restaurant-assets";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
+import { useCompleteActivationModule } from "@/features/onboarding/use-activation-progress";
 import {
-  completeGuideModule,
   getGuideModuleHref,
   getNextGuideModule,
   GUIDE_MODULE_CONTENT,
@@ -127,6 +127,7 @@ const MenuManagement = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { restaurant, restaurantId } = useCurrentRestaurant();
+  const completeActivationModule = useCompleteActivationModule(restaurantId);
   const [items, setItems] = useState<MenuItem[]>([]);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -219,8 +220,8 @@ const MenuManagement = () => {
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("menu");
 
-  const handleGuideComplete = () => {
-    completeGuideModule("menu");
+  const handleGuideComplete = async () => {
+    await completeActivationModule.mutateAsync("menu");
     navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
   };
 

@@ -17,8 +17,8 @@ import CurrentPaymentMethodsCard from "@/components/payments/CurrentPaymentMetho
 import MercadoPagoSettingsCard from "@/components/payments/MercadoPagoSettingsCard";
 import { ENV } from "@/lib/env";
 import { useCurrentRestaurant } from "@/features/restaurants/current-restaurant";
+import { useCompleteActivationModule } from "@/features/onboarding/use-activation-progress";
 import {
-  completeGuideModule,
   getGuideModuleHref,
   getNextGuideModule,
   GUIDE_MODULE_CONTENT,
@@ -54,6 +54,7 @@ type RestaurantSettingsUpdate = {
 const SettingsPage = () => {
   const { user } = useAuth();
   const { restaurantId } = useCurrentRestaurant();
+  const completeActivationModule = useCompleteActivationModule(restaurantId);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
@@ -149,8 +150,8 @@ const SettingsPage = () => {
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("settings");
 
-  const handleGuideComplete = () => {
-    completeGuideModule("settings");
+  const handleGuideComplete = async () => {
+    await completeActivationModule.mutateAsync("settings");
     navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
   };
 

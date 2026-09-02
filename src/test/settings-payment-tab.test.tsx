@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SettingsPage from "@/pages/dashboard/SettingsPage";
@@ -66,10 +67,13 @@ describe("aba de pagamentos nas configuracoes", () => {
   });
 
   it("separa pagamentos e mantem as tres abas acessiveis no mobile", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const { unmount } = render(
-      <MemoryRouter>
-        <SettingsPage />
-      </MemoryRouter>,
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <SettingsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
 
     const restaurantTab = await screen.findByRole("tab", { name: "Restaurante" });
@@ -88,9 +92,11 @@ describe("aba de pagamentos nas configuracoes", () => {
     unmount();
 
     render(
-      <MemoryRouter initialEntries={["/dashboard/settings?tab=payments"]}>
-        <SettingsPage />
-      </MemoryRouter>,
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/dashboard/settings?tab=payments"]}>
+          <SettingsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
 
     expect(await screen.findByText("Meios atuais de teste")).toBeInTheDocument();

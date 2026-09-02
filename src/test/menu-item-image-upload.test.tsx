@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const menuImageMocks = vi.hoisted(() => ({
@@ -92,10 +93,13 @@ describe("menu item image upload", () => {
   });
 
   it("does not create a product row when its image upload fails", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
-      <MemoryRouter>
-        <MenuManagement />
-      </MemoryRouter>,
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <MenuManagement />
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
 
     expect(await screen.findByText("0 itens cadastrados")).toBeInTheDocument();

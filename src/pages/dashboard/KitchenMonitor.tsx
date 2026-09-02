@@ -9,8 +9,8 @@ import { supabase } from "@/lib/supabase";
 import { useCurrentRestaurant } from "@/features/restaurants/current-restaurant";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
+import { useCompleteActivationModule } from "@/features/onboarding/use-activation-progress";
 import {
-  completeGuideModule,
   getGuideModuleHref,
   getNextGuideModule,
   GUIDE_MODULE_CONTENT,
@@ -119,6 +119,7 @@ const KitchenMonitor = () => {
   const [searchParams] = useSearchParams();
   const [orders, setOrders] = useState<Order[]>([]);
   const { restaurantId } = useCurrentRestaurant();
+  const completeActivationModule = useCompleteActivationModule(restaurantId);
   const [loading, setLoading] = useState(true);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [channelFilter, setChannelFilter] = useState<"all" | "local" | "delivery">("all");
@@ -160,8 +161,8 @@ const KitchenMonitor = () => {
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("kitchen");
 
-  const handleGuideComplete = () => {
-    completeGuideModule("kitchen");
+  const handleGuideComplete = async () => {
+    await completeActivationModule.mutateAsync("kitchen");
     navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
   };
 

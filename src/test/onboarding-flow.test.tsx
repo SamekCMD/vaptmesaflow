@@ -63,7 +63,11 @@ class ResizeObserverMock {
 vi.stubGlobal("ResizeObserver", ResizeObserverMock);
 
 import OnboardingPage from "@/pages/onboarding/OnboardingPage";
-import { getGuideChecklistState, OverviewGuideChecklist } from "@/pages/dashboard/Overview";
+import {
+  getGuideChecklistState,
+  OverviewGuideChecklist,
+  shouldShowActivationChecklist,
+} from "@/pages/dashboard/Overview";
 import { supabase } from "@/lib/supabase";
 import {
   EMPTY_GUIDE_PROGRESS,
@@ -327,6 +331,21 @@ describe("onboarding flow", () => {
 
     expect(guideState.showGuideChecklist).toBe(true);
     expect(guideState.remainingGuideModules).toEqual(["menu", "kitchen", "settings"]);
+    expect(shouldShowActivationChecklist({
+      guideProgress: guideState,
+      onboardingCompleted: true,
+      hasLoadedProgress: true,
+    })).toBe(true);
+    expect(shouldShowActivationChecklist({
+      guideProgress: guideState,
+      onboardingCompleted: false,
+      hasLoadedProgress: true,
+    })).toBe(false);
+    expect(shouldShowActivationChecklist({
+      guideProgress: guideState,
+      onboardingCompleted: true,
+      hasLoadedProgress: false,
+    })).toBe(false);
   });
 
   it("marks modules complete when the user opens guided modules from the overview flow", () => {

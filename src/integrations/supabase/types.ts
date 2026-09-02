@@ -620,6 +620,35 @@ export type Database = {
           },
         ]
       }
+      restaurant_activation_progress: {
+        Row: {
+          completed_at: string
+          completed_by: string | null
+          module_key: string
+          restaurant_id: string
+        }
+        Insert: {
+          completed_at?: string
+          completed_by?: string | null
+          module_key: string
+          restaurant_id: string
+        }
+        Update: {
+          completed_at?: string
+          completed_by?: string | null
+          module_key?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_activation_progress_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurants: {
         Row: {
           address: string | null

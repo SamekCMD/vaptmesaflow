@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useAccountBootstrap } from "@/features/auth/use-account-bootstrap";
 import { resolveCurrentRestaurant } from "@/features/restaurants/current-restaurant";
@@ -34,19 +34,20 @@ import { toast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import {
+  useActivationProgress,
+  useCompleteActivationModule,
+} from "@/features/onboarding/use-activation-progress";
+import {
   fetchOrderFeedbackRecords,
   type StoredOrderFeedbackRecord,
 } from "@/lib/order-feedback";
 import {
   EMPTY_GUIDE_PROGRESS,
   GUIDE_MODULES,
-  completeGuideModule,
   getGuideModuleHref,
   getNextGuideModule,
   getRemainingGuideModules,
   GUIDE_MODULE_CONTENT,
-  loadGuideProgress,
-  saveGuideProgress,
   type OnboardingGuideProgress,
 } from "@/lib/onboarding";
 
@@ -137,6 +138,19 @@ export function getGuideChecklistState(guideProgress: OnboardingGuideProgress) {
     remainingGuideModules,
     showGuideChecklist: remainingGuideModules.length > 0,
   };
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function shouldShowActivationChecklist({
+  guideProgress,
+  onboardingCompleted,
+  hasLoadedProgress,
+}: {
+  guideProgress: ReturnType<typeof getGuideChecklistState>;
+  onboardingCompleted: boolean;
+  hasLoadedProgress: boolean;
+}) {
+  return onboardingCompleted && hasLoadedProgress && guideProgress.showGuideChecklist;
 }
 
 type OverviewGuideChecklistProps = {
@@ -233,7 +247,6 @@ const Overview = ({ guideProgress }: OverviewProps) => {
   const bootstrapQuery = useAccountBootstrap();
   const currentRestaurant = resolveCurrentRestaurant(bootstrapQuery.data);
   const currentRestaurantId = currentRestaurant?.id ?? null;
-  const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { refetch: refetchSub } = useSubscription();
@@ -241,11 +254,10 @@ const Overview = ({ guideProgress }: OverviewProps) => {
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [period, setPeriod] = useState<Period>("week");
-  const [storedGuideProgress, setStoredGuideProgress] = useState<OnboardingGuideProgress>(() =>
-    loadGuideProgress()
-  );
   const [feedbackRecords, setFeedbackRecords] = useState<StoredOrderFeedbackRecord[]>([]);
-  const effectiveGuideProgress = guideProgress ?? storedGuideProgress ?? EMPTY_GUIDE_PROGRESS;
+  const activationProgressQuery = useActivationProgress(currentRestaurantId);
+  const completeActivationModule = useCompleteActivationModule(currentRestaurantId);
+  const effectiveGuideProgress = guideProgress ?? activationProgressQuery.data ?? EMPTY_GUIDE_PROGRESS;
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("overview");
 
@@ -260,33 +272,8 @@ const Overview = ({ guideProgress }: OverviewProps) => {
     }
   }, [searchParams, setSearchParams, refetchSub]);
 
-  useEffect(() => {
-    if (guideProgress) {
-      setStoredGuideProgress(guideProgress);
-      saveGuideProgress(guideProgress);
-    }
-  }, [guideProgress]);
-
-  useEffect(() => {
-    const syncGuideProgress = () => {
-      setStoredGuideProgress(loadGuideProgress());
-    };
-
-    syncGuideProgress();
-    window.addEventListener("storage", syncGuideProgress);
-    window.addEventListener("focus", syncGuideProgress);
-    window.addEventListener("onboarding-guide-progress-changed", syncGuideProgress);
-
-    return () => {
-      window.removeEventListener("storage", syncGuideProgress);
-      window.removeEventListener("focus", syncGuideProgress);
-      window.removeEventListener("onboarding-guide-progress-changed", syncGuideProgress);
-    };
-  }, [location.pathname, location.search]);
-
-  const handleGuideComplete = () => {
-    const nextProgress = completeGuideModule("overview", effectiveGuideProgress);
-    setStoredGuideProgress(nextProgress);
+  const handleGuideComplete = async () => {
+    await completeActivationModule.mutateAsync("overview");
     navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
   };
 
@@ -586,12 +573,16 @@ const Overview = ({ guideProgress }: OverviewProps) => {
     return data;
   }, [completedOrders, period]);
 
-  const { remainingGuideModules, showGuideChecklist } = useMemo(
+  const guideChecklistState = useMemo(
     () => getGuideChecklistState(effectiveGuideProgress),
     [effectiveGuideProgress]
   );
 
-  const shouldShowGuideChecklist = showGuideChecklist && !restaurant?.onboarding_completed;
+  const shouldShowGuideChecklist = shouldShowActivationChecklist({
+    guideProgress: guideChecklistState,
+    onboardingCompleted: restaurant?.onboarding_completed === true,
+    hasLoadedProgress: Boolean(guideProgress) || activationProgressQuery.isSuccess,
+  });
 
   if (loading) return <OverviewSkeleton />;
 
