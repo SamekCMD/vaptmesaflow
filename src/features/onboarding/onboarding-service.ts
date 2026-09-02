@@ -19,6 +19,13 @@ export type SaveOnboardingDraftInput = Omit<OnboardingDraft, "id" | "organizatio
   organizationId: string | null;
 };
 
+export type OnboardingFinalization = {
+  id: string;
+  organizationId: string;
+  status: string;
+  completedAt: string | null;
+};
+
 type OnboardingDraftRow = {
   id: string;
   organization_id: string;
@@ -31,6 +38,14 @@ type OnboardingDraftRow = {
   onboarding_step: number;
   local_enabled: boolean;
   delivery_enabled: boolean;
+};
+
+type OnboardingFinalizationRow = {
+  id: string;
+  organization_id: string;
+  onboarding_status: string;
+  onboarding_completed: boolean;
+  onboarding_completed_at: string | null;
 };
 
 const mapDraft = (row: OnboardingDraftRow): OnboardingDraft => ({
@@ -80,4 +95,21 @@ export async function saveOnboardingDraft(input: SaveOnboardingDraftInput) {
   const row = data?.[0] as OnboardingDraftRow | undefined;
   if (!row) throw new Error("O rascunho do onboarding não foi retornado.");
   return mapDraft(row);
+}
+
+export async function finalizeOnboarding(restaurantId: string): Promise<OnboardingFinalization> {
+  const { data, error } = await supabase.rpc("finalize_onboarding", {
+    p_restaurant_id: restaurantId,
+  });
+
+  if (error) throw error;
+  const row = data?.[0] as OnboardingFinalizationRow | undefined;
+  if (!row) throw new Error("A finalização do onboarding não foi retornada.");
+
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    status: row.onboarding_status,
+    completedAt: row.onboarding_completed_at,
+  };
 }

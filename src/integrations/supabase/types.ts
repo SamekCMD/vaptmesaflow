@@ -817,6 +817,16 @@ export type Database = {
           slug: string
         }[]
       }
+      finalize_onboarding: {
+        Args: { p_restaurant_id: string }
+        Returns: {
+          id: string
+          organization_id: string
+          onboarding_status: string
+          onboarding_completed: boolean
+          onboarding_completed_at: string | null
+        }[]
+      }
       save_onboarding_draft: {
         Args: {
           p_name: string
