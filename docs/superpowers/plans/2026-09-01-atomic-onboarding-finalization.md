@@ -27,7 +27,7 @@
 - Create: `supabase/tests/atomic_onboarding_finalization_test.sql`
 - Create: `supabase/migrations/20260901004000_finalize_onboarding_atomic.sql`
 
-- [ ] **Step 1: Write the failing pgTAP contract and behavior tests**
+- [x] **Step 1: Write the failing pgTAP contract and behavior tests**
 
 Create a transaction-wrapped suite with temporary result/context tables. Insert two synthetic `auth.users`, two organizations, active owner memberships, one intruder, and two valid draft restaurants. Assert:
 
@@ -64,13 +64,13 @@ for each row execute function pg_temp.fail_onboarding_trial();
 
 Use `throws_ok` to invoke finalization, then assert that the failure restaurant remains `draft`, its completion timestamp is null, no subscription exists, and no account preference change survived. Accumulate every TAP line in a temporary results table and return it ordered before `ROLLBACK` so Supabase SQL Editor displays all assertions.
 
-- [ ] **Step 2: Run pgTAP and verify RED**
+- [x] **Step 2: Run pgTAP and verify RED**
 
 Run `supabase/tests/atomic_onboarding_finalization_test.sql` in the self-hosted Supabase SQL Editor.
 
 Expected: the function-existence assertion fails because `finalize_onboarding(uuid)` does not exist. Do not apply the migration yet.
 
-- [ ] **Step 3: Implement the minimal finalization RPC**
+- [x] **Step 3: Implement the minimal finalization RPC**
 
 Create `20260901004000_finalize_onboarding_atomic.sql` with this boundary:
 
@@ -155,13 +155,13 @@ notify pgrst, 'reload schema';
 
 The restaurant update must remain the final write. The existing sync trigger sets completion fields from database time, and its subscription trigger executes atomically within this statement.
 
-- [ ] **Step 4: Run pgTAP and verify GREEN**
+- [x] **Step 4: Run pgTAP and verify GREEN**
 
 Apply the migration, then run `supabase/tests/atomic_onboarding_finalization_test.sql`.
 
 Expected: `1..12`, twelve `ok` lines, and no failure summary.
 
-- [ ] **Step 5: Commit the database boundary**
+- [x] **Step 5: Commit the database boundary**
 
 ```bash
 git add supabase/migrations/20260901004000_finalize_onboarding_atomic.sql supabase/tests/atomic_onboarding_finalization_test.sql
@@ -176,7 +176,7 @@ git commit -m "feat: finalize onboarding atomically"
 - Modify: `src/integrations/supabase/types.ts`
 - Test: `src/test/onboarding-service.test.ts`
 
-- [ ] **Step 1: Write the failing service test**
+- [x] **Step 1: Write the failing service test**
 
 Add a test that mocks a server-returned completion timestamp and expects exactly one argument:
 
@@ -194,17 +194,17 @@ expect(result).toEqual({
 });
 ```
 
-- [ ] **Step 2: Run the focused test and verify RED**
+- [x] **Step 2: Run the focused test and verify RED**
 
 Run: `npm test -- src/test/onboarding-service.test.ts`
 
 Expected: FAIL because `finalizeOnboarding` is not exported.
 
-- [ ] **Step 3: Add the service contract**
+- [x] **Step 3: Add the service contract**
 
 Add `OnboardingFinalization` and `finalizeOnboarding(restaurantId)` to `onboarding-service.ts`. Call the RPC, throw its error, require one returned row, and map snake_case server fields to the camelCase object in Step 1. Do not generate a timestamp in TypeScript.
 
-- [ ] **Step 4: Add the mutation and generated-style database type**
+- [x] **Step 4: Add the mutation and generated-style database type**
 
 Add this function entry to `Database['public']['Functions']`:
 
@@ -223,7 +223,7 @@ finalize_onboarding: {
 
 Add `useFinalizeOnboarding()` beside the draft mutation. Its `onSuccess` invalidates `['account-bootstrap']` and `['onboarding-draft', result.id]`.
 
-- [ ] **Step 5: Run the focused test and lint touched files**
+- [x] **Step 5: Run the focused test and lint touched files**
 
 Run: `npm test -- src/test/onboarding-service.test.ts`
 
@@ -231,7 +231,7 @@ Run: `npm run lint`
 
 Expected: both commands pass.
 
-- [ ] **Step 6: Commit the frontend adapter**
+- [x] **Step 6: Commit the frontend adapter**
 
 ```bash
 git add src/features/onboarding/onboarding-service.ts src/features/onboarding/use-onboarding-draft.ts src/integrations/supabase/types.ts src/test/onboarding-service.test.ts
@@ -244,7 +244,7 @@ git commit -m "feat: expose atomic onboarding finalization"
 - Modify: `src/pages/onboarding/OnboardingPage.tsx`
 - Modify: `src/test/onboarding-flow.test.tsx`
 
-- [ ] **Step 1: Replace direct-update expectations with failing RPC tests**
+- [x] **Step 1: Replace direct-update expectations with failing RPC tests**
 
 Mock `useFinalizeOnboarding` with `finalizeAsync`. Update the success test to expect:
 
@@ -256,13 +256,13 @@ expect(supabase.from).not.toHaveBeenCalledWith("restaurants");
 
 Add a rejected-mutation case that reaches the review step, rejects finalization, and asserts the `Pronto para começar` heading remains visible and the completion choice state is absent.
 
-- [ ] **Step 2: Run the flow test and verify RED**
+- [x] **Step 2: Run the flow test and verify RED**
 
 Run: `npm test -- src/test/onboarding-flow.test.tsx`
 
 Expected: FAIL because the page still calls `restaurants.update` and the finalization hook is unused.
 
-- [ ] **Step 3: Replace the direct update with the RPC mutation**
+- [x] **Step 3: Replace the direct update with the RPC mutation**
 
 Import `useFinalizeOnboarding`, instantiate it beside `useSaveOnboardingDraft`, and replace:
 
@@ -281,7 +281,7 @@ await finalizeOnboarding.mutateAsync(restaurant.id);
 
 Remove the page's Supabase import. Keep draft persistence before finalization, the existing `saving` guard, success screen, and destructive failure toast.
 
-- [ ] **Step 4: Run focused onboarding tests**
+- [x] **Step 4: Run focused onboarding tests**
 
 Run:
 
@@ -291,7 +291,7 @@ npm test -- src/test/onboarding-form.test.ts src/test/onboarding-service.test.ts
 
 Expected: all focused tests pass.
 
-- [ ] **Step 5: Commit the wizard integration**
+- [x] **Step 5: Commit the wizard integration**
 
 ```bash
 git add src/pages/onboarding/OnboardingPage.tsx src/test/onboarding-flow.test.tsx
@@ -303,13 +303,13 @@ git commit -m "refactor: finalize onboarding through atomic RPC"
 **Files:**
 - Modify only if verification exposes a defect in Task 1-3 files.
 
-- [ ] **Step 1: Run the full frontend suite**
+- [x] **Step 1: Run the full frontend suite**
 
 Run: `npm test`
 
 Expected: all tests pass; existing React Router and landing-page `act()` warnings may remain.
 
-- [ ] **Step 2: Run lint and production build**
+- [x] **Step 2: Run lint and production build**
 
 Run: `npm run lint`
 
@@ -317,11 +317,13 @@ Run: `npm run build`
 
 Expected: both pass; the existing chunk-size and browserslist warnings may remain.
 
-- [ ] **Step 3: Confirm self-hosted database evidence**
+- [x] **Step 3: Confirm self-hosted database evidence**
 
 Record the SQL Editor result from `atomic_onboarding_finalization_test.sql`: twelve assertions, all `ok`, including the forced rollback and unchanged trial timestamp checks.
 
-- [ ] **Step 4: Push only after approval**
+Validated in the self-hosted Supabase SQL Editor on 2026-09-01: `1..12`, with all twelve assertions returning `ok`.
+
+- [x] **Step 4: Push only after approval**
 
 ```bash
 git push origin codex/multitenant-v2
