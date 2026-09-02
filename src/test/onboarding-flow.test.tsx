@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const onboardingMocks = vi.hoisted(() => ({
   draft: null as null | Record<string, unknown>,
   mutateAsync: vi.fn(),
+  finalizeAsync: vi.fn(),
 }));
 
 vi.mock("@/features/auth/use-account-bootstrap", () => ({
@@ -17,6 +18,7 @@ vi.mock("@/features/auth/use-account-bootstrap", () => ({
 vi.mock("@/features/onboarding/use-onboarding-draft", () => ({
   useOnboardingDraft: () => ({ data: onboardingMocks.draft }),
   useSaveOnboardingDraft: () => ({ mutateAsync: onboardingMocks.mutateAsync }),
+  useFinalizeOnboarding: () => ({ mutateAsync: onboardingMocks.finalizeAsync }),
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -81,6 +83,12 @@ beforeEach(() => {
     id: input.restaurantId ?? "rest-1",
     organizationId: input.organizationId ?? "org-1",
   }));
+  onboardingMocks.finalizeAsync.mockResolvedValue({
+    id: "rest-1",
+    organizationId: "org-1",
+    status: "complete",
+    completedAt: "2026-09-01T12:00:00.000Z",
+  });
 });
 
 describe("onboarding flow", () => {
@@ -93,18 +101,6 @@ describe("onboarding flow", () => {
     fireEvent.change(screen.getByLabelText(/nome do restaurante/i), {
       target: { value: "Vapt Burger" },
     });
-  };
-
-  const mockRestaurantCompletion = () => {
-    const eq = vi.fn().mockResolvedValue({ error: null });
-    const update = vi.fn(() => ({ eq }));
-    vi.mocked(supabase.from).mockImplementation((table: string) => {
-      if (table === "restaurants") {
-        return { update } as unknown as ReturnType<typeof supabase.from>;
-      }
-      throw new Error(`Unexpected table: ${table}`);
-    });
-    return { update, eq };
   };
 
   it("restores the saved fields and step after reopening onboarding", async () => {
@@ -151,8 +147,6 @@ describe("onboarding flow", () => {
   });
 
   it("reuses the persisted draft without writing legacy subscription fields", async () => {
-    const { update, eq } = mockRestaurantCompletion();
-
     render(
       <MemoryRouter>
         <OnboardingPage />
@@ -179,9 +173,10 @@ describe("onboarding flow", () => {
           onboardingStep: 2,
         })
       );
-      expect(update).toHaveBeenCalledWith({ onboarding_completed: true });
-      expect(eq).toHaveBeenCalledWith("id", "rest-1");
+      expect(onboardingMocks.finalizeAsync).toHaveBeenCalledWith("rest-1");
     });
+
+    expect(supabase.from).not.toHaveBeenCalledWith("restaurants");
 
     const restaurantPayload = onboardingMocks.mutateAsync.mock.calls.at(-1)?.[0];
     expect(restaurantPayload).not.toHaveProperty("plan_type");
@@ -190,8 +185,6 @@ describe("onboarding flow", () => {
   });
 
   it("shows the post-setup choice state with caixa and guide actions after finish", async () => {
-    mockRestaurantCompletion();
-
     render(
       <MemoryRouter>
         <OnboardingPage />
@@ -212,6 +205,24 @@ describe("onboarding flow", () => {
       ).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Operação pronta" })).toBeInTheDocument();
     });
+  });
+
+  it("keeps the ready step when atomic finalization fails", async () => {
+    render(
+      <MemoryRouter>
+        <OnboardingPage />
+      </MemoryRouter>
+    );
+
+    fillBasics();
+    await clickNext(1);
+    await clickNext(2);
+    onboardingMocks.finalizeAsync.mockRejectedValueOnce(new Error("Falha na finalização"));
+    fireEvent.click(screen.getByRole("button", { name: "Finalizar" }));
+
+    await waitFor(() => expect(onboardingMocks.finalizeAsync).toHaveBeenCalledWith("rest-1"));
+    expect(screen.getByRole("heading", { name: "Pronto para começar" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Operação pronta" })).not.toBeInTheDocument();
   });
 
   it("hides the table count for delivery and persists the selected mode", async () => {

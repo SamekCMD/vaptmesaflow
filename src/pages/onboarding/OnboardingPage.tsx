@@ -20,10 +20,13 @@ import {
 import { OperationStep } from "@/features/onboarding/steps/OperationStep";
 import { ReadyStep } from "@/features/onboarding/steps/ReadyStep";
 import { RestaurantBasicsStep } from "@/features/onboarding/steps/RestaurantBasicsStep";
-import { useOnboardingDraft, useSaveOnboardingDraft } from "@/features/onboarding/use-onboarding-draft";
+import {
+  useFinalizeOnboarding,
+  useOnboardingDraft,
+  useSaveOnboardingDraft,
+} from "@/features/onboarding/use-onboarding-draft";
 import { useToast } from "@/hooks/use-toast";
 import { POST_SETUP_PRIMARY_ACTION, POST_SETUP_SECONDARY_ACTION } from "@/lib/onboarding";
-import { supabase } from "@/lib/supabase";
 
 const STEPS = ["Dados básicos", "Operação", "Pronto"] as const;
 const DEFAULT_FORM: OnboardingForm = {
@@ -53,6 +56,7 @@ const OnboardingPage = () => {
   const organizationId = bootstrapQuery.data?.currentOrganizationId ?? null;
   const draftQuery = useOnboardingDraft(restaurantId);
   const saveDraft = useSaveOnboardingDraft();
+  const finalizeOnboarding = useFinalizeOnboarding();
   const progress = ((step + 1) / STEPS.length) * 100;
 
   useEffect(() => {
@@ -182,11 +186,7 @@ const OnboardingPage = () => {
     setSaving(true);
     try {
       const restaurant = await persistDraft(2);
-      const { error } = await supabase
-        .from("restaurants")
-        .update({ onboarding_completed: true })
-        .eq("id", restaurant.id);
-      if (error) throw error;
+      await finalizeOnboarding.mutateAsync(restaurant.id);
 
       toast({ title: "Restaurante criado com sucesso!" });
       setSetupComplete(true);
