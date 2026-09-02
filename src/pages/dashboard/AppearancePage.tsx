@@ -13,15 +13,22 @@ import { AppearanceFormSkeleton } from "@/components/skeletons/DashboardSkeleton
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { useCurrentRestaurant } from "@/features/restaurants/current-restaurant";
+import {
+  buildRestaurantLogoPath,
+  persistRestaurantAssetUpload,
+  validateRestaurantImage,
+} from "@/features/restaurants/restaurant-assets";
 
 const AppearancePage = () => {
   const { user } = useAuth();
-  const { restaurantId } = useCurrentRestaurant();
+  const { restaurant, restaurantId } = useCurrentRestaurant();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewObjectUrlRef = useRef<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [logoPreview, setLogoPreview] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [deliveryEnabled, setDeliveryEnabled] = useState(false);
   const [config, setConfig] = useState<RestaurantConfig>({
     id: "",
@@ -89,31 +96,77 @@ const AppearancePage = () => {
     fetch();
   }, [restaurantId]);
 
+  useEffect(() => () => {
+    if (previewObjectUrlRef.current) {
+      URL.revokeObjectURL(previewObjectUrlRef.current);
+    }
+  }, []);
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setLogoPreview(url);
-    updateConfig({ logoUrl: url });
+    try {
+      validateRestaurantImage(file, "logo");
+      if (previewObjectUrlRef.current) {
+        URL.revokeObjectURL(previewObjectUrlRef.current);
+      }
+      const previewUrl = URL.createObjectURL(file);
+      previewObjectUrlRef.current = previewUrl;
+      setLogoFile(file);
+      setLogoPreview(previewUrl);
+    } catch (error: unknown) {
+      const description = error instanceof Error ? error.message : "Selecione outra imagem.";
+      toast({ title: "Logo inválido", description, variant: "destructive" });
+      e.target.value = "";
+    }
   };
 
   const handleSave = async () => {
-    if (!user || !config.id) return;
+    if (!user || !config.id || !restaurant?.organizationId) return;
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("restaurants")
-        .update({
+      const persistBranding = async (logoUrl: string) => {
+        const { error } = await supabase
+          .from("restaurants")
+          .update({
           name: config.name,
           slug: config.slug,
           primary_color: config.primaryColor,
           secondary_color: config.secondaryColor,
           font_family: config.fontFamily,
-          logo_url: config.logoUrl,
-        })
-        .eq("id", config.id);
+            logo_url: logoUrl,
+          })
+          .eq("id", config.id);
 
-      if (error) throw error;
+        if (error) throw error;
+      };
+
+      if (logoFile) {
+        const uploaded = await persistRestaurantAssetUpload({
+          bucket: "restaurant-assets",
+          path: buildRestaurantLogoPath({
+            organizationId: restaurant.organizationId,
+            restaurantId: config.id,
+            assetId: crypto.randomUUID(),
+            contentType: logoFile.type,
+          }),
+          body: logoFile,
+          contentType: logoFile.type,
+          previousPublicUrl: config.logoUrl,
+          persist: persistBranding,
+        });
+
+        if (previewObjectUrlRef.current) {
+          URL.revokeObjectURL(previewObjectUrlRef.current);
+          previewObjectUrlRef.current = null;
+        }
+        setLogoFile(null);
+        setLogoPreview(uploaded.publicUrl);
+        updateConfig({ logoUrl: uploaded.publicUrl });
+      } else {
+        await persistBranding(config.logoUrl);
+      }
+
       toast({ title: "Aparencia salva", description: "As alteracoes de marca foram aplicadas." });
     } catch (err: unknown) {
       const description = err instanceof Error ? err.message : "Tente novamente.";
@@ -159,7 +212,13 @@ const AppearancePage = () => {
               </div>
               <div>
                 <Label>Logo</Label>
-                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handleLogoUpload}
+                />
                 <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                   <div
                     className="h-16 w-16 rounded-lg border-2 border-dashed border-border flex items-center justify-center cursor-pointer hover:border-primary transition-colors overflow-hidden"

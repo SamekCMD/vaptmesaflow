@@ -20,8 +20,12 @@ import { toast } from "@/hooks/use-toast";
 import { MenuTableSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-import { buildSupabaseStoragePublicUrl } from "@/lib/env";
 import { useCurrentRestaurant } from "@/features/restaurants/current-restaurant";
+import {
+  persistMenuItemImage,
+  removePersistedRestaurantAsset,
+  validateRestaurantImage,
+} from "@/features/restaurants/restaurant-assets";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import {
   completeGuideModule,
@@ -91,6 +95,7 @@ function resizeImage(file: File, maxSize = 1200): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
+      URL.revokeObjectURL(img.src);
       let { width, height } = img;
       if (width <= maxSize && height <= maxSize) {
         resolve(file);
@@ -110,7 +115,10 @@ function resizeImage(file: File, maxSize = 1200): Promise<Blob> {
         0.85
       );
     };
-    img.onerror = reject;
+    img.onerror = (error) => {
+      URL.revokeObjectURL(img.src);
+      reject(error);
+    };
     img.src = URL.createObjectURL(file);
   });
 }
@@ -118,7 +126,7 @@ function resizeImage(file: File, maxSize = 1200): Promise<Blob> {
 const MenuManagement = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { restaurantId } = useCurrentRestaurant();
+  const { restaurant, restaurantId } = useCurrentRestaurant();
   const [items, setItems] = useState<MenuItem[]>([]);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -139,6 +147,13 @@ const MenuManagement = () => {
   const [newOptionInputs, setNewOptionInputs] = useState<Record<number, string>>({});
   const [prepTimeMinutes, setPrepTimeMinutes] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewObjectUrlRef = useRef<string | null>(null);
+
+  useEffect(() => () => {
+    if (previewObjectUrlRef.current) {
+      URL.revokeObjectURL(previewObjectUrlRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -216,6 +231,10 @@ const MenuManagement = () => {
   );
 
   const resetForm = () => {
+    if (previewObjectUrlRef.current) {
+      URL.revokeObjectURL(previewObjectUrlRef.current);
+      previewObjectUrlRef.current = null;
+    }
     setForm({ name: "", price: "", category: "" });
     setEditItem(null);
     setImageFile(null);
@@ -232,7 +251,7 @@ const MenuManagement = () => {
   };
 
   const handleSave = async () => {
-    if (!form.name || !form.price || !form.category || !restaurantId) return;
+    if (!form.name || !form.price || !form.category || !restaurantId || !restaurant?.organizationId) return;
     setSaving(true);
 
     try {
@@ -247,52 +266,59 @@ const MenuManagement = () => {
         prep_time_minutes: prepTimeMinutes ? parseInt(prepTimeMinutes) : null,
       };
 
-      // If chef suggestion is on, unset others first
-      if (isChefSuggestion) {
-        await supabase
-          .from("menu_items")
-          .update({ is_chef_suggestion: false })
-          .eq("restaurant_id", restaurantId)
-          .neq("id", editItem?.id || "");
-      }
+      const itemId = editItem?.id ?? crypto.randomUUID();
+      const persistItem = async (imageUrl?: string | null) => {
+        const itemData = imageUrl === undefined
+          ? updateData
+          : { ...updateData, image_url: imageUrl };
 
-      let itemId: string;
-
-      if (editItem) {
-        // Handle image removal
-        if (removeImage && editItem.image_url) {
-          const path = `${restaurantId}/${editItem.id}`;
-          await supabase.storage.from("menu-images").remove([path]);
-          updateData.image_url = null;
+        if (editItem) {
+          const { error } = await supabase
+            .from("menu_items")
+            .update(itemData)
+            .eq("id", itemId);
+          if (error) throw error;
+          return;
         }
 
         const { error } = await supabase
           .from("menu_items")
-          .update(updateData)
-          .eq("id", editItem.id);
+          .insert({
+            id: itemId,
+            restaurant_id: restaurantId,
+            ...itemData,
+            available: true,
+          });
         if (error) throw error;
-        itemId = editItem.id;
-      } else {
-        const { data, error } = await supabase
-          .from("menu_items")
-          .insert({ restaurant_id: restaurantId, ...updateData, available: true })
-          .select()
-          .single();
-        if (error) throw error;
-        itemId = data.id;
-      }
+      };
 
-      // Handle image upload
       if (imageFile) {
         const resized = await resizeImage(imageFile);
-        const path = `${restaurantId}/${itemId}`;
-        const { error: upErr } = await supabase.storage
-          .from("menu-images")
-          .upload(path, resized, { upsert: true, contentType: "image/jpeg" });
-        if (upErr) throw upErr;
-        const publicUrl = buildSupabaseStoragePublicUrl("menu-images", path);
-        await supabase.from("menu_items").update({ image_url: publicUrl }).eq("id", itemId);
-        updateData.image_url = publicUrl;
+        const uploaded = await persistMenuItemImage({
+          organizationId: restaurant.organizationId,
+          restaurantId,
+          itemId,
+          image: resized,
+          previousPublicUrl: editItem?.image_url,
+          persist: persistItem,
+        });
+        updateData.image_url = uploaded.publicUrl;
+      } else {
+        await persistItem(removeImage ? null : undefined);
+        if (removeImage && editItem?.image_url) {
+          await removePersistedRestaurantAsset("menu-images", editItem.image_url);
+          updateData.image_url = null;
+        }
+      }
+
+      // Do not mutate other products until this product and its image are persisted.
+      if (isChefSuggestion) {
+        const { error } = await supabase
+          .from("menu_items")
+          .update({ is_chef_suggestion: false })
+          .eq("restaurant_id", restaurantId)
+          .neq("id", itemId);
+        if (error) throw error;
       }
 
       // Handle variations: delete existing and insert new
@@ -381,11 +407,11 @@ const MenuManagement = () => {
 
   const handleDelete = async (item: MenuItem) => {
     try {
-      if (item.image_url) {
-        await supabase.storage.from("menu-images").remove([`${restaurantId}/${item.id}`]);
-      }
       const { error } = await supabase.from("menu_items").delete().eq("id", item.id);
       if (error) throw error;
+      if (item.image_url) {
+        await removePersistedRestaurantAsset("menu-images", item.image_url);
+      }
       setItems(items.filter((i) => i.id !== item.id));
       toast({ title: "Item removido", description: `"${item.name}" foi removido do cardápio.`, variant: "destructive" });
     } catch (err: unknown) {
@@ -401,17 +427,21 @@ const MenuManagement = () => {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "Arquivo muito grande", description: "Máximo 5MB", variant: "destructive" });
-      return;
+    try {
+      validateRestaurantImage(file, "menu-item");
+      if (previewObjectUrlRef.current) {
+        URL.revokeObjectURL(previewObjectUrlRef.current);
+      }
+      const previewUrl = URL.createObjectURL(file);
+      previewObjectUrlRef.current = previewUrl;
+      setImageFile(file);
+      setImagePreview(previewUrl);
+      setRemoveImage(false);
+    } catch (error: unknown) {
+      const description = error instanceof Error ? error.message : "Selecione outra imagem.";
+      toast({ title: "Imagem inválida", description, variant: "destructive" });
+      e.target.value = "";
     }
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      toast({ title: "Formato inválido", description: "Use JPG, PNG ou WebP", variant: "destructive" });
-      return;
-    }
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
-    setRemoveImage(false);
   };
 
   // Variation helpers
@@ -518,7 +548,7 @@ const MenuManagement = () => {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".jpg,.jpeg,.png,.webp"
+                      accept="image/jpeg,image/png,image/webp"
                       onChange={handleFileSelect}
                       className="hidden"
                     />
