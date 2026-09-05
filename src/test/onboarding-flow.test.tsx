@@ -150,6 +150,21 @@ describe("onboarding flow", () => {
     expect(screen.getByRole("heading", { name: "Pronto para começar" })).toBeInTheDocument();
   });
 
+  it("starts an explicit restaurant creation in the selected organization", async () => {
+    render(
+      <MemoryRouter>
+        <OnboardingPage creationOrganizationId="org-2" />
+      </MemoryRouter>,
+    );
+
+    fillBasics();
+    await clickNext(1);
+
+    expect(onboardingMocks.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-2", restaurantId: null }),
+    );
+  });
+
   it("reuses the persisted draft without writing legacy subscription fields", async () => {
     render(
       <MemoryRouter>

@@ -174,4 +174,43 @@ describe("account bootstrap", () => {
     expect(bootstrap.currentOrganizationId).toBe("org-2");
     expect(bootstrap.currentRestaurantId).toBe("rest-2");
   });
+
+  it("exposes only restaurants from the organizations in the active membership subset", () => {
+    const bootstrap = deriveAccountBootstrap(
+      baseInput({
+        organizations: [{ id: "org-2", name: "Org 2", role: "staff" }],
+        restaurants: [
+          { id: "rest-2", organizationId: "org-2", name: "Allowed", slug: "allowed", onboardingStatus: "complete" },
+        ],
+        preferredOrganizationId: "org-1",
+        preferredRestaurantId: "rest-1",
+      }),
+    );
+
+    expect(bootstrap.destination).toBe("dashboard");
+    expect(bootstrap.currentOrganizationId).toBe("org-2");
+    expect(bootstrap.currentRestaurantId).toBe("rest-2");
+    expect(bootstrap.restaurants.map((restaurant) => restaurant.id)).toEqual(["rest-2"]);
+  });
+
+  it("does not let a draft in another organization override a valid completed preference", () => {
+    const bootstrap = deriveAccountBootstrap(
+      baseInput({
+        organizations: [
+          { id: "org-1", name: "Org 1", role: "owner" },
+          { id: "org-2", name: "Org 2", role: "admin" },
+        ],
+        restaurants: [
+          { id: "rest-1", organizationId: "org-1", name: "Ready", slug: "ready", onboardingStatus: "complete" },
+          { id: "rest-2", organizationId: "org-2", name: "Draft", slug: "draft", onboardingStatus: "draft" },
+        ],
+        preferredOrganizationId: "org-1",
+        preferredRestaurantId: "rest-1",
+      }),
+    );
+
+    expect(bootstrap.destination).toBe("dashboard");
+    expect(bootstrap.currentOrganizationId).toBe("org-1");
+    expect(bootstrap.currentRestaurantId).toBe("rest-1");
+  });
 });

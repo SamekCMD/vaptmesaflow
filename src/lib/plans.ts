@@ -8,6 +8,7 @@ export interface PlanDefinition {
   features: string[];
   blockedFeatures: string[];
   highlighted: boolean;
+  maxRestaurants: number;
 }
 
 export const PLANS: PlanDefinition[] = [
@@ -17,6 +18,7 @@ export const PLANS: PlanDefinition[] = [
     price: 97,
     priceId: STRIPE_PRICE_STARTER,
     features: [
+      "1 restaurante",
       "Cardápio digital ilimitado",
       "QR Codes para mesas",
       "KDS - Monitor de Cozinha",
@@ -25,6 +27,7 @@ export const PLANS: PlanDefinition[] = [
     ],
     blockedFeatures: ["Caixa e Comanda Aberta", "Multi-usuários"],
     highlighted: false,
+    maxRestaurants: 1,
   },
   {
     id: "pro",
@@ -33,12 +36,14 @@ export const PLANS: PlanDefinition[] = [
     priceId: STRIPE_PRICE_PRO,
     features: [
       "Tudo do Starter",
+      "1 restaurante",
       "Caixa e Comanda Aberta",
       "Dashboard de métricas",
       "Suporte prioritário",
     ],
     blockedFeatures: ["Multi-usuários"],
     highlighted: true,
+    maxRestaurants: 1,
   },
   {
     id: "business",
@@ -47,6 +52,7 @@ export const PLANS: PlanDefinition[] = [
     priceId: STRIPE_PRICE_BUSINESS,
     features: [
       "Tudo do Pro",
+      "Até 25 restaurantes",
       "Multi-usuários",
       "Relatórios avançados",
       "Gerente de conta dedicado",
@@ -54,5 +60,6 @@ export const PLANS: PlanDefinition[] = [
     ],
     blockedFeatures: [],
     highlighted: false,
+    maxRestaurants: 25,
   },
 ];

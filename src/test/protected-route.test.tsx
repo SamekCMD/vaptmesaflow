@@ -37,7 +37,7 @@ describe("protected route", () => {
     bootstrapState.refetch.mockReset();
   });
 
-  const renderRoute = (mode: "dashboard" | "onboarding", initialEntry = "/protected") =>
+  const renderRoute = (mode: "dashboard" | "onboarding" | "create-restaurant", initialEntry = "/protected") =>
     render(
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
@@ -141,6 +141,18 @@ describe("protected route", () => {
     };
 
     renderRoute("dashboard");
+
+    expect(screen.getByText("Protected content")).toBeInTheDocument();
+  });
+
+  it("allows an authenticated ready account to enter explicit restaurant creation", () => {
+    bootstrapState.data = {
+      destination: "dashboard",
+      currentOrganizationId: "org-1",
+      currentRestaurantId: "rest-1",
+    };
+
+    renderRoute("create-restaurant");
 
     expect(screen.getByText("Protected content")).toBeInTheDocument();
   });

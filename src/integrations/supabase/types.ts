@@ -856,6 +856,17 @@ export type Database = {
           onboarding_completed_at: string | null
         }[]
       }
+      get_restaurant_creation_entitlement: {
+        Args: { p_organization_id: string }
+        Returns: {
+          can_create: boolean
+          role: string | null
+          plan_type: string | null
+          current_restaurants: number | null
+          max_restaurants: number | null
+          reason: string | null
+        }[]
+      }
       save_onboarding_draft: {
         Args: {
           p_name: string

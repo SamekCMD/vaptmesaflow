@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -114,5 +114,34 @@ export function useAccountBootstrap(routeRestaurantId?: string | null) {
     },
     enabled: Boolean(user) && !recoveryMode,
     staleTime: 30_000,
+  });
+}
+
+export function useSwitchRestaurant() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const bootstrapQuery = useAccountBootstrap(null);
+
+  return useMutation({
+    mutationFn: async (restaurantId: string) => {
+      if (!user || !bootstrapQuery.data) throw new Error("Conta indisponível.");
+
+      const restaurant = bootstrapQuery.data.restaurants.find(
+        (candidate) => candidate.id === restaurantId && candidate.onboardingStatus === "complete",
+      );
+      if (!restaurant) throw new Error("Restaurante indisponível para esta conta.");
+
+      await saveAccountPreference(user.id, {
+        currentOrganizationId: restaurant.organizationId,
+        currentRestaurantId: restaurant.id,
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["account-bootstrap"] }),
+        queryClient.invalidateQueries({ queryKey: ["organization-subscription"] }),
+        queryClient.invalidateQueries({ queryKey: ["restaurant-activation-progress"] }),
+      ]);
+    },
   });
 }

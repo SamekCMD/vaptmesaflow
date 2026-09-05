@@ -5,7 +5,7 @@ import { AccountBootstrapError } from "@/features/auth/AccountBootstrapError";
 import { Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
 
-type ProtectedRouteMode = "dashboard" | "onboarding" | "selector";
+type ProtectedRouteMode = "dashboard" | "onboarding" | "selector" | "create-restaurant";
 
 const ProtectedRoute = ({
   children,

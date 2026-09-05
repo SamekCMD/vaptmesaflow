@@ -99,22 +99,6 @@ export function deriveAccountBootstrap(input: AccountBootstrapInput): AccountBoo
     };
   }
 
-  if (draftRestaurants.length > 0) {
-    const preferredDraft = input.preferredRestaurantId
-      ? draftRestaurants.find((restaurant) => restaurant.id === input.preferredRestaurantId) ?? null
-      : null;
-    const draftRestaurant = preferredDraft ?? draftRestaurants[0];
-
-    return {
-      userId: input.userId,
-      organizations,
-      currentOrganizationId: draftRestaurant.organizationId,
-      restaurants,
-      currentRestaurantId: draftRestaurant.id,
-      destination: "onboarding",
-    };
-  }
-
   const preferredOrganizationIsValid =
     input.preferredOrganizationId !== null &&
     organizations.some((organization) => organization.id === input.preferredOrganizationId);
@@ -135,6 +119,22 @@ export function deriveAccountBootstrap(input: AccountBootstrapInput): AccountBoo
       restaurants,
       currentRestaurantId: preferredRestaurant.id,
       destination: "dashboard",
+    };
+  }
+
+  if (draftRestaurants.length > 0) {
+    const preferredDraft = input.preferredRestaurantId
+      ? draftRestaurants.find((restaurant) => restaurant.id === input.preferredRestaurantId) ?? null
+      : null;
+    const draftRestaurant = preferredDraft ?? draftRestaurants[0];
+
+    return {
+      userId: input.userId,
+      organizations,
+      currentOrganizationId: draftRestaurant.organizationId,
+      restaurants,
+      currentRestaurantId: draftRestaurant.id,
+      destination: "onboarding",
     };
   }
 

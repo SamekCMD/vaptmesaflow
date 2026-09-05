@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox syntax for tracking.
 
+> **Manual pgTAP convention:** every SQL test intended for the Supabase SQL Editor must collect `plan()`, every assertion and `finish()` into a temporary results table, then return one final ordered `select sequence, result`. If the test changes to `authenticated` or `anon`, grant those roles `insert` on the temporary results table. The editor otherwise exposes only the final result set and hides the failing assertion.
+
 **Goal:** Replace the current fragile authentication/onboarding flow with a secure, resumable, multi-tenant-ready architecture based on Supabase Auth, Organizations, Memberships, Restaurants, Resend, server-side abuse controls, and deterministic account routing.
 
 **Architecture:** A user belongs to one or more organizations through memberships. Organizations own restaurants and subscriptions. Authentication stays in Supabase Auth. A single account bootstrap determines whether the user must verify email, create/finish a restaurant, choose a restaurant, or enter the dashboard. Onboarding is persisted server-side and finalized idempotently. Public restaurant data is separated from private billing/provider data.

@@ -6,8 +6,10 @@ import { useTheme } from "@/hooks/useTheme";
 import TrialBanner from "@/components/dashboard/TrialBanner";
 import PushNotificationBanner from "@/components/dashboard/PushNotificationBanner";
 import { registerServiceWorker } from "@/lib/push-notifications";
-import { useAccountBootstrap } from "@/features/auth/use-account-bootstrap";
+import { useAccountBootstrap, useSwitchRestaurant } from "@/features/auth/use-account-bootstrap";
 import { resolveCurrentRestaurant } from "@/features/restaurants/current-restaurant";
+import { RestaurantSwitcher } from "@/features/restaurants/RestaurantSwitcher";
+import { useRestaurantCreationEntitlement } from "@/features/restaurants/restaurant-entitlement";
 import { Switch } from "@/components/ui/switch";
 import {
   LayoutDashboard,
@@ -55,6 +57,10 @@ const DashboardLayout = () => {
   const currentRestaurant = resolveCurrentRestaurant(bootstrapQuery.data);
   const restaurantId = currentRestaurant?.id ?? null;
   const restaurantSlug = currentRestaurant?.slug ?? null;
+  const switchRestaurant = useSwitchRestaurant();
+  const entitlementQuery = useRestaurantCreationEntitlement(
+    bootstrapQuery.data?.currentOrganizationId ?? null,
+  );
   const { isActive, loading: planLoading, planType, isTrialing, trialDaysLeft } = useSubscription();
   const { theme, toggleTheme } = useTheme();
 
@@ -160,7 +166,13 @@ const DashboardLayout = () => {
             <Menu className="h-4 w-4" />
           </button>
 
-          <div className="hidden lg:block" />
+          {bootstrapQuery.data ? (
+            <RestaurantSwitcher
+              bootstrap={bootstrapQuery.data}
+              entitlement={entitlementQuery.data}
+              onSwitch={switchRestaurant.mutateAsync}
+            />
+          ) : <div />}
 
           <div className="flex items-center gap-3">
             <Button

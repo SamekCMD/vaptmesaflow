@@ -38,7 +38,11 @@ const DEFAULT_FORM: OnboardingForm = {
   deliveryEnabled: false,
 };
 
-const OnboardingPage = () => {
+type OnboardingPageProps = {
+  creationOrganizationId?: string;
+};
+
+const OnboardingPage = ({ creationOrganizationId }: OnboardingPageProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -53,17 +57,17 @@ const OnboardingPage = () => {
   const hydratedDraftId = useRef<string | null>(null);
 
   const bootstrapQuery = useAccountBootstrap();
-  const organizationId = bootstrapQuery.data?.currentOrganizationId ?? null;
+  const organizationId = creationOrganizationId ?? bootstrapQuery.data?.currentOrganizationId ?? null;
   const draftQuery = useOnboardingDraft(restaurantId);
   const saveDraft = useSaveOnboardingDraft();
   const finalizeOnboarding = useFinalizeOnboarding();
   const progress = ((step + 1) / STEPS.length) * 100;
 
   useEffect(() => {
-    if (bootstrapQuery.data?.currentRestaurantId) {
+    if (!creationOrganizationId && bootstrapQuery.data?.currentRestaurantId) {
       setRestaurantId(bootstrapQuery.data.currentRestaurantId);
     }
-  }, [bootstrapQuery.data?.currentRestaurantId]);
+  }, [bootstrapQuery.data?.currentRestaurantId, creationOrganizationId]);
 
   useEffect(() => {
     const draft = draftQuery.data;

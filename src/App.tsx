@@ -26,6 +26,7 @@ const ForgotPasswordPage = lazy(() => import("./pages/auth/ForgotPasswordPage"))
 const ResetPasswordPage = lazy(() => import("./pages/auth/ResetPasswordPage"));
 const OnboardingPage = lazy(() => import("./pages/onboarding/OnboardingPage"));
 const RestaurantSelectorPage = lazy(() => import("./features/restaurants/RestaurantSelectorPage"));
+const NewRestaurantPage = lazy(() => import("./features/restaurants/NewRestaurantPage"));
 const PricingPage = lazy(() => import("./pages/PricingPage"));
 const SubscriptionPage = lazy(() => import("./pages/dashboard/SubscriptionPage"));
 const PaymentReturn = lazy(() => import("./pages/payment/PaymentReturn"));
@@ -58,6 +59,7 @@ const App = () => {
                   <Route path="/pricing" element={<PricingPage />} />
                   <Route path="/onboarding" element={<ProtectedRoute mode="onboarding"><OnboardingPage /></ProtectedRoute>} />
                   <Route path="/restaurants/select" element={<ProtectedRoute mode="selector"><RestaurantSelectorPage /></ProtectedRoute>} />
+                  <Route path="/restaurants/new" element={<ProtectedRoute mode="create-restaurant"><NewRestaurantPage /></ProtectedRoute>} />
                   <Route path="/dashboard" element={<ProtectedRoute mode="dashboard"><DashboardLayout /></ProtectedRoute>}>
                     <Route index element={<Overview />} />
                     <Route path="menu" element={<MenuManagement />} />
