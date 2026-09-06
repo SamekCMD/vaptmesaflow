@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import VerifyEmailPage from "@/pages/auth/VerifyEmailPage";
+import { AUTH_RATE_LIMIT_MESSAGE } from "@/features/auth/auth-errors";
 
 const authMocks = vi.hoisted(() => ({
   verifySignupOtp: vi.fn(),
@@ -118,5 +119,26 @@ describe("VerifyEmailPage", () => {
       "owner@vapt.test",
       "captcha-token",
     );
+  });
+
+  it("shows retry guidance after a rate-limited resend without replaying it", async () => {
+    vi.useFakeTimers();
+    authMocks.resendSignupOtp.mockResolvedValue({
+      error: Object.assign(new Error("email rate limited"), { status: 429 }),
+    });
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Concluir desafio" }));
+    for (let second = 0; second < 60; second += 1) {
+      await act(async () => {
+        vi.advanceTimersByTime(1_000);
+      });
+    }
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Reenviar/ }));
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(AUTH_RATE_LIMIT_MESSAGE);
+    expect(authMocks.resendSignupOtp).toHaveBeenCalledOnce();
   });
 });

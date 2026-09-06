@@ -97,7 +97,7 @@ describe("protected route", () => {
     expect(screen.getByText("Protected content")).toBeInTheDocument();
   });
 
-  it("redirects dashboard routes to onboarding when bootstrap requires setup", () => {
+  it("routes an account without a restaurant to onboarding, never subscription", () => {
     bootstrapState.data = {
       destination: "onboarding",
       currentOrganizationId: "org-1",
