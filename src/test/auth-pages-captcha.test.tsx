@@ -73,6 +73,16 @@ describe("auth page CAPTCHA protection", () => {
     );
   });
 
+  it("shows password reset confirmation without signing in automatically", () => {
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/login", state: { passwordReset: true } }]}>
+        <LoginPage />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Senha alterada. Entre com sua nova senha.");
+    expect(authState.signIn).not.toHaveBeenCalled();
+  });
+
   it("forwards CAPTCHA on signup and resets it after an auth failure", async () => {
     authState.signUp.mockResolvedValue({ error: new Error("signup failed") });
 

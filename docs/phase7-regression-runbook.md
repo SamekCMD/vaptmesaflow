@@ -87,7 +87,17 @@ Use a clean browser profile and a disposable email alias. Do not reuse a session
 
 1. Request recovery for both an existing and an unknown email; copy must not disclose account existence.
 2. Open the recovery link/code, enter mismatched passwords, and confirm local validation.
-3. Save a valid password and confirm bootstrap chooses onboarding or dashboard from account state.
+3. Save a valid password and confirm global sign-out completes before redirecting
+   to login with the password-change confirmation. No automatic dashboard login.
+4. Sign in explicitly with the new password; bootstrap then chooses onboarding
+   or dashboard from account state. The old password must fail.
+5. If sign-out fails after the password update, confirm recovery restrictions
+   remain active and retry only sign-out, without submitting the password again.
+
+Global sign-out revokes refresh sessions. Previously issued access JWTs may
+remain valid until expiry; this change does not implement immediate server-side
+revocation of every access token. Recheck the deployed recovery flow after the
+frontend update; the earlier manual run used automatic dashboard login.
 
 ### Smoke C: account isolation
 
@@ -96,6 +106,19 @@ Use a clean browser profile and a disposable email alias. Do not reuse a session
 3. Confirm no restaurant, subscription, or activation state from Account A appears.
 4. For a multi-organization user, switch between accessible restaurants and confirm preference persistence.
 
+Account-switch observation (2026-09-08): on preview
+`https://vaptmesaflow-c6kpy6rqa-contatoupboost-2301s-projects.vercel.app`,
+Account A (`bestochefo`, expired trial, Mercado Pago disconnected) logged out
+through the application and Account B logged in in the same tab without clearing
+browser storage. Account B showed `hamburger`, an 11-day remaining trial, four
+menu items, its own restaurant settings, and an active Mercado Pago connection.
+The restaurant selector listed only `hamburger`; no `bestochefo` reference was
+observed in the inspected dashboard, selector, menu, or settings.
+This verifies the observed post-login UI state and authenticated provider-status
+lookup, not transient rendering during login, activation-state isolation,
+multi-organization switching, or the full OAuth connection flow. Those checks
+remain pending. API compatibility fix: `d378780` (HS256 without issuer).
+
 ### Smoke D: public surface
 
 1. Open a public menu in a signed-out/private window.
@@ -103,6 +126,15 @@ Use a clean browser profile and a disposable email alias. Do not reuse a session
 3. Confirm no billing, provider account, token, or OAuth state request succeeds anonymously.
 
 ## Operational evidence
+
+Public-menu observation (2026-09-09): after application logout, the same preview
+loaded `/menu/hamburger`. Without a table it requested the table QR code, as
+implemented. `/menu/hamburger?table=1` displayed the restaurant and categories.
+Opening `hamberger`, adding one item, and reviewing the cart showed BRL 23.00
+and the online payment button. No order or payment was submitted. The anonymous
+provider-status navigation was blocked by the browser (`ERR_BLOCKED_BY_CLIENT`),
+so it does not establish an API authorization result. Full order submission and
+live anonymous API denial remain pending; the database denial suite above passed.
 
 After Smoke A and Smoke B:
 

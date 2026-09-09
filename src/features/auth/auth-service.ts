@@ -60,5 +60,5 @@ export const authService = {
 
   updatePassword: (password: string) => supabase.auth.updateUser({ password }),
 
-  signOut: () => supabase.auth.signOut(),
+  signOut: () => supabase.auth.signOut({ scope: "global" }),
 };

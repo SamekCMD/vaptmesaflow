@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ForgotPasswordPage from "@/pages/auth/ForgotPasswordPage";
@@ -40,12 +40,18 @@ vi.mock("@/features/auth/TurnstileWidget", () => ({
 
 const renderForgot = () => render(<MemoryRouter><ForgotPasswordPage /></MemoryRouter>);
 
+const LoginDestination = () => {
+  const location = useLocation();
+  return <div>{location.state?.passwordReset ? "Login após recuperação" : "Login"}</div>;
+};
+
 const renderReset = () =>
   render(
     <MemoryRouter initialEntries={["/reset-password"]}>
       <Routes>
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/dashboard" element={<div>Bootstrap da conta</div>} />
+        <Route path="/login" element={<LoginDestination />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -127,8 +133,10 @@ describe("password recovery flow", () => {
     expect(authMocks.updatePassword).not.toHaveBeenCalled();
   });
 
-  it("updates the password, clears recovery state and resumes bootstrap", async () => {
+  it("updates the password and waits for logout before returning to login", async () => {
     authMocks.updatePassword.mockResolvedValue({ error: null });
+    let completeLogout!: () => void;
+    authMocks.signOut.mockReturnValue(new Promise<void>((resolve) => { completeLogout = resolve; }));
     renderReset();
     fireEvent.change(screen.getByLabelText("Nova senha"), {
       target: { value: "new-password-123" },
@@ -138,8 +146,37 @@ describe("password recovery flow", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Atualizar senha" }));
 
-    expect(await screen.findByText("Bootstrap da conta")).toBeInTheDocument();
-    await waitFor(() => expect(authMocks.clearRecoveryMode).toHaveBeenCalledOnce());
+    await waitFor(() => expect(authMocks.signOut).toHaveBeenCalledOnce());
+    expect(screen.queryByText("Login após recuperação")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bootstrap da conta")).not.toBeInTheDocument();
+    completeLogout();
+    expect(await screen.findByText("Login após recuperação")).toBeInTheDocument();
     expect(authMocks.updatePassword).toHaveBeenCalledWith("new-password-123");
+  });
+
+  it("retries only logout when session revocation fails after a password change", async () => {
+    authMocks.updatePassword.mockResolvedValue({ error: null });
+    authMocks.signOut.mockRejectedValueOnce(new Error("network failure")).mockResolvedValueOnce(undefined);
+    renderReset();
+    fireEvent.change(screen.getByLabelText("Nova senha"), { target: { value: "new-password-123" } });
+    fireEvent.change(screen.getByLabelText("Confirmar nova senha"), { target: { value: "new-password-123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar senha" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Sua senha foi alterada");
+    expect(authMocks.clearRecoveryMode).not.toHaveBeenCalled();
+    expect(screen.queryByText("Bootstrap da conta")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tentar encerrar sessões novamente" }));
+    expect(await screen.findByText("Login após recuperação")).toBeInTheDocument();
+    expect(authMocks.updatePassword).toHaveBeenCalledOnce();
+    expect(authMocks.signOut).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps recovery active when password update fails", async () => {
+    authMocks.updatePassword.mockResolvedValue({ error: new Error("update failed") });
+    renderReset();
+    fireEvent.change(screen.getByLabelText("Nova senha"), { target: { value: "new-password-123" } });
+    fireEvent.change(screen.getByLabelText("Confirmar nova senha"), { target: { value: "new-password-123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar senha" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível atualizar");
+    expect(authMocks.signOut).not.toHaveBeenCalled();
   });
 });

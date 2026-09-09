@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ const loginSchema = z.object({
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { recoveryMode, signIn, user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -76,6 +77,9 @@ const LoginPage = () => {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {location.state?.passwordReset === true && (
+              <p role="status" className="text-sm text-primary">Senha alterada. Entre com sua nova senha.</p>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" placeholder="voce@restaurante.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />

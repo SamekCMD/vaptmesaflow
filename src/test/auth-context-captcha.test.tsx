@@ -17,7 +17,7 @@ vi.mock("@/lib/supabase", () => ({
 }));
 
 const AuthProbe = () => {
-  const { clearRecoveryMode, recoveryMode, signIn, signUp } = useAuth();
+  const { clearRecoveryMode, recoveryMode, signIn, signUp, signOut, user } = useAuth();
 
   return (
     <>
@@ -28,6 +28,8 @@ const AuthProbe = () => {
         Sign in
       </button>
       <span>{recoveryMode ? "Recovery active" : "Recovery inactive"}</span>
+      <span>{user ? "Authenticated" : "Signed out"}</span>
+      <button onClick={() => { void signOut().catch(() => undefined); }}>Sign out</button>
       <button type="button" onClick={clearRecoveryMode}>Clear recovery</button>
       <button
         type="button"
@@ -44,6 +46,7 @@ const AuthProbe = () => {
 describe("AuthProvider captcha", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
     vi.mocked(supabase.auth.getSession).mockResolvedValue({
       data: { session: null },
       error: null,
@@ -118,5 +121,24 @@ describe("AuthProvider captcha", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Clear recovery" }));
     expect(screen.getByText("Recovery inactive")).toBeInTheDocument();
+  });
+
+  it("preserves recovery restrictions on logout failure and clears identity only after success", async () => {
+    vi.mocked(supabase.auth.signOut)
+      .mockResolvedValueOnce({ error: new Error("offline") } as never)
+      .mockResolvedValueOnce({ error: null });
+    render(<AuthProvider><AuthProbe /></AuthProvider>);
+    await waitFor(() => expect(supabase.auth.onAuthStateChange).toHaveBeenCalled());
+    const callback = vi.mocked(supabase.auth.onAuthStateChange).mock.calls[0][0];
+    act(() => { callback("PASSWORD_RECOVERY", { user: { id: "recovery-user" } } as never); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Sign out" })); });
+    expect(screen.getByText("Recovery active")).toBeInTheDocument();
+    expect(screen.getByText("Authenticated")).toBeInTheDocument();
+    expect(sessionStorage.getItem("vapt_password_recovery_mode")).toBe("true");
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Sign out" })); });
+    expect(screen.getByText("Recovery inactive")).toBeInTheDocument();
+    expect(screen.getByText("Signed out")).toBeInTheDocument();
+    expect(supabase.auth.signOut).toHaveBeenCalledWith({ scope: "global" });
+    expect(sessionStorage.getItem("vapt_password_recovery_mode")).toBeNull();
   });
 });

@@ -68,7 +68,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
-    await authService.signOut();
+    const { error } = await authService.signOut();
+    if (error) throw error;
+    setSession(null);
+    setUser(null);
     clearRecoveryMode();
   };
 

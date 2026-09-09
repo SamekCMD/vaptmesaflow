@@ -20,11 +20,25 @@ const passwordSchema = z.object({
 
 const ResetPasswordPage = () => {
   const navigate = useNavigate();
-  const { clearRecoveryMode, loading: authLoading, recoveryMode, signOut } = useAuth();
+  const { loading: authLoading, recoveryMode, signOut } = useAuth();
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [passwordChanged, setPasswordChanged] = useState(false);
+
+  const finishRecovery = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      await signOut();
+      navigate("/login", { replace: true, state: { passwordReset: true } });
+    } catch {
+      setError("Sua senha foi alterada, mas não foi possível encerrar as sessões. Tente novamente para concluir.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -42,8 +56,10 @@ const ResetPasswordPage = () => {
         setError("Não foi possível atualizar a senha. Solicite um novo link.");
         return;
       }
-      clearRecoveryMode();
-      navigate("/dashboard", { replace: true });
+      setPasswordChanged(true);
+      setPassword("");
+      setConfirmation("");
+      await finishRecovery();
     } catch {
       setError("Não foi possível atualizar a senha. Solicite um novo link.");
     } finally {
@@ -52,13 +68,38 @@ const ResetPasswordPage = () => {
   };
 
   const cancel = async () => {
-    clearRecoveryMode();
-    await signOut();
-    navigate("/login", { replace: true });
+    setLoading(true);
+    try {
+      await signOut();
+      navigate("/login", { replace: true });
+    } catch {
+      setError("Não foi possível encerrar a sessão. Tente novamente.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (authLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  }
+
+  if (passwordChanged) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <Card className="w-full max-w-sm">
+          <CardHeader>
+            <CardTitle>Senha alterada</CardTitle>
+            <CardDescription>Encerre as sessões para entrar com sua nova senha.</CardDescription>
+          </CardHeader>
+          {error && <CardContent><p role="alert" className="text-sm text-destructive">{error}</p></CardContent>}
+          <CardFooter>
+            <Button className="w-full" disabled={loading} onClick={() => void finishRecovery()}>
+              {loading ? "Encerrando sessões..." : "Tentar encerrar sessões novamente"}
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
   }
 
   if (!recoveryMode) {
@@ -100,7 +141,7 @@ const ResetPasswordPage = () => {
               {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Atualizar senha
             </Button>
-            <Button type="button" variant="ghost" onClick={() => void cancel()}>Cancelar</Button>
+            <Button type="button" variant="ghost" disabled={loading} onClick={() => void cancel()}>Cancelar</Button>
           </CardFooter>
         </form>
       </Card>
