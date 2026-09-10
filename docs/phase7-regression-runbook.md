@@ -21,12 +21,34 @@ npm test
 npm run build
 ```
 
-Expected baseline on 2026-09-05:
+Verified locally on 2026-09-10 (existing installed dependencies):
 
-- Frontend: 42 test files, 151 tests after the Phase 7 resend regression, zero failures.
-- API: 230 tests, zero failures.
+- Frontend: 42 test files, 160 tests, zero failures after the slug UX correction.
+- API: 241 tests, zero failures.
 - ESLint: zero errors.
 - Both production builds: exit code zero.
+
+Sandbox subprocess restrictions initially caused EPERM in both test runners;
+rerunning with subprocess permission passed. Existing non-fatal warnings remain:
+React Router future flags, React act warnings, dialog accessibility warnings,
+outdated Browserslist data, and a frontend bundle chunk over 500 kB.
+
+## Remaining live evidence
+
+Task 20 is not yet signed off. Automated coverage is not a claim that every
+negative scenario was reproduced on the deployed environment.
+
+- The user declined repeating onboarding resume, accepting the earlier manual
+  validation and automated coverage. The latest run did not repeat fresh signup.
+- The user confirmed duplicate slug rejection in Appearance and successful saving
+  of a different value. This checks editing, not duplicate slug during onboarding.
+  The generic-error UX was corrected with blur validation and inline conflict
+  handling; five added tests passed. User waived another manual preview round.
+- Recovery negative cases (unknown email, mismatch, old-password rejection and
+  sign-out failure/retry) have automated coverage but no complete live record.
+- Signup/verification Auth audit events were outside the supplied 30-row window.
+- Full order/payment submission and full OAuth connection were not exercised in
+  these smoke checks; do not imply end-to-end payment validation.
 
 ## Coverage matrix
 
@@ -83,6 +105,13 @@ Use a clean browser profile and a disposable email alias. Do not reuse a session
 6. Finish onboarding and confirm dashboard routing, not subscription routing.
 7. Upload a logo, reload on another browser/device, and confirm the persisted image.
 
+Logo observation (2026-09-10, dxuxotkqz preview): bestochefo initially had no
+logo. The user uploaded and saved an image; the success notification was
+observed. After reloading Appearance, the image remained visible in both the
+logo field and the live preview. The user then confirmed that the same image
+appeared in another browser/device without uploading again. The reload was
+directly observed; cross-browser/device confirmation is user-reported.
+
 ### Smoke B: recovery
 
 1. Request recovery for both an existing and an unknown email; copy must not disclose account existence.
@@ -96,8 +125,15 @@ Use a clean browser profile and a disposable email alias. Do not reuse a session
 
 Global sign-out revokes refresh sessions. Previously issued access JWTs may
 remain valid until expiry; this change does not implement immediate server-side
-revocation of every access token. Recheck the deployed recovery flow after the
-frontend update; the earlier manual run used automatic dashboard login.
+revocation of every access token.
+
+Recovery observation (2026-09-09): on preview
+`https://vaptmesaflow-dxuxotkqz-contatoupboost-2301s-projects.vercel.app`,
+recovery was requested for Account A and the generic request confirmation was
+observed. After changing the password, the user confirmed that the corrected
+return-to-login flow worked, without automatic dashboard login (commit `085f133`).
+This does not establish live results for unknown-email recovery, old-password
+rejection, mismatched passwords, or sign-out failure/retry.
 
 ### Smoke C: account isolation
 
@@ -117,7 +153,47 @@ observed in the inspected dashboard, selector, menu, or settings.
 This verifies the observed post-login UI state and authenticated provider-status
 lookup, not transient rendering during login, activation-state isolation,
 multi-organization switching, or the full OAuth connection flow. Those checks
-remain pending. API compatibility fix: `d378780` (HS256 without issuer).
+remained pending at that observation. API compatibility fix: `d378780` (HS256 without issuer).
+
+Activation-switch observation (2026-09-09/10): on preview
+`https://vaptmesaflow-dxuxotkqz-contatoupboost-2301s-projects.vercel.app`,
+Account A's test trial was extended by the user to allow dashboard access.
+The overview/metrics module was completed for `bestochefo`; after a page reload,
+it remained completed while the other four modules remained pending.
+Account A then logged out through the application without browser storage being
+cleared. After the user logged into Account B, `hamburger` displayed all five
+modules as pending, including overview/metrics, and its own 10-day trial banner.
+This validates the observed A-to-B activation UI isolation and A reload
+persistence, not cross-device persistence or transient rendering during login.
+Multi-organization switching was subsequently checked below; the full OAuth
+flow remains pending.
+
+Multi-organization observation (2026-09-10, same preview): the user confirmed
+creating a temporary active staff membership for Account A in hamburger's
+organization. The selector listed both bestochefo and hamburger. Switching to
+hamburger displayed its own 10-day trial and all five activation modules pending;
+the selection persisted after a reload. The user then reported deleting the
+exact temporary membership (organization `59808ffb-1f44-42e9-ae12-ae84278705e5`,
+user `53d7fc92-7409-4cb8-80a0-1d859665d66b`, created at
+`2026-09-10 16:37:45.378276+00`). Subsequent inspection and another reload showed
+bestochefo, its own trial and completed overview module, and only bestochefo in
+the selector. This establishes post-reload UI fallback and removal from the
+selector, not immediate in-session revocation or direct API denial.
+
+Same-organization observation (2026-09-10, same preview): after the user
+temporarily changed organization `b4f2952d-1fd8-4eec-ba17-3abe73e59213` from
+Starter to Business, the selector offered restaurant creation. The three-step
+wizard created `QA descartavel unidade 2` (slug
+`qa-bestochefo-unidade2-20260910`, id `7cdecc23-1c81-4f83-8a4a-271face858b9`)
+in that organization, with salon service and one table. No orders or payments
+were submitted. Its dashboard showed all five activation modules pending and
+the organization's seven-day trial. The selector listed both units; switching
+back to bestochefo and reloading preserved the selection and its completed
+overview module. The user subsequently ran the scoped cleanup and supplied SQL
+results confirming Starter, one restaurant, and the unchanged trial end
+`2026-09-17 01:31:33.079044+00`. Post-cleanup reload on 2026-09-10 showed
+only bestochefo in the selector, the one-restaurant-limit message, and no add
+restaurant action. The completed overview module remained intact.
 
 ### Smoke D: public surface
 
@@ -127,6 +203,25 @@ remain pending. API compatibility fix: `d378780` (HS256 without issuer).
 
 ## Operational evidence
 
+Resend evidence (2026-09-10, user screenshot): the Sending list was filtered to
+Last 15 days / All Statuses / All API keys. Both visible password-reset emails
+to Account A were Delivered (relative send times 19h ago and 1d ago), as were
+four confirmation emails (9d/10d ago) and one unrelated test email. No failed or
+bounced status appeared in the seven visible rows. This establishes delivery
+status for those messages, not a complete event/complaint audit or exact send
+timestamps.
+
+Auth audit evidence (2026-09-10, user SQL results for Account A): UTC events show
+`user_recovery_requested` at 00:04:54.282064, `login` at 00:23:59.890487,
+`user_updated_password` at 00:24:07.946207, `user_modified` at
+00:24:07.947158, `logout` at 00:24:08.030463, and a subsequent `login` at
+00:24:18.539268. Together with the user's UI confirmation, this supports the
+corrected password-update -> logout -> explicit-login flow. The earlier login
+event precedes the password change; it does not establish automatic dashboard
+navigation. These rows do not prove immediate invalidation of all access JWTs,
+old-password rejection, or signup/verification audit events outside the query's
+30-row window.
+
 Public-menu observation (2026-09-09): after application logout, the same preview
 loaded `/menu/hamburger`. Without a table it requested the table QR code, as
 implemented. `/menu/hamburger?table=1` displayed the restaurant and categories.
@@ -134,7 +229,15 @@ Opening `hamberger`, adding one item, and reviewing the cart showed BRL 23.00
 and the online payment button. No order or payment was submitted. The anonymous
 provider-status navigation was blocked by the browser (`ERR_BLOCKED_BY_CLIENT`),
 so it does not establish an API authorization result. Full order submission and
-live anonymous API denial remain pending; the database denial suite above passed.
+live anonymous API denial remained pending at that observation; the database
+denial suite above passed.
+
+Live anonymous API check (2026-09-10): a direct GET without Authorization to
+`https://samuel-vapt-api.br8r5p.easypanel.host/restaurants/07251443-7559-4628-af49-b6e207854e95/payments/mercado-pago/status?environment=production`
+returned HTTP 401 and only `{"error":{"code":"unauthorized","message":"Unauthorized"}}`.
+The initial sandbox network attempt was refused; the permitted network retry
+produced this response. This verifies that endpoint without credentials, not
+all provider endpoints or authenticated cross-tenant denial.
 
 After Smoke A and Smoke B:
 

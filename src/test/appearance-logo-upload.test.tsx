@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const appearanceMocks = vi.hoisted(() => ({
   from: vi.fn(),
+  rpc: vi.fn(),
   update: vi.fn(),
   updateEq: vi.fn(),
   upload: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock("@/hooks/use-toast", () => ({
 vi.mock("@/lib/supabase", () => ({
   supabase: {
     from: appearanceMocks.from,
+    rpc: appearanceMocks.rpc,
     storage: {
       from: vi.fn(() => ({
         upload: appearanceMocks.upload,
@@ -49,6 +51,7 @@ import AppearancePage from "@/pages/dashboard/AppearancePage";
 describe("appearance logo upload", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    appearanceMocks.rpc.mockResolvedValue({ data: [], error: null });
     Object.defineProperty(URL, "createObjectURL", {
       configurable: true,
       value: vi.fn(() => "blob:logo-preview"),
@@ -85,6 +88,58 @@ describe("appearance logo upload", () => {
       error: { message: "storage unavailable" },
     });
     appearanceMocks.remove.mockResolvedValue({ data: null, error: null });
+  });
+
+  it("checks duplicate slugs on blur and prevents saving", async () => {
+    appearanceMocks.rpc.mockResolvedValue({ data: [{ id: "other" }], error: null });
+    render(<AppearancePage />);
+    const input = await screen.findByDisplayValue("vapt-burger");
+    fireEvent.change(input, { target: { value: "taken" } });
+    fireEvent.blur(input);
+    expect(await screen.findByText("Este endereço já está em uso. Escolha outro.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /salvar altera/i })).toBeDisabled();
+    expect(appearanceMocks.update).not.toHaveBeenCalled();
+  });
+
+  it("reports lookup failures without claiming availability", async () => {
+    appearanceMocks.rpc.mockResolvedValue({ data: null, error: { message: "offline" } });
+    render(<AppearancePage />);
+    const input = await screen.findByDisplayValue("vapt-burger");
+    fireEvent.change(input, { target: { value: "new-slug" } });
+    fireEvent.blur(input);
+    expect(await screen.findByText(/Não foi possível verificar/)).toBeInTheDocument();
+  });
+
+  it("allows the unchanged slug without a lookup", async () => {
+    render(<AppearancePage />);
+    fireEvent.blur(await screen.findByDisplayValue("vapt-burger"));
+    fireEvent.click(screen.getByRole("button", { name: /salvar altera/i }));
+    await waitFor(() => expect(appearanceMocks.update).toHaveBeenCalled());
+    expect(appearanceMocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("ignores a stale conflict after the input changes", async () => {
+    let resolve!: (value: unknown) => void;
+    appearanceMocks.rpc.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+    render(<AppearancePage />);
+    const input = await screen.findByDisplayValue("vapt-burger");
+    fireEvent.change(input, { target: { value: "taken" } });
+    fireEvent.blur(input);
+    fireEvent.change(input, { target: { value: "available" } });
+    fireEvent.blur(input);
+    await waitFor(() => expect(screen.getByRole("button", { name: /salvar altera/i })).toBeEnabled());
+    resolve({ data: [{ id: "other" }], error: null });
+    fireEvent.click(screen.getByRole("button", { name: /salvar altera/i }));
+    await waitFor(() => expect(appearanceMocks.update).toHaveBeenCalledWith(expect.objectContaining({ slug: "available" })));
+    expect(screen.queryByText("Este endereço já está em uso. Escolha outro.")).not.toBeInTheDocument();
+  });
+
+  it("maps a save-time unique conflict to the slug field", async () => {
+    appearanceMocks.updateEq.mockResolvedValue({ error: { code: "23505" } });
+    render(<AppearancePage />);
+    await screen.findByDisplayValue("vapt-burger");
+    fireEvent.click(screen.getByRole("button", { name: /salvar altera/i }));
+    expect(await screen.findByText("Este endereço já está em uso. Escolha outro.")).toBeInTheDocument();
   });
 
   it("does not overwrite persisted branding when storage upload fails", async () => {

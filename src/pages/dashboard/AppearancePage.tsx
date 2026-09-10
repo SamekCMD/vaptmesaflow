@@ -24,6 +24,11 @@ const AppearancePage = () => {
   const { restaurant, restaurantId } = useCurrentRestaurant();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewObjectUrlRef = useRef<string | null>(null);
+  const slugRequest = useRef(0);
+  const savedSlug = useRef("");
+  const [slugError, setSlugError] = useState("");
+  const [checkingSlug, setCheckingSlug] = useState(false);
+  const duplicateSlugMessage = "Este endereço já está em uso. Escolha outro.";
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -47,6 +52,9 @@ const AppearancePage = () => {
 
   // Fetch restaurant data
   useEffect(() => {
+    slugRequest.current += 1;
+    setSlugError("");
+    setCheckingSlug(false);
     const fetch = async () => {
       if (!restaurantId) {
         setLoading(false);
@@ -72,6 +80,7 @@ const AppearancePage = () => {
         } | null;
 
         if (row) {
+          savedSlug.current = row.slug || "";
           setDeliveryEnabled(Boolean(row.delivery_enabled));
           setConfig({
             id: row.id,
@@ -94,7 +103,36 @@ const AppearancePage = () => {
       }
     };
     fetch();
+    return () => { slugRequest.current += 1; };
   }, [restaurantId]);
+
+  const checkSlug = async () => {
+    const request = ++slugRequest.current;
+    setSlugError("");
+    if (!config.slug) {
+      setSlugError("Informe um endereço para o cardápio.");
+      return false;
+    }
+    if (config.slug === savedSlug.current) return true;
+    setCheckingSlug(true);
+    try {
+      const { data, error } = await supabase.rpc("get_public_restaurant_by_slug", { p_slug: config.slug });
+      if (request !== slugRequest.current) return false;
+      if (error) throw error;
+      if (data?.some((row) => row.id !== config.id)) {
+        setSlugError(duplicateSlugMessage);
+        return false;
+      }
+      return true;
+    } catch {
+      if (request === slugRequest.current) {
+        setSlugError("Não foi possível verificar o endereço. Saia do campo novamente para tentar.");
+      }
+      return false;
+    } finally {
+      if (request === slugRequest.current) setCheckingSlug(false);
+    }
+  };
 
   useEffect(() => () => {
     if (previewObjectUrlRef.current) {
@@ -125,6 +163,7 @@ const AppearancePage = () => {
     if (!user || !config.id || !restaurant?.organizationId) return;
     setSaving(true);
     try {
+      if (!await checkSlug()) return;
       const persistBranding = async (logoUrl: string) => {
         const { error } = await supabase
           .from("restaurants")
@@ -167,8 +206,13 @@ const AppearancePage = () => {
         await persistBranding(config.logoUrl);
       }
 
+      savedSlug.current = config.slug;
       toast({ title: "Aparencia salva", description: "As alteracoes de marca foram aplicadas." });
     } catch (err: unknown) {
+      if (typeof err === "object" && err !== null && "code" in err && err.code === "23505") {
+        setSlugError(duplicateSlugMessage);
+        return;
+      }
       const description = err instanceof Error ? err.message : "Tente novamente.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
@@ -199,15 +243,28 @@ const AppearancePage = () => {
                 <Input value={config.name} onChange={(e) => updateConfig({ name: e.target.value })} />
               </div>
               <div>
-                <Label>Slug da URL</Label>
+                <Label htmlFor="appearance-slug">Slug da URL</Label>
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="text-sm text-muted-foreground whitespace-nowrap">/menu/</span>
                   <Input
+                    id="appearance-slug"
+                    disabled={saving}
+                    aria-invalid={Boolean(slugError)}
+                    aria-describedby="appearance-slug-status"
                     value={config.slug}
-                    onChange={(e) => updateConfig({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })}
+                    onBlur={() => { void checkSlug(); }}
+                    onChange={(e) => {
+                      slugRequest.current += 1;
+                      setCheckingSlug(false);
+                      setSlugError("");
+                      updateConfig({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") });
+                    }}
                     className="min-w-0"
                   />
                 </div>
+                <p id="appearance-slug-status" aria-live="polite" className={`text-xs mt-1 ${slugError ? "text-destructive" : "text-muted-foreground"}`}>
+                  {slugError || (checkingSlug ? "Verificando endereço..." : "")}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">Endereco publico: /menu/{config.slug}</p>
               </div>
               <div>
@@ -279,7 +336,7 @@ const AppearancePage = () => {
           </Card>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:flex">
-            <Button onClick={handleSave} disabled={saving} className="h-11 w-full sm:w-auto">
+            <Button onClick={handleSave} disabled={saving || checkingSlug || Boolean(slugError)} className="h-11 w-full sm:w-auto">
               {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : "Salvar alteracoes"}
             </Button>
             <Button variant="outline" asChild className="h-11 w-full sm:w-auto">
