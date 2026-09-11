@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect } from "react";
+import { useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -54,6 +55,16 @@ type RestaurantSettingsUpdate = {
 const SettingsPage = () => {
   const { user } = useAuth();
   const { restaurantId } = useCurrentRestaurant();
+  if (!user || !restaurantId) return null;
+  // A new tenant gets a new form, including all pending save state.
+  return <TenantSettingsForm key={`${user.id}:${restaurantId}`} user={user} restaurantId={restaurantId} />;
+};
+
+const TenantSettingsForm = ({ user, restaurantId }: {
+  user: NonNullable<ReturnType<typeof useAuth>["user"]>;
+  restaurantId: string;
+}) => {
+  const active = useRef(false);
   const completeActivationModule = useCompleteActivationModule(restaurantId);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -78,23 +89,22 @@ const SettingsPage = () => {
     max_pending_orders: 3,
   });
   const [accountForm, setAccountForm] = useState({
-    full_name: "",
-    email: "",
+    full_name: user.user_metadata?.full_name || "",
+    email: user.email || "",
     new_password: "",
     confirm_password: "",
   });
   const [loading, setLoading] = useState(true);
+  const [loadedRestaurantId, setLoadedRestaurantId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
   const [savingAccount, setSavingAccount] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    active.current = true;
     const fetchData = async () => {
-      if (!user || !restaurantId) {
-        setLoading(false);
-        return;
-      }
-
       try {
         const { data, error } = await supabase
           .from("restaurants")
@@ -102,7 +112,9 @@ const SettingsPage = () => {
           .eq("id", restaurantId)
           .maybeSingle();
 
+        if (cancelled) return;
         if (error) throw error;
+        if (!data || data.id !== restaurantId) throw new Error("Restaurante indisponivel.");
 
         if (data) {
           const row = data as RestaurantSettingsRow;
@@ -124,13 +136,10 @@ const SettingsPage = () => {
           });
         }
 
-        setAccountForm({
-          full_name: user.user_metadata?.full_name || "",
-          email: user.email || "",
-          new_password: "",
-          confirm_password: "",
-        });
+        setLoadedRestaurantId(restaurantId);
       } catch (error: unknown) {
+        if (cancelled) return;
+        setLoadError(true);
         if (import.meta.env.DEV) console.error("Error fetching restaurant data:", error);
         const description =
           error instanceof Error ? error.message : "Não foi possível carregar as configurações";
@@ -140,12 +149,13 @@ const SettingsPage = () => {
           variant: "destructive",
         });
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchData();
-  }, [restaurantId, user]);
+    return () => { cancelled = true; active.current = false; };
+  }, [restaurantId]);
 
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("settings");
@@ -156,7 +166,7 @@ const SettingsPage = () => {
   };
 
   const handleSave = async () => {
-    if (!user || !restaurantId) return;
+    if (!active.current || loadedRestaurantId !== restaurantId || saving) return;
     setSaving(true);
     try {
       const { error } = await supabase
@@ -172,18 +182,20 @@ const SettingsPage = () => {
         } satisfies RestaurantSettingsUpdate)
         .eq("id", restaurantId);
 
+      if (!active.current) return;
       if (error) throw error;
       toast({ title: "Configurações salvas", description: "As alterações foram aplicadas com sucesso." });
     } catch (error: unknown) {
+      if (!active.current) return;
       const description = error instanceof Error ? error.message : "Não foi possível salvar agora.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
-      setSaving(false);
+      if (active.current) setSaving(false);
     }
   };
 
   const handleSavePayment = async () => {
-    if (!user || !restaurantId) return;
+    if (!active.current || loadedRestaurantId !== restaurantId || savingPayment) return;
     setSavingPayment(true);
     try {
       const updatePayload: RestaurantSettingsUpdate = {
@@ -196,14 +208,16 @@ const SettingsPage = () => {
         .update(updatePayload)
         .eq("id", restaurantId);
 
+      if (!active.current) return;
       if (error) throw error;
 
       toast({ title: "Fluxo de pagamento salvo", description: "O novo modo já vale para os próximos pedidos." });
     } catch (error: unknown) {
+      if (!active.current) return;
       const description = error instanceof Error ? error.message : "Não foi possível salvar agora.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
-      setSavingPayment(false);
+      if (active.current) setSavingPayment(false);
     }
   };
 
@@ -249,6 +263,10 @@ const SettingsPage = () => {
 
   if (loading) {
     return <SettingsFormSkeleton />;
+  }
+
+  if (loadError || loadedRestaurantId !== restaurantId) {
+    return <p role="alert">Nao foi possivel carregar as configuracoes. Recarregue a pagina para tentar novamente.</p>;
   }
 
   return (

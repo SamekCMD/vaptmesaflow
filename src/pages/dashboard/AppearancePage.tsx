@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,16 @@ import {
 const AppearancePage = () => {
   const { user } = useAuth();
   const { restaurant, restaurantId } = useCurrentRestaurant();
+  if (!user || !restaurantId) return null;
+  return <TenantAppearanceForm key={`${user.id}:${restaurantId}`} restaurantId={restaurantId} organizationId={restaurant?.organizationId} />;
+};
+
+const TenantAppearanceForm = ({ restaurantId, organizationId }: {
+  restaurantId: string;
+  organizationId: string | undefined;
+}) => {
+  const queryClient = useQueryClient();
+  const active = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewObjectUrlRef = useRef<string | null>(null);
   const slugRequest = useRef(0);
@@ -31,6 +42,7 @@ const AppearancePage = () => {
   const duplicateSlugMessage = "Este endereço já está em uso. Escolha outro.";
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [logoPreview, setLogoPreview] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -52,6 +64,8 @@ const AppearancePage = () => {
 
   // Fetch restaurant data
   useEffect(() => {
+    let cancelled = false;
+    active.current = true;
     slugRequest.current += 1;
     setSlugError("");
     setCheckingSlug(false);
@@ -67,7 +81,9 @@ const AppearancePage = () => {
           .eq("id", restaurantId)
           .maybeSingle();
 
+        if (cancelled) return;
         if (error) throw error;
+        if (!data || data.id !== restaurantId) throw new Error("Restaurante indisponivel.");
         const row = data as {
           id: string;
           name: string | null;
@@ -95,18 +111,25 @@ const AppearancePage = () => {
           setLogoPreview(row.logo_url || "");
         }
       } catch (err: unknown) {
+        if (cancelled) return;
+        setLoadError(true);
         if (import.meta.env.DEV) {
           console.error("Error fetching restaurant:", err);
         }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetch();
-    return () => { slugRequest.current += 1; };
+    return () => {
+      cancelled = true;
+      active.current = false;
+      slugRequest.current += 1;
+    };
   }, [restaurantId]);
 
   const checkSlug = async () => {
+    if (!active.current || loading || loadError || config.id !== restaurantId) return false;
     const request = ++slugRequest.current;
     setSlugError("");
     if (!config.slug) {
@@ -160,11 +183,14 @@ const AppearancePage = () => {
   };
 
   const handleSave = async () => {
-    if (!user || !config.id || !restaurant?.organizationId) return;
+    if (!active.current || loading || loadError || config.id !== restaurantId || !organizationId || saving) return;
     setSaving(true);
     try {
       if (!await checkSlug()) return;
+      if (!active.current) return;
       const persistBranding = async (logoUrl: string) => {
+        // Abort a staged upload if its form was replaced before persistence.
+        if (!active.current) throw new Error("Restaurante alterado durante o envio.");
         const { error } = await supabase
           .from("restaurants")
           .update({
@@ -178,13 +204,14 @@ const AppearancePage = () => {
           .eq("id", config.id);
 
         if (error) throw error;
+        void queryClient.invalidateQueries({ queryKey: ["account-bootstrap"] });
       };
 
       if (logoFile) {
         const uploaded = await persistRestaurantAssetUpload({
           bucket: "restaurant-assets",
           path: buildRestaurantLogoPath({
-            organizationId: restaurant.organizationId,
+            organizationId,
             restaurantId: config.id,
             assetId: crypto.randomUUID(),
             contentType: logoFile.type,
@@ -195,6 +222,7 @@ const AppearancePage = () => {
           persist: persistBranding,
         });
 
+        if (!active.current) return;
         if (previewObjectUrlRef.current) {
           URL.revokeObjectURL(previewObjectUrlRef.current);
           previewObjectUrlRef.current = null;
@@ -206,9 +234,11 @@ const AppearancePage = () => {
         await persistBranding(config.logoUrl);
       }
 
+      if (!active.current) return;
       savedSlug.current = config.slug;
       toast({ title: "Aparencia salva", description: "As alteracoes de marca foram aplicadas." });
     } catch (err: unknown) {
+      if (!active.current) return;
       if (typeof err === "object" && err !== null && "code" in err && err.code === "23505") {
         setSlugError(duplicateSlugMessage);
         return;
@@ -216,12 +246,16 @@ const AppearancePage = () => {
       const description = err instanceof Error ? err.message : "Tente novamente.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
-      setSaving(false);
+      if (active.current) setSaving(false);
     }
   };
 
   if (loading) {
     return <AppearanceFormSkeleton />;
+  }
+
+  if (loadError || config.id !== restaurantId) {
+    return <p role="alert">Nao foi possivel carregar a aparencia. Recarregue a pagina para tentar novamente.</p>;
   }
 
   return (

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const appearanceMocks = vi.hoisted(() => ({
   from: vi.fn(),
@@ -48,6 +49,11 @@ vi.mock("@/lib/supabase", () => ({
 
 import AppearancePage from "@/pages/dashboard/AppearancePage";
 
+function renderAppearance() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={client}><AppearancePage /></QueryClientProvider>);
+}
+
 describe("appearance logo upload", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -92,7 +98,7 @@ describe("appearance logo upload", () => {
 
   it("checks duplicate slugs on blur and prevents saving", async () => {
     appearanceMocks.rpc.mockResolvedValue({ data: [{ id: "other" }], error: null });
-    render(<AppearancePage />);
+    renderAppearance();
     const input = await screen.findByDisplayValue("vapt-burger");
     fireEvent.change(input, { target: { value: "taken" } });
     fireEvent.blur(input);
@@ -103,7 +109,7 @@ describe("appearance logo upload", () => {
 
   it("reports lookup failures without claiming availability", async () => {
     appearanceMocks.rpc.mockResolvedValue({ data: null, error: { message: "offline" } });
-    render(<AppearancePage />);
+    renderAppearance();
     const input = await screen.findByDisplayValue("vapt-burger");
     fireEvent.change(input, { target: { value: "new-slug" } });
     fireEvent.blur(input);
@@ -111,7 +117,7 @@ describe("appearance logo upload", () => {
   });
 
   it("allows the unchanged slug without a lookup", async () => {
-    render(<AppearancePage />);
+    renderAppearance();
     fireEvent.blur(await screen.findByDisplayValue("vapt-burger"));
     fireEvent.click(screen.getByRole("button", { name: /salvar altera/i }));
     await waitFor(() => expect(appearanceMocks.update).toHaveBeenCalled());
@@ -121,7 +127,7 @@ describe("appearance logo upload", () => {
   it("ignores a stale conflict after the input changes", async () => {
     let resolve!: (value: unknown) => void;
     appearanceMocks.rpc.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
-    render(<AppearancePage />);
+    renderAppearance();
     const input = await screen.findByDisplayValue("vapt-burger");
     fireEvent.change(input, { target: { value: "taken" } });
     fireEvent.blur(input);
@@ -136,14 +142,14 @@ describe("appearance logo upload", () => {
 
   it("maps a save-time unique conflict to the slug field", async () => {
     appearanceMocks.updateEq.mockResolvedValue({ error: { code: "23505" } });
-    render(<AppearancePage />);
+    renderAppearance();
     await screen.findByDisplayValue("vapt-burger");
     fireEvent.click(screen.getByRole("button", { name: /salvar altera/i }));
     expect(await screen.findByText("Este endereço já está em uso. Escolha outro.")).toBeInTheDocument();
   });
 
   it("does not overwrite persisted branding when storage upload fails", async () => {
-    const { container } = render(<AppearancePage />);
+    const { container } = renderAppearance();
 
     expect(await screen.findByDisplayValue("Vapt Burger")).toBeInTheDocument();
     const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]');

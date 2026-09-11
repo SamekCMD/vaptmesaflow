@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -91,19 +92,15 @@ async function fetchAccountBootstrap(userId: string, routeRestaurantId: string |
     routeRestaurantId,
   });
 
-  await saveAccountPreference(userId, {
-    currentOrganizationId: bootstrap.currentOrganizationId,
-    currentRestaurantId: bootstrap.currentRestaurantId,
-  });
-
   return bootstrap;
 }
 
 export function useAccountBootstrap(routeRestaurantId?: string | null) {
   const { recoveryMode, user } = useAuth();
+  const location = useLocation();
   const effectiveRouteRestaurantId =
-    routeRestaurantId === undefined && typeof window !== "undefined"
-      ? getRouteRestaurantId(window.location.href)
+    routeRestaurantId === undefined
+      ? getRouteRestaurantId(`https://vapt.invalid/${location.search}`)
       : routeRestaurantId ?? null;
 
   return useQuery({
@@ -120,6 +117,8 @@ export function useAccountBootstrap(routeRestaurantId?: string | null) {
 export function useSwitchRestaurant() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const navigate = useNavigate();
   const bootstrapQuery = useAccountBootstrap(null);
 
   return useMutation({
@@ -135,8 +134,23 @@ export function useSwitchRestaurant() {
         currentOrganizationId: restaurant.organizationId,
         currentRestaurantId: restaurant.id,
       });
+      return restaurant;
     },
-    onSuccess: async () => {
+    onSuccess: async (restaurant) => {
+      await queryClient.cancelQueries({ queryKey: ["account-bootstrap"] });
+      // Reads never persist preferences: a stale route query must not undo a switch.
+      if (bootstrapQuery.data) {
+        queryClient.setQueryData(["account-bootstrap", user?.id, null], {
+          ...bootstrapQuery.data,
+          currentOrganizationId: restaurant.organizationId,
+          currentRestaurantId: restaurant.id,
+          destination: "dashboard",
+        });
+      }
+      const params = new URLSearchParams(location.search);
+      params.delete("restaurantId");
+      const search = params.toString();
+      navigate({ pathname: location.pathname, search: search ? `?${search}` : "", hash: location.hash }, { replace: true });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["account-bootstrap"] }),
         queryClient.invalidateQueries({ queryKey: ["organization-subscription"] }),

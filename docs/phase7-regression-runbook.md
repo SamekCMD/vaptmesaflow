@@ -46,7 +46,6 @@ negative scenario was reproduced on the deployed environment.
   handling; five added tests passed. User waived another manual preview round.
 - Recovery negative cases (unknown email, mismatch, old-password rejection and
   sign-out failure/retry) have automated coverage but no complete live record.
-- Signup/verification Auth audit events were outside the supplied 30-row window.
 - Full order/payment submission and full OAuth connection were not exercised in
   these smoke checks; do not imply end-to-end payment validation.
 
@@ -202,6 +201,33 @@ restaurant action. The completed overview module remained intact.
 3. Confirm no billing, provider account, token, or OAuth state request succeeds anonymously.
 
 ## Operational evidence
+
+### Pre-merge boundary fixes (2026-09-11)
+
+Frontend verification after tenant form isolation and route-switch fixes:
+188 tests passed across 44 files; npm run lint and npm run build passed.
+Build retains non-blocking Browserslist-age and chunk-size warnings.
+Regression tests cover delayed/failed/out-of-order loads, pending logo isolation,
+branding cache invalidation, and explicit selection overriding stale route IDs.
+
+Database validation is still pending. Run whole files as postgres, in order:
+
+1. supabase/migrations/20260911090000_harden_billing_and_membership_boundaries.sql
+2. supabase/tests/billing_membership_boundaries_test.sql
+
+The test plans 48 assertions, returns every ordered sequence/result row and
+finish diagnostics, and rolls back its fixtures. SQL was statically reviewed,
+not executed locally (psql unavailable). No API code changed in this correction;
+no API redeploy or EasyPanel infrastructure changes are needed. Keep Task 20
+signoff pending until database results are verified.
+
+Historical signup audit evidence (received 2026-09-11, user SQL results for
+Account A): `user_confirmation_requested` at `2026-09-01 23:44:35.713241+00`
+was followed by `user_signedup` at `2026-09-01 23:44:46.024714+00`.
+This supplies the historical Auth events previously outside the 30-row query
+window and complements the earlier user-reported signup/confirmation flow.
+It is not a fresh signup test of the latest preview and does not by itself
+establish onboarding routing or which confirmation method was used.
 
 Resend evidence (2026-09-10, user screenshot): the Sending list was filtered to
 Last 15 days / All Statuses / All API keys. Both visible password-reset emails
