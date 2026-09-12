@@ -210,12 +210,20 @@ Build retains non-blocking Browserslist-age and chunk-size warnings.
 Regression tests cover delayed/failed/out-of-order loads, pending logo isolation,
 branding cache invalidation, and explicit selection overriding stale route IDs.
 
-Database validation is still pending. Run whole files as postgres, in order:
+Database follow-up: the user returned 44/48 passing results. Tests 25-28 failed
+because deployed policies named "Owners can view own restaurant" and
+"Owners can update own restaurant" survived the original named-policy cleanup.
+Read-only inspection confirmed those, a legacy INSERT policy, and "Public can
+view restaurant by slug" while RLS remained enabled. The follow-up migration
+removes these confirmed aliases. Tests now reject unexpected restaurant policies
+and also verify anonymous public RPC access. Follow-up SQL execution is pending.
+Run whole files as postgres, in order (skip the first if already applied):
 
 1. supabase/migrations/20260911090000_harden_billing_and_membership_boundaries.sql
-2. supabase/tests/billing_membership_boundaries_test.sql
+2. supabase/migrations/20260911091000_remove_deployed_legacy_restaurant_policies.sql
+3. supabase/tests/billing_membership_boundaries_test.sql
 
-The test plans 48 assertions, returns every ordered sequence/result row and
+The test plans 50 assertions, returns every ordered sequence/result row and
 finish diagnostics, and rolls back its fixtures. SQL was statically reviewed,
 not executed locally (psql unavailable). No API code changed in this correction;
 no API redeploy or EasyPanel infrastructure changes are needed. Keep Task 20

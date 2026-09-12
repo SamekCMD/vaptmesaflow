@@ -11,7 +11,7 @@ create temporary table billing_boundary_results (
 -- Explicit numbers avoid sequence ACLs; INSERT plus SELECT supports all editor
 -- execution paths after SET ROLE without granting access to any real data.
 grant select, insert on billing_boundary_results to authenticated, anon, service_role;
-insert into billing_boundary_results values (0, plan(48));
+insert into billing_boundary_results values (0, plan(50));
 
 insert into auth.users (id, aud, role, email, created_at, updated_at)
 select id::uuid, 'authenticated', 'authenticated', email, now(), now()
@@ -48,8 +48,12 @@ values ('b2000000-0000-4000-8000-000000000001', 'boundary-test', '{"asaas_webhoo
 -- information_schema.table_privileges or the absence of permissive policies.
 insert into billing_boundary_results select 1, ok(not exists (
   select 1 from pg_policies where schemaname = 'public' and tablename = 'restaurants'
-  and policyname in ('owners_select_own', 'owners_update_own', 'owners_insert_own')
-), 'legacy restaurant owner policies are gone');
+  and policyname not in (
+    'organization_members_select_restaurants',
+    'organization_members_update_restaurants',
+    'organization_members_insert_restaurants'
+  )
+), 'only the expected membership restaurant policies remain');
 insert into billing_boundary_results select 2, ok(not exists (
   select 1 from (values ('anon'), ('authenticated')) r(role_name)
   cross join (values ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) p(privilege)
@@ -246,6 +250,18 @@ insert into billing_boundary_results select 48, throws_ok(
   $$update public.restaurants set owner_id = null where slug = 'billing-boundary-authorized'$$,
   '42501', 'restaurant ownership and organization are backend-managed', 'ownership cannot be cleared to NULL');
 
+reset role;
+insert into billing_boundary_results select 49, ok(not exists (
+  select 1 from pg_policies where schemaname = 'public' and tablename = 'restaurants'
+    and cmd in ('SELECT', 'ALL')
+    and ('anon' = any(roles) or 'public' = any(roles))
+), 'anonymous direct restaurant read policies are gone');
+set local role anon;
+set local request.jwt.claims = '{"role":"anon"}';
+insert into billing_boundary_results select 50, results_eq(
+  $$select slug from public.get_public_restaurant_by_slug('billing-boundary-a')$$,
+  $$values ('billing-boundary-a'::text)$$,
+  'anonymous public slug RPC still returns the restaurant');
 reset role;
 -- Return each finish diagnostic separately; success emits no diagnostic rows.
 with diagnostics as materialized (

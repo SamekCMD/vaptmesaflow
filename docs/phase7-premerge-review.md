@@ -54,9 +54,16 @@ Implemented in the Phase 7 worktree; database deployment remains pending:
   legacy owner policies, guards client ownership/organization changes, and
   restricts billing/conflict table and column privileges. Trusted definer
   onboarding and service_role operations remain supported.
-- billing_membership_boundaries_test.sql contains 48 rollback-only assertions
+- billing_membership_boundaries_test.sql contains 50 rollback-only assertions
   and returns all ordered results, including finish diagnostics.
 
 Do not treat static SQL review as deployment validation. Apply the migration
 before the test in the self-hosted Supabase SQL editor; no infrastructure fork
 or Docker changes are required.
+
+The first deployed run passed 44/48 checks. Failures 25-28 exposed additional
+legacy policy names absent from the repository. User-provided pg_policies
+output confirmed the owner SELECT/UPDATE bypass and legacy INSERT/anonymous
+SELECT rules. Follow-up migration 20260911091000 removes those exact aliases;
+expanded tests check the policy allowlist and continued public slug RPC access.
+The follow-up has not yet been executed against the user's database.
