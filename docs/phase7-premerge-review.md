@@ -42,7 +42,8 @@ the scenarios above. Do not sign off integration until blockers are resolved.
 
 ## Remediation
 
-Implemented in the Phase 7 worktree; database deployment remains pending:
+Implemented in the Phase 7 worktree; database regression validated by the user
+on 2026-09-12 (50/50 assertions and finish(): no failures):
 
 - Settings and Appearance forms are keyed by authenticated user and restaurant,
   reject missing/failed loads, and ignore obsolete asynchronous responses.
@@ -66,4 +67,7 @@ legacy policy names absent from the repository. User-provided pg_policies
 output confirmed the owner SELECT/UPDATE bypass and legacy INSERT/anonymous
 SELECT rules. Follow-up migration 20260911091000 removes those exact aliases;
 expanded tests check the policy allowlist and continued public slug RPC access.
-The follow-up has not yet been executed against the user's database.
+The user subsequently returned all 50 passing assertions on 2026-09-12,
+including previously failing checks 25-28 and public lookup check 50. This
+closes the database regression blocker for these fixes, not overall release
+approval or a comprehensive security audit. No merge was performed.

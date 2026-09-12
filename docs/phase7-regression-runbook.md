@@ -216,7 +216,10 @@ because deployed policies named "Owners can view own restaurant" and
 Read-only inspection confirmed those, a legacy INSERT policy, and "Public can
 view restaurant by slug" while RLS remained enabled. The follow-up migration
 removes these confirmed aliases. Tests now reject unexpected restaurant policies
-and also verify anonymous public RPC access. Follow-up SQL execution is pending.
+and also verify anonymous public RPC access. On 2026-09-12 the user returned
+50/50 passing assertions and `# finish(): no failures` from the self-hosted
+Supabase run. Previously failing tests 25-28 now pass. This database validation
+is complete; no repeat execution is needed for the same deployed correction.
 Run whole files as postgres, in order (skip the first if already applied):
 
 1. supabase/migrations/20260911090000_harden_billing_and_membership_boundaries.sql
@@ -226,8 +229,9 @@ Run whole files as postgres, in order (skip the first if already applied):
 The test plans 50 assertions, returns every ordered sequence/result row and
 finish diagnostics, and rolls back its fixtures. SQL was statically reviewed,
 not executed locally (psql unavailable). No API code changed in this correction;
-no API redeploy or EasyPanel infrastructure changes are needed. Keep Task 20
-signoff pending until database results are verified.
+no API redeploy or EasyPanel infrastructure changes are needed. The user-provided
+results close this database regression blocker. Overall Task 20/release signoff
+must still respect remaining runbook scope; no merge was performed.
 
 Historical signup audit evidence (received 2026-09-11, user SQL results for
 Account A): `user_confirmation_requested` at `2026-09-01 23:44:35.713241+00`
