@@ -134,6 +134,22 @@ return-to-login flow worked, without automatic dashboard login (commit `085f133`
 This does not establish live results for unknown-email recovery, old-password
 rejection, mismatched passwords, or sign-out failure/retry.
 
+Recovery negative observation (2026-09-12, ptzic1k3o preview): submitting the
+synthetic address qa-inexistente-20260912-7b32@example.com on /forgot-password
+displayed the generic conditional recovery message without disclosing account
+existence. The address was cleared afterward. This verifies the visible UI
+response only, not timing indistinguishability, email delivery, or database
+confirmation that the synthetic address is absent. Mismatch and old-password
+checks still require user participation; no password was changed in this check.
+
+User report (2026-09-12, ptzic1k3o preview): recovery link opened, password was
+changed, and login worked normally. This does not confirm mismatched-password
+or old-password rejection; those specific negative results were not reported.
+The user also reported an unusable recovery OTP in the email. A separate
+public/auth-email-recovery.html template now offers only the recovery button
+and fallback ConfirmationURL. Confirmation email OTP remains unchanged.
+Five email-template tests passed. Live mailer activation/delivery remains pending.
+
 ### Smoke C: account isolation
 
 1. Login as Account A, select a restaurant, open subscription, and complete one activation module.

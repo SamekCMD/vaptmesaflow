@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light only">
+    <title>Redefina sua senha</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f8f8f7;color:#121210;font-family:'DM Sans','Segoe UI',Arial,sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#f8f8f7;">
+      <tr>
+        <td align="center" style="padding:40px 16px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:560px;">
+            <tr>
+              <td style="padding:0 0 18px;color:#3d6c57;font-size:24px;font-weight:700;letter-spacing:-0.5px;">
+                Vapt<span style="color:#5c8a75;">.</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="border:1px solid #e5e5e1;border-radius:12px;background:#ffffff;padding:32px 24px;">
+                <h1 style="margin:0 0 12px;font-size:25px;line-height:1.25;font-weight:650;letter-spacing:-0.4px;">
+                  Redefina sua senha
+                </h1>
+                <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#6d6d68;">
+                  Recebemos uma solicita&ccedil;&atilde;o para alterar a senha da sua conta Vapt. Use o bot&atilde;o abaixo para escolher uma nova senha.
+                </p>
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px;">
+                  <tr>
+                    <td style="border-radius:7px;background:#5c8a75;">
+                      <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 22px;color:#ffffff;font-size:15px;line-height:1.4;font-weight:600;text-decoration:none;">
+                        Redefinir minha senha
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:0 0 8px;font-size:12px;line-height:1.5;color:#92928c;">
+                  Se o bot&atilde;o n&atilde;o funcionar, copie e cole este endere&ccedil;o no navegador:
+                </p>
+                <p style="margin:0;overflow-wrap:anywhere;word-break:break-word;font-size:12px;line-height:1.5;color:#5c8a75;">
+                  {{ .ConfirmationURL }}
+                </p>
+                <div style="margin:28px 0 0;border-top:1px solid #eeeeeb;padding:20px 0 0;">
+                  <p style="margin:0;font-size:12px;line-height:1.6;color:#92928c;">
+                    N&atilde;o solicitou esta altera&ccedil;&atilde;o? Ignore esta mensagem. Sua senha continuar&aacute; a mesma. Por seguran&ccedil;a, n&atilde;o compartilhe este link.
+                  </p>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:18px 4px 0;font-size:12px;line-height:1.5;color:#92928c;">
+                Vapt &middot; Gest&atilde;o simples para restaurantes
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

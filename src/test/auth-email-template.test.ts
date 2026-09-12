@@ -30,3 +30,26 @@ describe("Auth confirmation email template", () => {
     expect(template).not.toMatch(/vercel\.app/i);
   });
 });
+
+describe("Auth recovery email template", () => {
+  const readRecovery = () => readFileSync(
+    path.resolve(process.cwd(), "public/auth-email-recovery.html"), "utf8",
+  );
+
+  it("offers only the recovery link, without an unusable OTP", () => {
+    const template = readRecovery();
+    expect(template).toContain('href="{{ .ConfirmationURL }}"');
+    expect(template.match(/{{ \.ConfirmationURL }}/g)).toHaveLength(2);
+    expect(template).not.toMatch(/{{\s*\.(Token|TokenHash)\s*}}/);
+    expect(template).not.toMatch(/c[oó]digo|OTP/i);
+  });
+
+  it("uses Vapt recovery copy and email-safe markup", () => {
+    const template = readRecovery();
+    expect(template).toContain("Redefinir minha senha");
+    expect(template).toContain("Vapt");
+    expect(template).toContain('role="presentation"');
+    expect(template).not.toMatch(/<script\b|<form\b|<img\b/i);
+    expect(template).not.toMatch(/localhost|127\.0\.0\.1|vercel\.app/i);
+  });
+});
