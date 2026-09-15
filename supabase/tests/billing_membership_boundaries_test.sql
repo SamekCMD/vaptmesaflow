@@ -31,8 +31,8 @@ insert into public.organization_members (organization_id, user_id, role, status)
   ('b2000000-0000-4000-8000-000000000001', 'b1000000-0000-4000-8000-000000000002', 'staff', 'active'),
   ('b2000000-0000-4000-8000-000000000003', 'b1000000-0000-4000-8000-000000000003', 'owner', 'disabled');
 insert into public.organization_subscriptions
-  (organization_id, plan_type, plan_status, trial_ends_at, asaas_webhook_token)
-select id, 'starter', 'trialing', now() + interval '3 days', 'boundary-secret'
+  (organization_id, plan_type, plan_status, trial_ends_at)
+select id, 'starter', 'trialing', now() + interval '3 days'
 from public.organizations where id in (
   'b2000000-0000-4000-8000-000000000001',
   'b2000000-0000-4000-8000-000000000002',
@@ -41,8 +41,6 @@ from public.organizations where id in (
 insert into public.restaurants (id, organization_id, owner_id, name, slug) values
   ('b3000000-0000-4000-8000-000000000001', 'b2000000-0000-4000-8000-000000000001', 'b1000000-0000-4000-8000-000000000001', 'Boundary A', 'billing-boundary-a'),
   ('b3000000-0000-4000-8000-000000000003', 'b2000000-0000-4000-8000-000000000003', 'b1000000-0000-4000-8000-000000000003', 'Boundary revoked', 'billing-boundary-revoked');
-insert into public.organization_subscription_backfill_conflicts (organization_id, reason, details)
-values ('b2000000-0000-4000-8000-000000000001', 'boundary-test', '{"asaas_webhook_token":"boundary-secret"}');
 
 -- Effective ACL checks include inherited/PUBLIC and per-column grants, not just
 -- information_schema.table_privileges or the absence of permissive policies.
@@ -77,25 +75,18 @@ insert into billing_boundary_results select 5, ok(not exists (
   and a.attnum > 0 and not a.attisdropped
   and has_column_privilege('anon', a.attrelid, a.attnum, 'SELECT')
 ), 'anonymous cannot select any subscription column');
-insert into billing_boundary_results select 6, ok(not exists (
-  select 1 from (values ('anon'), ('authenticated')) r(role_name)
-  cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) p(privilege)
-  where has_table_privilege(r.role_name, 'public.organization_subscription_backfill_conflicts', p.privilege)
-), 'clients have no effective conflict table privileges');
-insert into billing_boundary_results select 7, ok(not exists (
-  select 1 from pg_attribute a
-  cross join (values ('anon'), ('authenticated')) r(role_name)
-  cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('REFERENCES')) p(privilege)
-  where a.attrelid = 'public.organization_subscription_backfill_conflicts'::regclass
-  and a.attnum > 0 and not a.attisdropped
-  and has_column_privilege(r.role_name, a.attrelid, a.attnum, p.privilege)
-), 'clients have no effective conflict column privileges');
-insert into billing_boundary_results select 8, ok((
-  select relrowsecurity from pg_class where oid = 'public.organization_subscription_backfill_conflicts'::regclass
-) and not exists (
-  select 1 from pg_policies where schemaname = 'public'
-  and tablename = 'organization_subscription_backfill_conflicts'
-), 'conflicts use RLS with no client policies (service_role bypass only)');
+insert into billing_boundary_results select 6, ok(
+  (select relrowsecurity from pg_class where oid = 'public.organization_subscriptions'::regclass),
+  'subscription authority is protected by RLS');
+insert into billing_boundary_results select 7, is(
+  (select count(*)::integer from information_schema.columns
+   where table_schema = 'public' and table_name = 'organization_subscriptions'),
+  7, 'subscription schema contains only canonical lifecycle columns');
+insert into billing_boundary_results select 8, ok(not exists (
+  select 1 from information_schema.columns
+  where table_schema = 'public' and table_name = 'organization_subscriptions'
+    and column_name ~* '(secret|token|credential|provider)'
+), 'subscription schema contains no provider credentials');
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"b1000000-0000-4000-8000-000000000001","role":"authenticated"}';
@@ -115,12 +106,13 @@ insert into billing_boundary_results select 12, throws_ok(
 insert into billing_boundary_results select 13, throws_ok(
   $$delete from public.organization_subscriptions where organization_id = 'b2000000-0000-4000-8000-000000000001'$$,
   '42501', null, 'owner cannot delete subscription to restart billing');
-insert into billing_boundary_results select 14, throws_ok(
-  $$select asaas_webhook_token from public.organization_subscriptions$$,
-  '42501', null, 'owner cannot read webhook tokens');
-insert into billing_boundary_results select 15, throws_ok(
-  $$select details from public.organization_subscription_backfill_conflicts$$,
-  '42501', null, 'owner cannot read conflict secrets');
+insert into billing_boundary_results select 14, ok(not exists (
+  select 1 from information_schema.columns where table_schema = 'public'
+    and table_name = 'organization_subscriptions' and column_name like '%secret%'
+), 'subscription schema contains no provider secrets');
+insert into billing_boundary_results select 15, ok(
+  has_column_privilege('authenticated', 'public.organization_subscriptions', 'plan_type', 'SELECT'),
+  'owner receives the safe plan projection grant');
 insert into billing_boundary_results select 16, throws_ok(
   $$update public.restaurants set owner_id = 'b1000000-0000-4000-8000-000000000002' where id = 'b3000000-0000-4000-8000-000000000001'$$,
   '42501', 'restaurant ownership and organization are backend-managed', 'owner cannot reassign legacy ownership');
@@ -142,15 +134,18 @@ insert into billing_boundary_results select 21, results_eq(
   $$select organization_id::text, plan_type, plan_status, (trial_ends_at > now()) from public.organization_subscriptions order by organization_id$$,
   $$values ('b2000000-0000-4000-8000-000000000001'::text, 'starter'::text, 'trialing'::text, true)$$,
   'staff can read only its own safe subscription projection');
-insert into billing_boundary_results select 22, throws_ok(
-  $$select asaas_webhook_token from public.organization_subscriptions$$,
-  '42501', null, 'staff cannot select subscription secrets');
-insert into billing_boundary_results select 23, throws_ok(
-  $$select * from public.organization_subscriptions$$,
-  '42501', null, 'wildcard subscription reads cannot expose secrets');
-insert into billing_boundary_results select 24, throws_ok(
-  $$select details from public.organization_subscription_backfill_conflicts$$,
-  '42501', null, 'staff cannot select conflict secrets');
+insert into billing_boundary_results select 22, ok(not exists (
+  select 1 from information_schema.columns where table_schema = 'public'
+    and table_name = 'organization_subscriptions'
+    and column_name not in ('organization_id', 'plan_type', 'plan_status', 'trial_ends_at', 'subscription_canceled_at', 'created_at', 'updated_at')
+), 'subscription schema has no provider-specific secret columns');
+insert into billing_boundary_results select 23, results_eq(
+  $$select organization_id::text, plan_type, plan_status, (trial_ends_at > now()) from public.organization_subscriptions$$,
+  $$values ('b2000000-0000-4000-8000-000000000001'::text, 'starter'::text, 'trialing'::text, true)$$,
+  'staff safe projection exposes only its tenant row');
+insert into billing_boundary_results select 24, ok(
+  not has_table_privilege('authenticated', 'public.organization_subscriptions', 'UPDATE'),
+  'staff cannot update authoritative subscription state');
 
 set local request.jwt.claims = '{"sub":"b1000000-0000-4000-8000-000000000003","role":"authenticated"}';
 insert into billing_boundary_results select 25, is(
@@ -195,25 +190,26 @@ set local request.jwt.claims = '{"role":"anon"}';
 insert into billing_boundary_results select 34, throws_ok(
   $$select organization_id from public.organization_subscriptions$$,
   '42501', null, 'anonymous cannot read even safe billing fields');
-insert into billing_boundary_results select 35, throws_ok(
-  $$select details from public.organization_subscription_backfill_conflicts$$,
-  '42501', null, 'anonymous cannot read conflict secrets');
+insert into billing_boundary_results select 35, ok(
+  not has_table_privilege('anon', 'public.organization_subscriptions', 'SELECT'),
+  'anonymous has no subscription table grant');
 
 reset role;
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
 insert into billing_boundary_results select 36, lives_ok(
-  $$insert into public.organization_subscriptions (organization_id, plan_type, plan_status, asaas_webhook_token) values ('b2000000-0000-4000-8000-000000000001', 'business', 'active', 'backend-secret') on conflict (organization_id) do update set plan_type = excluded.plan_type, plan_status = excluded.plan_status, asaas_webhook_token = excluded.asaas_webhook_token$$,
-  'trusted backend can upsert authoritative billing and secrets');
+  $$insert into public.organization_subscriptions (organization_id, plan_type, plan_status) values ('b2000000-0000-4000-8000-000000000001', 'business', 'active') on conflict (organization_id) do update set plan_type = excluded.plan_type, plan_status = excluded.plan_status$$,
+  'trusted backend can upsert authoritative billing');
 insert into billing_boundary_results select 37, is(
-  (select asaas_webhook_token from public.organization_subscriptions where organization_id = 'b2000000-0000-4000-8000-000000000001'),
-  'backend-secret', 'trusted backend can read persisted billing secrets');
-insert into billing_boundary_results select 38, lives_ok(
-  $$insert into public.organization_subscription_backfill_conflicts (organization_id, reason, details) values ('b2000000-0000-4000-8000-000000000002', 'backend-test', '{"token":"backend"}'); update public.organization_subscription_backfill_conflicts set reason = 'backend-updated' where reason = 'backend-test'; delete from public.organization_subscription_backfill_conflicts where reason = 'backend-updated'$$,
-  'trusted backend can insert update and delete conflicts through RLS');
-insert into billing_boundary_results select 39, is(
-  (select details->>'asaas_webhook_token' from public.organization_subscription_backfill_conflicts where reason = 'boundary-test' and organization_id = 'b2000000-0000-4000-8000-000000000001'),
-  'boundary-secret', 'trusted backend can inspect original conflict details');
+  (select plan_status from public.organization_subscriptions where organization_id = 'b2000000-0000-4000-8000-000000000001'),
+  'active', 'trusted backend can read authoritative billing state');
+insert into billing_boundary_results select 38, ok(
+  has_table_privilege('service_role', 'public.organization_subscriptions', 'UPDATE'),
+  'trusted backend can update authoritative subscription state');
+insert into billing_boundary_results select 39, ok(not exists (
+  select 1 from information_schema.columns where table_schema = 'public'
+    and table_name = 'organization_subscriptions' and column_name like '%token%'
+), 'authoritative billing state stores no retired provider tokens');
 insert into billing_boundary_results select 40, lives_ok(
   $$update public.restaurants set owner_id = 'b1000000-0000-4000-8000-000000000002', organization_id = 'b2000000-0000-4000-8000-000000000002' where id = 'b3000000-0000-4000-8000-000000000001'$$,
   'trusted backend retains deliberate ownership and organization transfer');
@@ -227,9 +223,10 @@ set local request.jwt.claims = '{"sub":"b1000000-0000-4000-8000-000000000001","r
 insert into billing_boundary_results select 41, throws_ok(
   $$update public.organization_subscriptions set plan_type = 'business', plan_status = 'active' where organization_id = 'b2000000-0000-4000-8000-000000000001'$$,
   '42501', null, 'admin cannot write authoritative billing either');
-insert into billing_boundary_results select 42, throws_ok(
-  $$select asaas_webhook_token from public.organization_subscriptions$$,
-  '42501', null, 'admin cannot read billing secrets');
+insert into billing_boundary_results select 42, ok(not exists (
+  select 1 from information_schema.columns where table_schema = 'public'
+    and table_name = 'organization_subscriptions' and column_name like '%secret%'
+), 'admin-facing subscription schema contains no billing secrets');
 insert into billing_boundary_results select 43, throws_ok(
   $$insert into public.restaurants (owner_id, name, slug) values ('b1000000-0000-4000-8000-000000000001', 'Implicit organization', 'billing-boundary-implicit')$$,
   '42501', 'restaurant ownership and organization are backend-managed', 'direct insert cannot invoke definer organization auto-assignment');

@@ -10,16 +10,14 @@ import {
 } from "@/lib/order-feedback";
 import InlineOrderRatingCard from "@/components/menu/InlineOrderRatingCard";
 
-const { upsertMock, ingestMock } = vi.hoisted(() => ({
-  upsertMock: vi.fn(),
+const { submitRpcMock, ingestMock } = vi.hoisted(() => ({
+  submitRpcMock: vi.fn(),
   ingestMock: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase", () => ({
   supabase: {
-    from: vi.fn(() => ({
-      upsert: upsertMock,
-    })),
+    rpc: submitRpcMock,
     auth: {
       getSession: vi.fn(async () => ({ data: { session: null } })),
     },
@@ -38,9 +36,9 @@ vi.mock("@/lib/n8n-client", () => ({
 afterEach(() => {
   sessionStorage.clear();
   vi.unstubAllGlobals();
-  upsertMock.mockReset();
+  submitRpcMock.mockReset();
   ingestMock.mockReset();
-  upsertMock.mockResolvedValue({ error: null });
+  submitRpcMock.mockResolvedValue({ error: null });
 });
 
 describe("order feedback rules", () => {
@@ -110,13 +108,14 @@ describe("order feedback rules", () => {
     });
   });
 
-  it("submits the structured payload to the configured webhook", async () => {
-    upsertMock.mockResolvedValue({ error: null });
+  it("persists feedback directly without calling the retired ingest route", async () => {
+    submitRpcMock.mockResolvedValue({ error: null });
     ingestMock.mockResolvedValue({ success: true });
 
     const payload = await submitOrderFeedback({
       orderId: "ord-11",
       restaurantId: "rest-1",
+      publicAccessToken: "order-token-11",
       rating: 5,
       reasons: ["Muito bom"],
       comment: "Muito rápido",
@@ -131,18 +130,26 @@ describe("order feedback rules", () => {
       comment: "Muito rápido",
       created_at: "2026-04-03T12:10:00.000Z",
     });
-    expect(ingestMock).toHaveBeenCalledWith(payload);
-    expect(upsertMock).toHaveBeenCalledWith(payload, { onConflict: "order_id" });
+    expect(ingestMock).not.toHaveBeenCalled();
+    expect(submitRpcMock).toHaveBeenCalledWith("submit_order_feedback", {
+      p_order_id: payload.order_id,
+      p_restaurant_id: payload.restaurant_id,
+      p_rating: payload.rating,
+      p_reasons: payload.reasons,
+      p_comment: payload.comment,
+      p_public_access_token: "order-token-11",
+    });
   });
 
   it("shows the inline prompt, expands on star selection, and confirms submission", async () => {
-    upsertMock.mockResolvedValue({ error: null });
+    submitRpcMock.mockResolvedValue({ error: null });
     ingestMock.mockResolvedValue({ success: true });
 
     render(
       <InlineOrderRatingCard
         orderId="ord-inline"
         restaurantId="rest-1"
+        publicAccessToken="order-token-inline"
         displayId={42}
         primaryColor="#0ea573"
       />,
@@ -159,8 +166,8 @@ describe("order feedback rules", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /enviar avaliação/i }));
 
-    await waitFor(() => expect(upsertMock).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(ingestMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(submitRpcMock).toHaveBeenCalledTimes(1));
+    expect(ingestMock).not.toHaveBeenCalled();
     expect(screen.getByText(/avaliação enviada/i)).toBeInTheDocument();
     expect(getRatedOrderIds()).toContain("ord-inline");
   });

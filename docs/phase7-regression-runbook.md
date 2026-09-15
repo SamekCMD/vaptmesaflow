@@ -75,7 +75,7 @@ negative scenario was reproduced on the deployed environment.
 
 ## Database suite
 
-Apply `supabase/migrations/20260906090000_revoke_anon_organization_subscription_access.sql` before running the final database suite.
+Apply the complete seven-file recovery baseline from `supabase/migrations/` before running the final database suite. Files under `supabase/migrations_legacy/` are historical reference and must not be applied to an empty database.
 
 In Supabase Studio SQL Editor, run these files in order. Every file below returns every assertion as ordered `sequence` and `result` rows.
 

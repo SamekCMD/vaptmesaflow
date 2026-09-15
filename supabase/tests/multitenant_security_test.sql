@@ -17,14 +17,14 @@ select ok(
 );
 
 select ok(
-  exists (
+  not exists (
     select 1
     from information_schema.columns
     where table_schema = 'public'
       and table_name = 'organization_subscriptions'
-      and column_name = 'asaas_webhook_token'
+      and column_name ~* '(secret|token|credential|provider)'
   ),
-  'organization_subscriptions keeps provider webhook token data private to the table'
+  'organization subscriptions contain no provider credentials'
 );
 
 select ok(

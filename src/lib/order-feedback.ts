@@ -1,5 +1,4 @@
 import { supabase } from "@/lib/supabase";
-import { n8nClient } from "@/lib/n8n-client";
 
 const STORAGE_KEY = "rated_orders";
 
@@ -41,6 +40,7 @@ type OrderFeedbackInput = {
 };
 
 type SubmitOrderFeedbackInput = OrderFeedbackInput & {
+  publicAccessToken: string;
   feedbackWebhookUrl?: string;
 };
 
@@ -117,15 +117,18 @@ export const submitOrderFeedback = async ({
 }: SubmitOrderFeedbackInput): Promise<OrderFeedbackPayload> => {
   const payload = buildOrderFeedbackPayload(input);
 
-  const { error } = await supabase
-    .from("order_feedback")
-    .upsert(payload, { onConflict: "order_id" });
+  const { error } = await supabase.rpc("submit_order_feedback", {
+    p_order_id: payload.order_id,
+    p_restaurant_id: payload.restaurant_id,
+    p_rating: payload.rating,
+    p_reasons: payload.reasons,
+    p_comment: payload.comment,
+    p_public_access_token: input.publicAccessToken,
+  });
 
   if (error) {
     throw new Error("feedback_persist_failed");
   }
-
-  await n8nClient.ingest.orderFeedback(payload);
 
   return payload;
 };

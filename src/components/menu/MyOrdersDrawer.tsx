@@ -21,6 +21,7 @@ interface OrderData {
   status: string;
   created_at: string;
   order_items: { product_name: string; quantity: number; unit_price: number; notes: string }[];
+  public_access_token: string;
 }
 
 interface MyOrdersDrawerProps {
@@ -41,7 +42,7 @@ const statusConfig: Record<string, { label: string; color: string }> = {
   delivered: { label: "Entregue", color: "bg-gray-400" },
 };
 
-function mapPublicOrder(order: PublicOrder): OrderData {
+function mapPublicOrder(order: PublicOrder, publicAccessToken: string): OrderData {
   return {
     id: order.orderId,
     display_id: order.displayId,
@@ -55,6 +56,7 @@ function mapPublicOrder(order: PublicOrder): OrderData {
       unit_price: Number(item.unitPrice),
       notes: item.notes ?? "",
     })),
+    public_access_token: publicAccessToken,
   };
 }
 
@@ -75,7 +77,10 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor }: MyOrdersD
       setOrders(
         loaded
           .filter((order): order is PublicOrder => Boolean(order))
-          .map(mapPublicOrder)
+          .map((order) => mapPublicOrder(
+            order,
+            stored.find((access) => access.orderId === order.orderId)?.publicToken ?? "",
+          ))
           .filter((order) => Date.now() - new Date(order.created_at).getTime() <= 24 * 60 * 60 * 1000)
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
       );
@@ -141,6 +146,7 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor }: MyOrdersD
           <InlineOrderRatingCard
             orderId={order.id}
             restaurantId={restaurantId}
+            publicAccessToken={order.public_access_token}
             displayId={order.display_id ?? 0}
             primaryColor={primaryColor}
           />

@@ -22,10 +22,17 @@ const readRequiredEnv = (key: string): string => {
 export const ENV = {
   supabaseUrl: readRequiredEnv("VITE_SUPABASE_URL"),
   supabaseAnonKey: readRequiredEnv("VITE_SUPABASE_ANON_KEY"),
-  stripePublishableKey: readRequiredEnv("VITE_STRIPE_PUBLISHABLE_KEY"),
-  stripePriceStarter: readRequiredEnv("VITE_STRIPE_PRICE_STARTER"),
-  stripePricePro: readRequiredEnv("VITE_STRIPE_PRICE_PRO"),
-  stripePriceBusiness: readRequiredEnv("VITE_STRIPE_PRICE_BUSINESS"),
+  stripePublishableKey: readEnv("VITE_STRIPE_PUBLISHABLE_KEY"),
+  stripePriceStarter: readEnv("VITE_STRIPE_PRICE_STARTER"),
+  stripePricePro: readEnv("VITE_STRIPE_PRICE_PRO"),
+  stripePriceBusiness: readEnv("VITE_STRIPE_PRICE_BUSINESS"),
+  stripeConfigured: Boolean(
+    readEnv("VITE_LEGACY_STRIPE_ENABLED", "false") === "true" &&
+      readEnv("VITE_STRIPE_PUBLISHABLE_KEY") &&
+      readEnv("VITE_STRIPE_PRICE_STARTER") &&
+      readEnv("VITE_STRIPE_PRICE_PRO") &&
+      readEnv("VITE_STRIPE_PRICE_BUSINESS"),
+  ),
   vaptApiBaseUrl: readRequiredEnv("VITE_VAPT_API_BASE_URL"),
   paymentEnvironment: readPaymentEnvironment(),
   vapidPublicKey: readEnv("VITE_VAPID_PUBLIC_KEY"),

@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:validate": "node scripts/validate-supabase-baseline.test.mjs && node scripts/validate-migration-runner.test.mjs && node scripts/verify-supabase-baseline-pglite.test.mjs",
+    "db:types": "node scripts/generate-supabase-types.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -68,7 +70,9 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "^9.32.0",
+    "@supabase/postgrest-typegen": "^0.2.1",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.0.0",

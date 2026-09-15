@@ -14,10 +14,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useAccountBootstrap } from "@/features/auth/use-account-bootstrap";
 import type { PlanDefinition } from "@/lib/plans";
-import { STRIPE_PUBLISHABLE_KEY } from "@/lib/constants";
+import { ENV } from "@/lib/env";
 import { n8nClient, N8nClientError } from "@/lib/n8n-client";
 
-const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
+const stripePromise = ENV.stripeConfigured
+  ? loadStripe(ENV.stripePublishableKey)
+  : null;
 
 interface CheckoutFormProps {
   planName: string;
@@ -103,6 +105,12 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    if (!ENV.stripeConfigured) {
+      setClientSecret(null);
+      setFetchError(null);
+      return;
+    }
+
     if (!open || !plan || !user || !organizationId || !restaurantId) {
       setClientSecret(null);
       setFetchError(null);
@@ -168,14 +176,29 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
         </DialogHeader>
 
         <div className="py-2">
-          {fetchingSecret && (
+          {!ENV.stripeConfigured && (
+            <div className="flex flex-col items-center gap-3 py-8">
+              <Lock className="h-8 w-8 text-muted-foreground" />
+              <p className="text-center text-sm font-medium">
+                Assinaturas temporariamente indisponíveis
+              </p>
+              <p className="text-center text-xs text-muted-foreground">
+                O ambiente está em recuperação e o Stripe será reativado em uma etapa futura.
+              </p>
+              <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+                Fechar
+              </Button>
+            </div>
+          )}
+
+          {ENV.stripeConfigured && fetchingSecret && (
             <div className="flex flex-col items-center justify-center gap-3 py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <p className="text-sm text-muted-foreground">Preparando checkout...</p>
             </div>
           )}
 
-          {fetchError && (
+          {ENV.stripeConfigured && fetchError && (
             <div className="flex flex-col items-center gap-3 py-8">
               <Lock className="h-8 w-8 text-destructive" />
               <p className="text-center text-sm text-destructive">{fetchError}</p>
@@ -185,7 +208,7 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
             </div>
           )}
 
-          {clientSecret && !fetchingSecret && !fetchError && (
+          {ENV.stripeConfigured && clientSecret && !fetchingSecret && !fetchError && (
             <Elements
               stripe={stripePromise}
               options={{

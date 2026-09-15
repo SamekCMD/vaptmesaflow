@@ -12,13 +12,13 @@ select ok(
 );
 
 select ok(
-  not has_column_privilege('anon', 'public.restaurants', 'asaas_api_key', 'select'),
-  'anon cannot read the Asaas API key'
+  not has_table_privilege('anon', 'public.payment_provider_accounts', 'select'),
+  'anon cannot select provider account rows'
 );
 
 select ok(
-  not has_column_privilege('anon', 'public.restaurants', 'asaas_webhook_token', 'select'),
-  'anon cannot read the Asaas webhook token'
+  not has_column_privilege('anon', 'public.payment_provider_accounts', 'access_token_encrypted', 'select'),
+  'anon cannot read encrypted provider access tokens'
 );
 
 select ok(
@@ -27,7 +27,7 @@ select ok(
     from information_schema.columns as columns
     where columns.table_schema = 'public'
       and columns.table_name = 'restaurants'
-      and left(columns.column_name, 7) = 'stripe_'
+      and columns.column_name ~* '(secret|token|credential)'
       and has_column_privilege(
         'anon',
         'public.restaurants',
@@ -35,7 +35,7 @@ select ok(
         'select'
       )
   ),
-  'anon cannot read Stripe fields from restaurants'
+  'anon cannot read credential-like fields from restaurants'
 );
 
 select ok(
@@ -62,15 +62,15 @@ select ok(
     from pg_policies
     where schemaname = 'public'
       and tablename = 'restaurants'
-      and policyname = 'owners_select_own'
+      and policyname = 'organization_members_select_restaurants'
   ),
-  'the owner select policy remains available'
+  'the organization membership select policy remains available'
 );
 
 select ok(
   pg_get_function_result(
     'public.get_public_restaurant_by_slug(text)'::regprocedure
-  ) !~* '(asaas|stripe|webhook|secret|token)',
+  ) !~* '(secret|token|password|credential)',
   'the public lookup return type excludes sensitive fields'
 );
 

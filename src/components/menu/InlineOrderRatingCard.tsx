@@ -12,6 +12,7 @@ import {
 type InlineOrderRatingCardProps = {
   orderId: string;
   restaurantId: string;
+  publicAccessToken: string;
   displayId: number;
   primaryColor: string;
   feedbackWebhookUrl?: string;
@@ -20,6 +21,7 @@ type InlineOrderRatingCardProps = {
 const InlineOrderRatingCard = ({
   orderId,
   restaurantId,
+  publicAccessToken,
   displayId,
   primaryColor,
   feedbackWebhookUrl,
@@ -52,6 +54,7 @@ const InlineOrderRatingCard = ({
       await submitOrderFeedback({
         orderId,
         restaurantId,
+        publicAccessToken,
         rating,
         reasons: selectedReasons,
         comment: comment.trim() || null,

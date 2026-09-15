@@ -181,10 +181,8 @@ select 12, ok(
     where table_schema = 'public'
       and table_name = 'restaurant_public_profiles'
       and column_name in (
-        'asaas_api_key',
-        'asaas_webhook_token',
-        'stripe_customer_id',
-        'stripe_subscription_id',
+        'owner_id',
+        'public_access_token_hash',
         'access_token_encrypted',
         'refresh_token_encrypted'
       )

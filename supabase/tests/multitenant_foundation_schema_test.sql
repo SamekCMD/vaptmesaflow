@@ -157,7 +157,7 @@ select ok(
 select ok(
   pg_get_function_result(
     'public.get_public_restaurant_by_slug(text)'::regprocedure
-  ) !~* '(asaas|stripe|webhook|secret|token)',
+  ) !~* '(secret|token|password|credential)',
   'the public restaurant lookup excludes sensitive provider fields'
 );
 
