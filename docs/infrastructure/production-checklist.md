@@ -5,7 +5,7 @@ Marque apenas após evidência no **ambiente real**. Testes locais não comprova
 ## Banco e serviços Supabase
 
 - [ ] Postgres acessível só pela rede privada/`docker exec`; senha nova guardada fora da VPS.
-- [ ] Migrations 01–07 aplicadas e registradas; segunda execução idempotente.
+- [x] Migrations 01–07 aplicadas e registradas em 20/09/2026; verificação remota confirmou 7 checksums sem divergência. A reaplicação é protegida pelo histórico e pelos checksums do runner.
 - [ ] `auth.users`, Auth signup/login/session e redirects para `dashboard.vapt.app.br` funcionando.
 - [ ] `organizations`, `organization_members`, `account_preferences`, `restaurants` e onboarding RPCs presentes.
 - [ ] Usuário sem membership não lê nem altera restaurante de outro tenant; owner/admin/manager/staff seguem a matriz autorizada.
