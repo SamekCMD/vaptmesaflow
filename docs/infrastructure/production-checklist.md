@@ -16,13 +16,13 @@ Marque apenas após evidência no **ambiente real**. Testes locais não comprova
 
 ## API e frontend
 
-- [ ] API Coolify responde `/health` e `/health/ready` em `https://api.vapt.app.br`.
-- [ ] CORS permite dashboard e somente previews Vercel explicitamente autorizados.
+- [x] API Coolify responde `/health` e `/health/ready` em `https://api.vapt.app.br`; ambos retornaram HTTP 200 em 21/09/2026.
+- [x] CORS da API aceita `https://www.vapt.app.br`; a allowlist do deploy também contém apenas o domínio raiz, os domínios Vercel do projeto e o preview de recuperação explicitamente autorizado.
 - [ ] Token Auth/JWKS é aceito pela API; membership ativo autoriza restaurante certo e rejeita outro.
-- [ ] Frontend Vercel em `https://dashboard.vapt.app.br` usa anon/publishable key, nunca service role.
+- [x] Frontend Vercel em `https://www.vapt.app.br` usa a anon key pública do Supabase e `https://supabase.vapt.app.br`; nenhuma service role foi enviada à Vercel.
 - [ ] Login, bootstrap de conta, onboarding, menu, pedido, caixa e dashboard funcionam no Supabase novo.
 - [ ] Mercado Pago direto na API é homologado em sandbox quando as credenciais forem configuradas; nunca usar token de teste em produção.
-- [ ] Stripe é apresentado como temporariamente indisponível, sem rota/workflow n8n registrado.
+- [x] Stripe legado permanece desativado por `VITE_LEGACY_STRIPE_ENABLED=false`; nenhum n8n foi restaurado e nenhuma credencial Stripe nova foi configurada.
 - [ ] Push/VAPID fica desligado até substituir o ingest legado; feedback usa RPC própria e é protegido por pedido entregue.
 - [ ] WIP Auth/Resend e worktrees sujos mantêm status e hashes originais; nenhuma configuração de email foi escolhida aqui.
 
