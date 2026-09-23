@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { z } from "zod";
+import TurnstileWidget from "@/components/auth/TurnstileWidget";
+import { ENV } from "@/lib/env";
 
 const signupSchema = z.object({
   fullName: z.string().trim().min(2, "Nome muito curto").max(100),
@@ -25,6 +27,8 @@ const SignupPage = () => {
   const [showPw, setShowPw] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -46,10 +50,19 @@ const SignupPage = () => {
       return;
     }
     setLoading(true);
-    const { error } = await signUp(form.email, form.password, form.fullName);
+    const { error } = await signUp(
+      form.email,
+      form.password,
+      form.fullName,
+      captchaToken ?? undefined,
+    );
     setLoading(false);
     if (error) {
       setErrors({ email: error.message });
+      if (ENV.turnstileEnabled) {
+        setCaptchaToken(null);
+        setCaptchaResetKey((value) => value + 1);
+      }
     } else {
       navigate("/onboarding");
     }
@@ -89,9 +102,20 @@ const SignupPage = () => {
               <Input id="confirmPassword" type="password" placeholder="Repita a senha" value={form.confirmPassword} onChange={set("confirmPassword")} autoComplete="new-password" />
               {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword}</p>}
             </div>
+            {ENV.turnstileEnabled && (
+              <TurnstileWidget
+                action="signup"
+                onTokenChange={setCaptchaToken}
+                resetKey={captchaResetKey}
+              />
+            )}
           </CardContent>
           <CardFooter className="flex-col gap-3">
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading || (ENV.turnstileEnabled && !captchaToken)}
+            >
               {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Criar Conta
             </Button>

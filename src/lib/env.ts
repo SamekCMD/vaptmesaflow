@@ -8,6 +8,8 @@ const isTest = import.meta.env.MODE === "test";
 const readPaymentEnvironment = (): "sandbox" | "production" =>
   readEnv("VITE_PAYMENT_ENVIRONMENT") === "sandbox" ? "sandbox" : "production";
 
+const turnstileEnabled = readEnv("VITE_TURNSTILE_ENABLED") === "true";
+
 const readRequiredEnv = (key: string): string => {
   const value = readEnv(key);
   if (value) return value;
@@ -29,6 +31,10 @@ export const ENV = {
   vaptApiBaseUrl: readRequiredEnv("VITE_VAPT_API_BASE_URL"),
   paymentEnvironment: readPaymentEnvironment(),
   vapidPublicKey: readEnv("VITE_VAPID_PUBLIC_KEY"),
+  turnstileEnabled,
+  turnstileSiteKey: turnstileEnabled
+    ? readRequiredEnv("VITE_TURNSTILE_SITE_KEY")
+    : readEnv("VITE_TURNSTILE_SITE_KEY"),
 } as const;
 
 export const buildSupabaseStoragePublicUrl = (bucket: string, path: string): string =>

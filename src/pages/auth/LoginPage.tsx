@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { z } from "zod";
+import TurnstileWidget from "@/components/auth/TurnstileWidget";
+import { ENV } from "@/lib/env";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Email inválido").max(255),
@@ -21,6 +23,8 @@ const LoginPage = () => {
   const [showPw, setShowPw] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -39,10 +43,14 @@ const LoginPage = () => {
       return;
     }
     setLoading(true);
-    const { error } = await signIn(email, password);
+    const { error } = await signIn(email, password, captchaToken ?? undefined);
     setLoading(false);
     if (error) {
       setErrors({ email: "Email ou senha incorretos" });
+      if (ENV.turnstileEnabled) {
+        setCaptchaToken(null);
+        setCaptchaResetKey((value) => value + 1);
+      }
     } else {
       navigate("/dashboard");
     }
@@ -72,9 +80,20 @@ const LoginPage = () => {
               </div>
               {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
             </div>
+            {ENV.turnstileEnabled && (
+              <TurnstileWidget
+                action="login"
+                onTokenChange={setCaptchaToken}
+                resetKey={captchaResetKey}
+              />
+            )}
           </CardContent>
           <CardFooter className="flex-col gap-3">
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading || (ENV.turnstileEnabled && !captchaToken)}
+            >
               {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Entrar
             </Button>
