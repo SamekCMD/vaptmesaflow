@@ -1,6 +1,6 @@
 # Fase 3 — Supabase Storage para Cloudflare R2
 
-Status em 24/09/2026: implementação local pronta para validação; nenhum objeto foi copiado e nenhum bucket foi tornado público.
+Status em 24/09/2026: implementação local pronta para validação; nenhum objeto foi copiado. Somente o bucket vazio de preview possui acesso público temporário por `r2.dev`.
 
 ## Baseline remoto confirmado
 
@@ -8,10 +8,16 @@ Uma consulta somente leitura ao Cloudflare R2 confirmou, nos dois ambientes:
 
 | Bucket | CORS | Domínio personalizado | URL `r2.dev` |
 | --- | --- | --- | --- |
-| `vapt-assets-preview` | aplicado para `PUT` das origens de preview | nenhum | desabilitada |
+| `vapt-assets-preview` | aplicado para `PUT` das origens de preview | nenhum | `https://pub-c7718cfb495f4c83866dfe3ed8c52890.r2.dev` |
 | `vapt-assets-production` | não configurado | nenhum | desabilitada |
 
-Antes da aplicação do CORS, o erro `10059` retornado ao listar a política confirmou que ela ainda não existia. Após autorização explícita, a política versionada foi aplicada somente ao preview e conferida remotamente. O bucket de preview permanece privado e vazio (`object_count: 0`, `bucket_size: 0 B`); a tentativa de habilitar `r2.dev` foi interrompida antes de qualquer alteração pública.
+Antes da aplicação do CORS, o erro `10059` retornado ao listar a política confirmou que ela ainda não existia. Após autorizações explícitas, a política versionada e o acesso `r2.dev` foram habilitados somente no preview e conferidos remotamente. O bucket de preview permanece vazio (`object_count: 0`, `bucket_size: 0 B`), e uma leitura de uma chave inexistente respondeu `404`. Produção permaneceu inalterada.
+
+Rollback imediato do acesso público de preview:
+
+```bash
+npx wrangler r2 bucket dev-url disable vapt-assets-preview
+```
 
 ## Escopo confirmado
 
@@ -54,10 +60,12 @@ R2_UPLOAD_URL_TTL_SECONDS=300
 
 O token R2 deve ter apenas leitura e escrita de objetos no bucket do ambiente. Credenciais não entram no frontend, no Git nem nos relatórios de migração.
 
-URLs públicas propostas, ainda não criadas:
+URLs canônicas propostas, ainda não criadas:
 
 - preview: `https://assets-preview.vapt.app.br` → `vapt-assets-preview`;
 - produção: `https://assets.vapt.app.br` → `vapt-assets-production`.
+
+Até a criação do domínio canônico de preview, o endpoint temporário é `https://pub-c7718cfb495f4c83866dfe3ed8c52890.r2.dev`.
 
 ## Estado do CORS
 
@@ -114,7 +122,7 @@ O utilitário nunca apaga objetos de nenhum lado.
 
 1. Restaurar a disponibilidade pública do Supabase atual ou fornecer uma rota de acesso segura para a origem.
 2. Criar um token R2 limitado ao bucket de preview e validar o fluxo completo em preview.
-3. Conectar a URL pública de preview após confirmação explícita; o CORS de preview já está aplicado.
+3. Validar o fluxo contra a URL temporária `r2.dev`, já habilitada junto com o CORS somente em preview.
 4. Executar dry-run de produção e arquivar o relatório fora do repositório.
 5. Corrigir toda divergência até o inventário ficar integralmente verificável.
 6. Criar o token de produção, conectar `assets.vapt.app.br` e aplicar CORS após confirmação explícita.
@@ -129,7 +137,7 @@ O utilitário nunca apaga objetos de nenhum lado.
 
 - a origem Supabase configurada não responde aos testes TCP/HTTPS feitos nesta execução;
 - não existem ainda credenciais S3 R2 configuradas na API;
-- o bucket de preview está vazio e privado, sem domínio público; seu CORS está aplicado;
+- o bucket de preview está vazio, com CORS aplicado e acesso público temporário por `r2.dev`, mas ainda sem domínio canônico;
 - o bucket de produção continua privado, sem domínio público e sem CORS;
 - portanto inventário real, cópia, alteração de URLs e cutover permanecem deliberadamente não executados.
 
