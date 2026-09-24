@@ -13,7 +13,8 @@
     "deploy:preview": "npm run build:preview && wrangler versions upload",
     "deploy:production": "npm run build && wrangler deploy",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

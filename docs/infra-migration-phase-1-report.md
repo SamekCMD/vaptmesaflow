@@ -130,7 +130,7 @@ O preview renderiza páginas estáticas, mas chamadas de auth, API e dados falha
 - A integração Git/Workers Builds ainda não foi conectada.
 - O comportamento observado de cache usa `must-revalidate, max-age=0`; otimização será avaliada sem comprometer invalidação de assets.
 - O bundle grande não bloqueia a migração, mas permanece como dívida de performance.
-- A Vercel continua sendo o rollback do frontend até o fim da janela definida no plano.
+- Por decisão explícita do usuário em 2026-09-24, toda a Vercel é legado e os DNS já foram removidos; o rollback do frontend será feito por versões/deployments da Cloudflare, não pela Vercel.
 
 ## Next phase
 
