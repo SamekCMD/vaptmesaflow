@@ -2,6 +2,17 @@
 
 Status em 24/09/2026: implementação local pronta para validação; nenhum objeto foi copiado e nenhum bucket foi tornado público.
 
+## Baseline remoto confirmado
+
+Uma consulta somente leitura ao Cloudflare R2 confirmou, nos dois ambientes:
+
+| Bucket | CORS | Domínio personalizado | URL `r2.dev` |
+| --- | --- | --- | --- |
+| `vapt-assets-preview` | não configurado | nenhum | desabilitada |
+| `vapt-assets-production` | não configurado | nenhum | desabilitada |
+
+O erro `10059` retornado ao listar CORS significa que a configuração ainda não existe. Nenhuma alteração remota foi feita durante essa verificação.
+
 ## Escopo confirmado
 
 A auditoria do código não encontrou MinIO nem cliente S3 em uso. O storage efetivo é o bucket público `menu-images` do Supabase Storage:
@@ -118,7 +129,7 @@ O utilitário nunca apaga objetos de nenhum lado.
 
 - a origem Supabase configurada não responde aos testes TCP/HTTPS feitos nesta execução;
 - não existem ainda credenciais S3 R2 configuradas na API;
-- os buckets continuam privados, sem domínio público e sem CORS;
+- os buckets continuam privados, sem domínio público e sem CORS, conforme baseline remoto confirmado em 24/09/2026;
 - portanto inventário real, cópia, alteração de URLs e cutover permanecem deliberadamente não executados.
 
 Nenhum desses gates depende da infraestrutura legada de frontend.
