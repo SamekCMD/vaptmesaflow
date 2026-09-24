@@ -1,10 +1,33 @@
 # Fase 4 — Supabase PostgreSQL para Neon
 
-Status em 24/09/2026: preparação local concluída; projeto Neon de preview ainda não criado porque a console requer autenticação do responsável. Nenhum banco de produção foi criado ou alterado.
+Status em 24/09/2026: preparação local concluída; foi criado, ainda vazio, o projeto Neon `vapt-preview` na região AWS South America East 1 (São Paulo), ID `dawn-morning-27332079`. Nenhum schema ou dado foi aplicado, nenhuma connection string foi guardada e a aplicação não foi conectada ao Neon.
+
+## Correção de arquitetura após revisão
+
+O plano exige ambientes Neon separados para produção e preview/staging, mas não exige projetos Neon separados. A interpretação inicial de criar um projeto chamado `vapt-preview` foi excessiva.
+
+A topologia adotada passa a ser:
+
+```text
+Projeto Neon: vapt
+├── branch production   # raiz e futura fonte de verdade
+└── branch preview      # ensaio isolado de schema, dados e API
+```
+
+- reutilizar e renomear o projeto vazio `vapt-preview` para `vapt`, em vez de criar outro projeto;
+- manter a branch raiz `production` sem tráfego da aplicação até o cutover;
+- criar uma branch filha `preview`, com connection string e compute próprios;
+- usar o database de negócio `vapt` nas duas branches; se o console tiver criado apenas o database padrão `neondb`, criar ou renomear o database antes da primeira carga;
+- apontar o Hyperdrive de preview somente para a branch `preview` e o de produção somente para `production`;
+- considerar branches efêmeras por PR futuramente, como prevê o plano, sem torná-las requisito desta primeira migração;
+- não copiar dados pessoais de produção para previews sem uma estratégia explícita de anonimização ou um conjunto de dados de ensaio.
+
+Ruling: `Neon production` e `Neon preview/staging` no plano representam ambientes isolados. No Neon, branches dentro de um único projeto fornecem esse isolamento, mantêm schema/dados clonáveis e evitam duplicar a administração do projeto. Projetos separados ficam reservados para uma futura necessidade comprovada de isolamento de conta, região, quota ou compliance.
 
 ## Ruling operacional
 
-- criar primeiro um ambiente Neon exclusivo de preview/staging;
+- usar um único projeto Neon `vapt`, com branches separadas `production` e `preview`;
+- executar o primeiro ensaio exclusivamente na branch `preview`;
 - não usar Neon Managed Auth;
 - não apontar frontend, API ou DNS de produção ao novo banco durante o ensaio;
 - não reproduzir a cadeia `supabase/migrations` diretamente no Neon;
@@ -80,22 +103,23 @@ Os binários `psql`, `pg_dump` e Docker não estão disponíveis neste host. At�
 
 ## Sequência segura de preview
 
-1. Autenticar na console Neon e criar somente o projeto de preview/staging.
-2. Guardar a connection string como segredo local/de CI, nunca no Git ou no frontend.
-3. Restaurar o acesso somente leitura à origem Supabase e capturar schema, extensões, roles e contagens reais.
-4. Gerar um schema Neon normalizado a partir do estado real, não por concatenação cega das migrations.
-5. Aplicar o schema em banco vazio e registrar cada incompatibilidade.
-6. Importar uma cópia de dados de ensaio preservando UUIDs.
-7. Validar tabelas, constraints, indexes, funções e amostras de relações multi-tenant.
-8. Adaptar a API para PostgreSQL/Hyperdrive e mover os acessos diretos do frontend antes de qualquer cutover.
-9. Repetir o ensaio com dados atualizados até obter paridade documentada.
+1. Renomear o projeto vazio `vapt-preview` para `vapt` e confirmar que a branch raiz se chama `production`.
+2. Preparar o database de negócio `vapt` na raiz e criar a branch filha `preview` antes de qualquer carga.
+3. Guardar cada connection string como segredo local/de CI, nunca no Git ou no frontend.
+4. Restaurar o acesso somente leitura à origem Supabase e capturar schema, extensões, roles e contagens reais.
+5. Gerar um schema Neon normalizado a partir do estado real, não por concatenação cega das migrations.
+6. Aplicar o schema somente na branch `preview` e registrar cada incompatibilidade.
+7. Importar uma cópia de dados de ensaio preservando UUIDs e sem expor dados pessoais desnecessários.
+8. Validar tabelas, constraints, indexes, funções e amostras de relações multi-tenant.
+9. Adaptar a API para PostgreSQL/Hyperdrive e mover os acessos diretos do frontend antes de qualquer cutover.
+10. Repetir o ensaio com dados atualizados até obter paridade documentada; só então preparar `production`.
 
 ## Gates atuais
 
-- autenticação humana pendente na console Neon;
+- autenticação humana será necessária novamente para renomear o projeto e criar a branch `preview`;
 - origem Supabase atual indisponível nos testes de rede;
 - ausência local de `psql`, `pg_dump` e Docker;
 - frontend e API ainda dependem diretamente das APIs Supabase;
 - migração de identidades e autorização será tratada separadamente com Better Auth.
 
-Esses gates bloqueiam restore e cutover, mas não impedem criar o ambiente Neon de preview nem preparar o schema normalizado após o login.
+Esses gates bloqueiam restore e cutover, mas não impedem preparar a topologia de branches nem o schema normalizado após o login.
