@@ -97,7 +97,7 @@ Ainda não executadas:
 - build da API passando;
 - contrato local do `wrangler.jsonc` passando;
 - Wrangler dry-run lendo 85 assets e zero bindings;
-- inspeção do bundle local e remoto sem hosts Easypanel legados;
+- inspeção do bundle local e remoto sem hosts legados da VPS;
 - smoke HTTP de `/`, `/login` e asset JavaScript;
 - fallback SPA confirmado por deep link;
 - inspeção visual da landing page e tela de login no navegador;

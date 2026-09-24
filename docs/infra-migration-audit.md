@@ -17,7 +17,7 @@ Evidências auditadas:
 
 Limites desta auditoria:
 
-- nenhum dashboard de Cloudflare, Vercel, Hetzner, EasyPanel/Coolify, Neon, Supabase, Stripe, Mercado Pago, Resend ou n8n foi acessado;
+- nenhum dashboard de Cloudflare, Vercel, Hetzner, Coolify, Neon, Supabase, Stripe, Mercado Pago, Resend ou n8n foi acessado durante a auditoria inicial;
 - os exports n8n foram auditados, mas não foi possível confirmar se são idênticos aos workflows atualmente publicados nem se contêm todas as credenciais/configurações aplicadas no dashboard;
 - nenhum banco, bucket, webhook, DNS, log ou tráfego de produção foi consultado;
 - valores dos arquivos locais de ambiente não foram lidos ou registrados; apenas os nomes das variáveis foram inventariados;
@@ -175,12 +175,12 @@ Versões declaradas no package.json / resolvidas no package-lock.json:
 - build: npm run build;
 - start atual: node dist/server.js;
 - runtime atual: imagem node:18-alpine em dois estágios;
-- deploy documentado: EasyPanel usando Dockerfile;
+- deploy real confirmado pelo responsável: Coolify usando Dockerfile;
 - workflow GitHub Actions atual é apenas o template “Hello, world!” e não valida nem publica a API.
 
 O lock da API resolve supabase-js 2.103.0, find-my-way 9.5.0 e thread-stream 4.0.0, cujos engines exigem Node 20 ou superior. O build/test local foi executado com Node 24.13.0; portanto, o baseline verde não valida a imagem node:18-alpine. A imagem e o campo engines precisam ser alinhados antes de um deploy reproduzível.
 
-O plano menciona Coolify, enquanto o README da API menciona EasyPanel. Isso precisa ser confirmado no ambiente real antes do desligamento da VPS.
+Ruling operacional de 24/09/2026: o runtime atual da API é Coolify. A referência anterior a outro orquestrador era legado documental e não deve orientar investigação nem implementação.
 
 ### Baseline executado
 
@@ -768,7 +768,7 @@ Cloudflare agora oferece node:http e httpServerHandler, então Fastify deve ser 
 3. Não há fluxo de recuperação de senha implementado no frontend.
 4. Bundle frontend possui chunks grandes; não bloqueia migração.
 5. Browserslist do build está desatualizado; não bloqueia migração.
-6. Documentação de deploy diverge entre plano (Coolify) e API (EasyPanel).
+6. A documentação legada de deploy foi corrigida para refletir o runtime Coolify confirmado.
 
 ## 18. Sequência sugerida de mudanças
 
@@ -931,7 +931,7 @@ Nenhuma foi executada nesta etapa.
 ### Vercel/VPS/orquestrador/n8n
 
 - exportar configuração atual antes de mudanças;
-- confirmar se o runtime é EasyPanel, Coolify ou ambos;
+- tratar Coolify como o único orquestrador atual da API e inventariar sua configuração real;
 - listar containers, volumes, jobs, cron, webhooks e serviços ocultos;
 - comparar os workflows n8n publicados com os exports versionados de Asaas, Stripe e Ingest;
 - inventariar credenciais e variáveis por workflow sem exportar valores secretos;
@@ -963,7 +963,7 @@ Pendências manuais mínimas antes de criar recursos:
 
 - confirmar acesso/conta Cloudflare e os domínios;
 - confirmar nomes dos ambientes e branch de produção;
-- confirmar se o deploy atual usa EasyPanel ou Coolify;
+- obter acesso ao painel Coolify atual e inventariar serviços e variáveis sem exportar valores secretos;
 - confirmar quais workflows n8n estão ativos e se os exports versionados representam produção;
 - identificar responsáveis pelos dashboards Stripe, Resend, Neon, Supabase e Mercado Pago;
 - confirmar que nenhuma credencial será copiada para arquivos versionados.
