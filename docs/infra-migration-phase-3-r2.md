@@ -52,22 +52,17 @@ URLs públicas propostas, ainda não criadas:
 
 O bucket precisa aceitar o `PUT` assinado a partir das origens reais do frontend e expor `ETag`. A política final deve listar origens explícitas; não usar `*`.
 
-```json
-[
-  {
-    "AllowedOrigins": [
-      "https://vapt.app.br",
-      "https://dashboard.vapt.app.br"
-    ],
-    "AllowedMethods": ["PUT"],
-    "AllowedHeaders": ["Content-Type", "Content-Length"],
-    "ExposeHeaders": ["ETag"],
-    "MaxAgeSeconds": 3600
-  }
-]
+```bash
+npx wrangler r2 bucket cors set vapt-assets-preview \
+  --file infra/cloudflare/r2-cors-preview.json
+
+npx wrangler r2 bucket cors set vapt-assets-production \
+  --file infra/cloudflare/r2-cors-production.json
 ```
 
-A origem de preview isolada deve ser adicionada somente ao bucket de preview.
+As políticas versionadas usam o formato do Wrangler. A origem de preview isolada e
+`localhost` aparecem somente no bucket de preview; a política de produção contém apenas
+as duas origens públicas planejadas. Esses comandos ainda não foram executados.
 
 ## Inventário e cópia
 
