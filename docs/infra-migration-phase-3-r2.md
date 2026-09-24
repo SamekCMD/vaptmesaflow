@@ -60,7 +60,11 @@ R2_UPLOAD_URL_TTL_SECONDS=300
 
 O token R2 deve ter apenas leitura e escrita de objetos no bucket do ambiente. Credenciais não entram no frontend, no Git nem nos relatórios de migração.
 
-Em 24/09/2026, o token de conta `vapt-api-preview-r2` foi criado com `Object Read & Write` restrito exclusivamente a `vapt-assets-preview`, TTL permanente e sem filtro de IP. Os valores da Access Key e da Secret Key não foram registrados neste repositório. A injeção protegida no runtime permanece pendente até o acesso ao painel Coolify atual.
+Em 24/09/2026, o token de conta `vapt-api-preview-r2` foi criado com `Object Read & Write` restrito exclusivamente a `vapt-assets-preview`, TTL permanente e sem filtro de IP. Os valores da Access Key e da Secret Key não foram registrados neste repositório.
+
+Ruling operacional posterior: não implantar esta mudança na API atual do Coolify nem voltar DNS para a Hetzner. O token foi validado por um smoke local efêmero contra o R2 de preview e será usado apenas durante a migração enquanto necessário. O runtime seguinte da API será Cloudflare.
+
+O smoke criou uma chave aleatória sob `codex-smoke/`, confirmou `HeadObject`, MIME, tamanho, leitura pública `200` e igualdade do conteúdo, removeu exatamente a chave criada e reconfirmou `404`. O bucket retornou a `object_count: 0` e `bucket_size: 0 B` após a limpeza.
 
 URLs canônicas propostas, ainda não criadas:
 
@@ -123,7 +127,7 @@ O utilitário nunca apaga objetos de nenhum lado.
 ## Sequência de cutover
 
 1. Restaurar a disponibilidade pública do Supabase atual ou fornecer uma rota de acesso segura para a origem.
-2. Criar um token R2 limitado ao bucket de preview e validar o fluxo completo em preview.
+2. Usar o token R2 já limitado ao bucket de preview para validar o fluxo completo no próximo runtime Cloudflare da API; não implantar no Coolify.
 3. Validar o fluxo contra a URL temporária `r2.dev`, já habilitada junto com o CORS somente em preview.
 4. Executar dry-run de produção e arquivar o relatório fora do repositório.
 5. Corrigir toda divergência até o inventário ficar integralmente verificável.
@@ -138,8 +142,8 @@ O utilitário nunca apaga objetos de nenhum lado.
 ## Gates atuais
 
 - a origem Supabase configurada não responde aos testes TCP/HTTPS feitos nesta execução;
-- o token S3 de preview existe, mas ainda não foi injetado no runtime Coolify da API;
-- o endereço do painel Coolify atual não está disponível no repositório nem no DNS da zona `vapt.app.br`;
+- o token S3 de preview foi validado localmente, mas por decisão operacional não será injetado no runtime Coolify atual;
+- o smoke direto de escrita, leitura pública e remoção no R2 de preview passou e não deixou objetos residuais;
 - o bucket de preview está vazio, com CORS aplicado e acesso público temporário por `r2.dev`, mas ainda sem domínio canônico;
 - o bucket de produção continua privado, sem domínio público e sem CORS;
 - portanto inventário real, cópia, alteração de URLs e cutover permanecem deliberadamente não executados.
