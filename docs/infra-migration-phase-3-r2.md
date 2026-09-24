@@ -62,7 +62,7 @@ O token R2 deve ter apenas leitura e escrita de objetos no bucket do ambiente. C
 
 Em 24/09/2026, o token de conta `vapt-api-preview-r2` foi criado com `Object Read & Write` restrito exclusivamente a `vapt-assets-preview`, TTL permanente e sem filtro de IP. Os valores da Access Key e da Secret Key não foram registrados neste repositório.
 
-Ruling operacional posterior: não implantar esta mudança na API atual do Coolify nem voltar DNS para a Hetzner. O token foi validado por um smoke local efêmero contra o R2 de preview e será usado apenas durante a migração enquanto necessário. O runtime seguinte da API será Cloudflare.
+Ruling operacional posterior: não implantar esta mudança na API atual do Coolify nem voltar DNS para a Hetzner. O token foi validado por um smoke local efêmero contra o R2 de preview. As chaves exibidas uma única vez foram descartadas após o teste; antes da cópia real, a credencial deve ser rotacionada/recriada ou o token sem uso deve ser removido. O runtime seguinte da API será Cloudflare.
 
 O smoke criou uma chave aleatória sob `codex-smoke/`, confirmou `HeadObject`, MIME, tamanho, leitura pública `200` e igualdade do conteúdo, removeu exatamente a chave criada e reconfirmou `404`. O bucket retornou a `object_count: 0` e `bucket_size: 0 B` após a limpeza.
 
@@ -142,7 +142,7 @@ O utilitário nunca apaga objetos de nenhum lado.
 ## Gates atuais
 
 - a origem Supabase configurada não responde aos testes TCP/HTTPS feitos nesta execução;
-- o token S3 de preview foi validado localmente, mas por decisão operacional não será injetado no runtime Coolify atual;
+- o token S3 de preview foi validado localmente e suas chaves efêmeras foram descartadas; uma nova credencial será necessária para a cópia real;
 - o smoke direto de escrita, leitura pública e remoção no R2 de preview passou e não deixou objetos residuais;
 - o bucket de preview está vazio, com CORS aplicado e acesso público temporário por `r2.dev`, mas ainda sem domínio canônico;
 - o bucket de produção continua privado, sem domínio público e sem CORS;
