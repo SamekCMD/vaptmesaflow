@@ -11,7 +11,7 @@ Uma consulta somente leitura ao Cloudflare R2 confirmou, nos dois ambientes:
 | `vapt-assets-preview` | aplicado para `PUT` das origens de preview | nenhum | `https://pub-c7718cfb495f4c83866dfe3ed8c52890.r2.dev` |
 | `vapt-assets-production` | não configurado | nenhum | desabilitada |
 
-Antes da aplicação do CORS, o erro `10059` retornado ao listar a política confirmou que ela ainda não existia. Após autorizações explícitas, a política versionada e o acesso `r2.dev` foram habilitados somente no preview e conferidos remotamente. O bucket de preview permanece vazio (`object_count: 0`, `bucket_size: 0 B`), e uma leitura de uma chave inexistente respondeu `404`. Produção permaneceu inalterada.
+Antes da aplicação do CORS, o erro `10059` retornado ao listar a política confirmou que ela ainda não existia. Após autorizações explícitas, a política versionada e o acesso `r2.dev` foram habilitados somente no preview e conferidos remotamente. O bucket de preview permanece vazio (`object_count: 0`, `bucket_size: 0 B`), e uma leitura de uma chave inexistente respondeu `404`. Um preflight `OPTIONS` da origem de preview retornou `204` com os cabeçalhos CORS esperados; a mesma solicitação partindo de uma origem não autorizada retornou `403`. Produção permaneceu inalterada.
 
 Rollback imediato do acesso público de preview:
 
