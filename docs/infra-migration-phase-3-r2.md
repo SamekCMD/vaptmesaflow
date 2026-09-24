@@ -8,10 +8,10 @@ Uma consulta somente leitura ao Cloudflare R2 confirmou, nos dois ambientes:
 
 | Bucket | CORS | Domínio personalizado | URL `r2.dev` |
 | --- | --- | --- | --- |
-| `vapt-assets-preview` | não configurado | nenhum | desabilitada |
+| `vapt-assets-preview` | aplicado para `PUT` das origens de preview | nenhum | desabilitada |
 | `vapt-assets-production` | não configurado | nenhum | desabilitada |
 
-O erro `10059` retornado ao listar CORS significa que a configuração ainda não existe. Nenhuma alteração remota foi feita durante essa verificação.
+Antes da aplicação do CORS, o erro `10059` retornado ao listar a política confirmou que ela ainda não existia. Após autorização explícita, a política versionada foi aplicada somente ao preview e conferida remotamente. O bucket de preview permanece privado e vazio (`object_count: 0`, `bucket_size: 0 B`); a tentativa de habilitar `r2.dev` foi interrompida antes de qualquer alteração pública.
 
 ## Escopo confirmado
 
@@ -59,7 +59,7 @@ URLs públicas propostas, ainda não criadas:
 - preview: `https://assets-preview.vapt.app.br` → `vapt-assets-preview`;
 - produção: `https://assets.vapt.app.br` → `vapt-assets-production`.
 
-## CORS proposto, ainda não aplicado
+## Estado do CORS
 
 O bucket precisa aceitar o `PUT` assinado a partir das origens reais do frontend e expor `ETag`. A política final deve listar origens explícitas; não usar `*`.
 
@@ -73,7 +73,7 @@ npx wrangler r2 bucket cors set vapt-assets-production \
 
 As políticas versionadas usam o formato do Wrangler. A origem de preview isolada e
 `localhost` aparecem somente no bucket de preview; a política de produção contém apenas
-as duas origens públicas planejadas. Esses comandos ainda não foram executados.
+as duas origens públicas planejadas. Em 24/09/2026, somente a política de preview foi aplicada e validada; o comando de produção continua não executado.
 
 ## Inventário e cópia
 
@@ -114,7 +114,7 @@ O utilitário nunca apaga objetos de nenhum lado.
 
 1. Restaurar a disponibilidade pública do Supabase atual ou fornecer uma rota de acesso segura para a origem.
 2. Criar um token R2 limitado ao bucket de preview e validar o fluxo completo em preview.
-3. Aplicar CORS e conectar o domínio público de preview após confirmação explícita.
+3. Conectar a URL pública de preview após confirmação explícita; o CORS de preview já está aplicado.
 4. Executar dry-run de produção e arquivar o relatório fora do repositório.
 5. Corrigir toda divergência até o inventário ficar integralmente verificável.
 6. Criar o token de produção, conectar `assets.vapt.app.br` e aplicar CORS após confirmação explícita.
@@ -129,7 +129,8 @@ O utilitário nunca apaga objetos de nenhum lado.
 
 - a origem Supabase configurada não responde aos testes TCP/HTTPS feitos nesta execução;
 - não existem ainda credenciais S3 R2 configuradas na API;
-- os buckets continuam privados, sem domínio público e sem CORS, conforme baseline remoto confirmado em 24/09/2026;
+- o bucket de preview está vazio e privado, sem domínio público; seu CORS está aplicado;
+- o bucket de produção continua privado, sem domínio público e sem CORS;
 - portanto inventário real, cópia, alteração de URLs e cutover permanecem deliberadamente não executados.
 
 Nenhum desses gates depende da infraestrutura legada de frontend.
