@@ -14,6 +14,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+!.env.preview
 .dev.vars
 .dev.vars.*
 
