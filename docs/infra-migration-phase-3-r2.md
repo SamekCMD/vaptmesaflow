@@ -60,6 +60,8 @@ R2_UPLOAD_URL_TTL_SECONDS=300
 
 O token R2 deve ter apenas leitura e escrita de objetos no bucket do ambiente. Credenciais não entram no frontend, no Git nem nos relatórios de migração.
 
+Em 24/09/2026, o token de conta `vapt-api-preview-r2` foi criado com `Object Read & Write` restrito exclusivamente a `vapt-assets-preview`, TTL permanente e sem filtro de IP. Os valores da Access Key e da Secret Key não foram registrados neste repositório. A injeção protegida no runtime permanece pendente até o acesso ao painel Coolify atual.
+
 URLs canônicas propostas, ainda não criadas:
 
 - preview: `https://assets-preview.vapt.app.br` → `vapt-assets-preview`;
@@ -136,7 +138,8 @@ O utilitário nunca apaga objetos de nenhum lado.
 ## Gates atuais
 
 - a origem Supabase configurada não responde aos testes TCP/HTTPS feitos nesta execução;
-- não existem ainda credenciais S3 R2 configuradas na API;
+- o token S3 de preview existe, mas ainda não foi injetado no runtime Coolify da API;
+- o endereço do painel Coolify atual não está disponível no repositório nem no DNS da zona `vapt.app.br`;
 - o bucket de preview está vazio, com CORS aplicado e acesso público temporário por `r2.dev`, mas ainda sem domínio canônico;
 - o bucket de produção continua privado, sem domínio público e sem CORS;
 - portanto inventário real, cópia, alteração de URLs e cutover permanecem deliberadamente não executados.
