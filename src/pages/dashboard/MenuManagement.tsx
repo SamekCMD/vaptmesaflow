@@ -21,8 +21,8 @@ import { MenuTableSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-import { buildSupabaseStoragePublicUrl } from "@/lib/env";
 import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { deleteMenuImage, uploadMenuImage } from "@/lib/menu-image-storage";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import {
   completeGuideModule,
@@ -254,6 +254,7 @@ const MenuManagement = () => {
         is_chef_suggestion: isChefSuggestion,
         prep_time_minutes: prepTimeMinutes ? parseInt(prepTimeMinutes) : null,
       };
+      let imageToDeleteAfterSave: string | null = null;
 
       // If chef suggestion is on, unset others first
       if (isChefSuggestion) {
@@ -269,9 +270,8 @@ const MenuManagement = () => {
       if (editItem) {
         // Handle image removal
         if (removeImage && editItem.image_url) {
-          const path = `${restaurantId}/${editItem.id}`;
-          await supabase.storage.from("menu-images").remove([path]);
           updateData.image_url = null;
+          imageToDeleteAfterSave = editItem.id;
         }
 
         const { error } = await supabase
@@ -290,16 +290,19 @@ const MenuManagement = () => {
         itemId = data.id;
       }
 
+      if (imageToDeleteAfterSave) {
+        await deleteMenuImage({ restaurantId, itemId: imageToDeleteAfterSave });
+      }
+
       // Handle image upload
       if (imageFile) {
         const resized = await resizeImage(imageFile);
-        const path = `${restaurantId}/${itemId}`;
-        const { error: upErr } = await supabase.storage
-          .from("menu-images")
-          .upload(path, resized, { upsert: true, contentType: "image/jpeg" });
-        if (upErr) throw upErr;
-        const publicUrl = buildSupabaseStoragePublicUrl("menu-images", path);
-        await supabase.from("menu_items").update({ image_url: publicUrl }).eq("id", itemId);
+        const publicUrl = await uploadMenuImage({ restaurantId, itemId, image: resized });
+        const { error: imageUrlError } = await supabase
+          .from("menu_items")
+          .update({ image_url: publicUrl })
+          .eq("id", itemId);
+        if (imageUrlError) throw imageUrlError;
         updateData.image_url = publicUrl;
       }
 
@@ -390,7 +393,7 @@ const MenuManagement = () => {
   const handleDelete = async (item: MenuItem) => {
     try {
       if (item.image_url) {
-        await supabase.storage.from("menu-images").remove([`${restaurantId}/${item.id}`]);
+        await deleteMenuImage({ restaurantId, itemId: item.id });
       }
       const { error } = await supabase.from("menu_items").delete().eq("id", item.id);
       if (error) throw error;

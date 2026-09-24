@@ -10,6 +10,9 @@ const readPaymentEnvironment = (): "sandbox" | "production" =>
 
 const turnstileEnabled = readEnv("VITE_TURNSTILE_ENABLED") === "true";
 
+const readMenuImageStorageMode = (): "disabled" | "r2" =>
+  readEnv("VITE_MENU_IMAGE_STORAGE_MODE") === "r2" ? "r2" : "disabled";
+
 const readRequiredEnv = (key: string): string => {
   const value = readEnv(key);
   if (value) return value;
@@ -32,10 +35,8 @@ export const ENV = {
   paymentEnvironment: readPaymentEnvironment(),
   vapidPublicKey: readEnv("VITE_VAPID_PUBLIC_KEY"),
   turnstileEnabled,
+  menuImageStorageMode: readMenuImageStorageMode(),
   turnstileSiteKey: turnstileEnabled
     ? readRequiredEnv("VITE_TURNSTILE_SITE_KEY")
     : readEnv("VITE_TURNSTILE_SITE_KEY"),
 } as const;
-
-export const buildSupabaseStoragePublicUrl = (bucket: string, path: string): string =>
-  `${ENV.supabaseUrl}/storage/v1/object/public/${bucket}/${path}`;
