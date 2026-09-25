@@ -358,23 +358,26 @@ git commit -m "build: add Better Auth client"
 export type AuthEmailService = {
   sendVerification(input: {
     to: string;
-    userName: string;
-    actionUrl: string;
+    confirmationCode: string;
+    confirmationUrl: string;
   }): Promise<void>;
   sendPasswordReset(input: {
     to: string;
-    userName: string;
-    actionUrl: string;
+    resetPasswordUrl: string;
   }): Promise<void>;
 };
 
-export type AuthTemplateVariables = {
-  USER_NAME: string;
-  ACTION_URL: string;
+export type AccountConfirmationTemplateVariables = {
+  CONFIRMATION_CODE: string;
+  CONFIRMATION_URL: string;
+};
+
+export type PasswordResetTemplateVariables = {
+  RESET_PASSWORD_URL: string;
 };
 ```
 
-- [ ] **Step 1: Inventory the real templates before remote sending**
+- [x] **Step 1: Inventory the real templates before remote sending**
 
 In the Resend dashboard or authenticated API, inspect the two published templates configured by `RESEND_TEMPLATE_VERIFY_ACCOUNT` and `RESEND_TEMPLATE_RESET_PASSWORD`. Record in `docs/infra-migration-phase-6-resend.md`:
 
@@ -386,7 +389,7 @@ In the Resend dashboard or authenticated API, inspect the two published template
 
 Do not record the API key. If variable names differ, use the exact published names in the type and tests below; do not edit remote HTML merely to fit this plan.
 
-- [ ] **Step 2: Write failing unit tests**
+- [x] **Step 2: Write failing unit tests**
 
 Use a fake with the same `emails.send` surface as the Resend SDK. Assert verification and reset calls send exactly:
 
@@ -395,10 +398,10 @@ Use a fake with the same `emails.send` surface as the Resend SDK. Assert verific
   from: "Vapt <contato@vapt.example>",
   to: "gestor@vapt.test",
   template: {
-    id: "verify-account-template",
+    id: "account-confirmation",
     variables: {
-      USER_NAME: "Gestor Vapt",
-      ACTION_URL: "https://api.preview.example/api/auth/verify-email?token=redacted",
+      CONFIRMATION_CODE: "verification-token-redacted",
+      CONFIRMATION_URL: "https://api.preview.example/api/auth/verify-email?token=redacted",
     },
   },
 }
@@ -414,11 +417,11 @@ npx tsx --test src/email/email.service.test.ts
 
 Expected: FAIL because the service does not exist.
 
-- [ ] **Step 3: Implement the adapter**
+- [x] **Step 3: Implement the adapter**
 
-`createResendAuthEmailService(client, config)` maps the two domain methods to the correct template ID and variables. Log only template kind and Resend request ID; never log `to`, `ACTION_URL` or token.
+`createResendAuthEmailService(client, config)` maps the two domain methods to the correct template ID and variables. Log only template kind and Resend request ID; never log `to`, any URL variable or token.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 API:
 
@@ -479,7 +482,7 @@ Test through exported pure option builders, not a real database:
 - `emailVerification.sendOnSignIn === true`;
 - trusted origins equal config;
 - CAPTCHA provider is `cloudflare-turnstile` and its protected endpoints are exactly `/sign-up/email`, `/sign-in/email`, `/request-password-reset`;
-- verification and reset callbacks pass `{ to, userName, actionUrl }` to the fake email service through `BackgroundTaskRunner`.
+- the verification callback passes `{ to, confirmationCode: token, confirmationUrl: url }` and the reset callback passes `{ to, resetPasswordUrl: url }` to the fake email service through `BackgroundTaskRunner`.
 
 Run:
 

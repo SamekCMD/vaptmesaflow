@@ -211,13 +211,12 @@ Better Auth chamará uma interface interna, sem conhecer a API da Resend:
 type AuthEmailService = {
   sendVerification(input: {
     to: string;
-    userName: string;
-    actionUrl: string;
+    confirmationCode: string;
+    confirmationUrl: string;
   }): Promise<void>;
   sendPasswordReset(input: {
     to: string;
-    userName: string;
-    actionUrl: string;
+    resetPasswordUrl: string;
   }): Promise<void>;
 };
 ```
@@ -241,7 +240,7 @@ RESEND_TEMPLATE_RESET_PASSWORD
 EMAIL_FROM
 ```
 
-IDs e nomes reais das variáveis serão inventariados na conta Resend antes de habilitar envio remoto. Testes usarão um fake e nunca enviarão email real.
+O inventário da conta Resend confirmou os aliases publicados `account-confirmation` e `password-reset`. As variáveis reais são `CONFIRMATION_CODE`/`CONFIRMATION_URL` e `RESET_PASSWORD_URL`; `USER_NAME`/`ACTION_URL` não existem. Testes usarão um fake e nunca enviarão email real.
 
 Em Workers, o envio deve ser deferido com `waitUntil` ou abstração equivalente, conforme o callback. No Fastify atual, falhas serão registradas sem expor tokens ou indicar se um email existe. A política exata de retry será consolidada na Fase 6.
 
