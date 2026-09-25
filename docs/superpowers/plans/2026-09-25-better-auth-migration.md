@@ -470,7 +470,7 @@ export type AuthRuntime = {
 export type BackgroundTaskRunner = (task: Promise<unknown>) => void;
 ```
 
-- [ ] **Step 1: Write failing factory tests**
+- [x] **Step 1: Write failing factory tests**
 
 Test through exported pure option builders, not a real database:
 
@@ -492,7 +492,7 @@ npx tsx --test src/modules/auth/better-auth.test.ts
 
 Expected: FAIL because the runtime does not exist.
 
-- [ ] **Step 2: Implement the core**
+- [x] **Step 2: Implement the core**
 
 Use a Kysely PostgreSQL dialect so the schema is explicit:
 
@@ -514,7 +514,7 @@ Configure Better Auth with `baseURL`, `secret`, `trustedOrigins`, the official C
 
 `cli-auth.ts` exports the concrete Better Auth instance created by the same option builder, so generation cannot drift from runtime.
 
-- [ ] **Step 3: Generate the SQL with the pinned CLI**
+- [x] **Step 3: Generate the SQL with the pinned CLI**
 
 With the preview `DATABASE_URL` present only in the current process, run from the API worktree:
 
@@ -524,7 +524,7 @@ npx auth@1.7.6 generate --config src/modules/auth/cli-auth.ts --output ../../inf
 
 Expected: the file starts with `create schema if not exists "better_auth"` and creates schema-qualified `user`, `session`, `account`, and `verification` tables. Review the generated diff before any database application.
 
-- [ ] **Step 4: Harden and verify the migration**
+- [x] **Step 4: Harden and verify the migration**
 
 Append explicit hardening to the generated SQL:
 
@@ -543,7 +543,7 @@ Create `verify-better-auth.sql` that raises if:
 - PUBLIC has schema/table privileges;
 - any FK from `public.restaurants.owner_id` to `better_auth.user` was created.
 
-- [ ] **Step 5: Verify locally without applying remotely**
+- [x] **Step 5: Verify locally without applying remotely**
 
 ```powershell
 npx tsx --test src/modules/auth/better-auth.test.ts
@@ -552,7 +552,7 @@ npm run build
 
 Expected: PASS. Do not run the migration on production or preview yet.
 
-- [ ] **Step 6: Commit in each repository**
+- [x] **Step 6: Commit in each repository**
 
 API:
 
