@@ -1,6 +1,6 @@
 # Fase 4 — Supabase PostgreSQL para Neon
 
-Status em 24/09/2026: preparação local concluída; foi criado, ainda vazio, o projeto Neon `vapt-preview` na região AWS South America East 1 (São Paulo), ID `dawn-morning-27332079`. Nenhum schema ou dado foi aplicado, nenhuma connection string foi guardada e a aplicação não foi conectada ao Neon.
+Status em 25/09/2026: topologia Neon criada e primeiro baseline normalizado aplicado exclusivamente em `preview.vapt`. O projeto se chama `vapt`, permanece na região AWS South America East 1 (São Paulo), ID `dawn-morning-27332079`. A branch `production` não recebeu SQL da aplicação; nenhuma connection string foi guardada e a aplicação ainda não foi conectada ao Neon.
 
 ## Correção de arquitetura após revisão
 
@@ -23,6 +23,79 @@ Projeto Neon: vapt
 - não copiar dados pessoais de produção para previews sem uma estratégia explícita de anonimização ou um conjunto de dados de ensaio.
 
 Ruling: `Neon production` e `Neon preview/staging` no plano representam ambientes isolados. No Neon, branches dentro de um único projeto fornecem esse isolamento, mantêm schema/dados clonáveis e evitam duplicar a administração do projeto. Projetos separados ficam reservados para uma futura necessidade comprovada de isolamento de conta, região, quota ou compliance.
+
+## Estado remoto verificado
+
+```text
+Projeto vapt (dawn-morning-27332079)
+├── production (br-odd-term-b6j2n9ms, default)
+│   ├── neondb       # database padrão preservado
+│   └── vapt         # database de negócio vazio
+└── preview (br-rough-dew-b6ydeygb, filha de production, sem expiração)
+    ├── neondb       # herdado da raiz
+    └── vapt         # herdado da raiz; alvo exclusivo do primeiro ensaio
+```
+
+- criação da branch confirmada pela console em 0,79 segundo;
+- `preview` usa `production` como parent;
+- `production` permanece a branch default;
+- Better Auth/Neon Auth não foi ativado;
+- a connection string mostrada pela console não foi revelada nem copiada;
+- o database padrão `neondb` foi mantido para evitar uma exclusão desnecessária; o Vapt usará explicitamente o database `vapt`.
+
+Antes do primeiro ensaio, uma consulta somente leitura executada no SQL Editor da branch `preview`, database `vapt`, confirmou:
+
+```text
+current_database()      = vapt
+current_user            = neondb_owner
+server_version          = 18.6
+public.restaurants      = ausente
+```
+
+Isso confirmou conectividade e o estado vazio inicial. O baseline descrito abaixo foi aplicado depois dessa leitura, somente em `preview`.
+
+## Primeiro baseline de preview aplicado
+
+Em 25/09/2026 foram aplicados, nesta ordem, no database `vapt` da branch `preview`:
+
+```text
+infra/neon/001_business_schema.sql
+infra/neon/002_business_routines.sql
+```
+
+O resultado atual do ensaio é:
+
+```text
+15 tabelas de negócio
+12 funções
+8 triggers
+pgcrypto habilitado
+RLS/policies Supabase ausentes
+schemas auth/storage e publicação supabase_realtime ausentes
+EXECUTE revogado de PUBLIC nas rotinas protegidas
+```
+
+As duas migrations são transacionais. A primeira cria o schema de negócio vazio; a segunda instala as rotinas e triggers normalizados. Os grants para uma role dedicada da API ficaram deliberadamente adiados até a criação da conexão Worker/Hyperdrive. A aplicação continua sem acesso a este banco.
+
+Arquivos de validação executados no mesmo alvo:
+
+```text
+infra/neon/verify-baseline.sql
+infra/neon/verify-routines.sql
+infra/neon/verify-integrity.sql
+infra/neon/smoke-preview.sql
+```
+
+Evidências do ensaio:
+
+- `verify-baseline.sql` falhou antes da migration listando as 15 tabelas ausentes e passou depois da aplicação;
+- `verify-routines.sql` falhou antes da migration listando as 12 rotinas ausentes e passou depois da aplicação;
+- `verify-integrity.sql` passou validando database, colunas críticas, constraints, indexes, ausência de objetos Supabase, ACLs e configuração segura das rotinas;
+- `smoke-preview.sql` passou dentro de `BEGIN`/`ROLLBACK`, exercitando pedido público, replay idempotente, pagamento, outbox e leases;
+- uma leitura posterior confirmou zero restaurantes, pagamentos ou efeitos residuais do smoke;
+- nenhum comando desse ensaio foi executado na branch `production`.
+
+Este baseline é provisório. Ele foi reconstruído a partir das migrations locais e dos consumidores atuais do frontend/API porque a origem Supabase permanece indisponível. Antes de qualquer carga real ou promoção, será obrigatório compará-lo com um dump do estado efetivo da origem. Em particular, a normalização de `order_feedback.order_id` como UUID com FK única substitui versões históricas conflitantes e precisa ser confirmada contra os dados reais.
 
 ## Ruling operacional
 
@@ -103,20 +176,19 @@ Os binários `psql`, `pg_dump` e Docker não estão disponíveis neste host. At�
 
 ## Sequência segura de preview
 
-1. Renomear o projeto vazio `vapt-preview` para `vapt` e confirmar que a branch raiz se chama `production`.
-2. Preparar o database de negócio `vapt` na raiz e criar a branch filha `preview` antes de qualquer carga.
+1. ~~Renomear o projeto vazio `vapt-preview` para `vapt` e confirmar que a branch raiz se chama `production`.~~ Concluído.
+2. ~~Preparar o database de negócio `vapt` na raiz e criar a branch filha `preview` antes de qualquer carga.~~ Concluído.
 3. Guardar cada connection string como segredo local/de CI, nunca no Git ou no frontend.
 4. Restaurar o acesso somente leitura à origem Supabase e capturar schema, extensões, roles e contagens reais.
-5. Gerar um schema Neon normalizado a partir do estado real, não por concatenação cega das migrations.
-6. Aplicar o schema somente na branch `preview` e registrar cada incompatibilidade.
-7. Importar uma cópia de dados de ensaio preservando UUIDs e sem expor dados pessoais desnecessários.
-8. Validar tabelas, constraints, indexes, funções e amostras de relações multi-tenant.
+5. Gerar um schema Neon normalizado a partir do estado real, não por concatenação cega das migrations. Um baseline provisório local já existe; a reconciliação com o estado real segue bloqueada pela origem.
+6. ~~Aplicar o schema somente na branch `preview` e registrar cada incompatibilidade.~~ Primeiro ensaio provisório concluído.
+7. Importar uma cópia de dados de ensaio preservando UUIDs e sem expor dados pessoais desnecessários. Até agora foram usados somente dados sintéticos com rollback.
+8. Validar tabelas, constraints, indexes, funções e amostras de relações multi-tenant. A estrutura e o smoke sintético passaram; a validação com dados reais permanece pendente.
 9. Adaptar a API para PostgreSQL/Hyperdrive e mover os acessos diretos do frontend antes de qualquer cutover.
 10. Repetir o ensaio com dados atualizados até obter paridade documentada; só então preparar `production`.
 
 ## Gates atuais
 
-- autenticação humana será necessária novamente para renomear o projeto e criar a branch `preview`;
 - origem Supabase atual indisponível nos testes de rede;
 - ausência local de `psql`, `pg_dump` e Docker;
 - frontend e API ainda dependem diretamente das APIs Supabase;
