@@ -1,10 +1,10 @@
 # Fase 5 — Migração de Supabase Auth para Better Auth
 
-Status: desenho revisado em 25/09/2026 após confirmação de que não existem contas ou dados reais em produção; implementação ainda não iniciada.
+Status: desenho revisado em 25/09/2026 após confirmação de que não existem contas ou dados reais em produção; implementação ainda não iniciada. A promoção para a branch Neon `production` faz parte desta fase depois do ensaio verde em `preview`.
 
 ## Objetivo
 
-Substituir a autenticação Supabase por Better Auth executado dentro da API. Como as contas atuais são apenas testes descartáveis, o ambiente Better Auth começará vazio, sem migração de usuários, senhas, sessões ou UUIDs legados.
+Substituir a autenticação Supabase por Better Auth executado dentro da API. Como as contas atuais são apenas testes descartáveis, Better Auth começará vazio em `preview` e depois em `production`, sem migração de usuários, senhas, sessões ou UUIDs legados.
 
 O resultado final deve permitir que frontend e API usem sessões Better Auth persistidas no Neon, com novos IDs UUID compatíveis com `restaurants.owner_id`, Cloudflare Turnstile nos fluxos sensíveis e emails de verificação/recuperação enviados pela Resend por meio dos templates customizados já existentes.
 
@@ -32,7 +32,7 @@ O resultado final deve permitir que frontend e API usem sessões Better Auth per
 - o baseline de negócio está aplicado somente em `preview.vapt` no Neon;
 - `restaurants.owner_id` é UUID e não possui FK para uma tabela de identidade;
 - schemas/tabelas Supabase Auth não foram copiados para o Neon;
-- produção não recebeu o baseline nem objetos Better Auth.
+- produção não recebeu o baseline nem objetos Better Auth; como o produto ainda não tem clientes ou dados reais, o baseline validado em preview será promovido nesta fase antes do schema Better Auth.
 
 ## Princípios
 
@@ -43,7 +43,7 @@ O resultado final deve permitir que frontend e API usem sessões Better Auth per
 5. Não usar Neon Managed Auth.
 6. Não recriar HTML de email no código.
 7. Não expor tokens de sessão ao JavaScript do navegador.
-8. Não promover o schema ou usuários Better Auth para produção antes de um ensaio completo em preview.
+8. Promover para produção somente a mesma migration que passou no ensaio completo em preview; não copiar usuários de teste entre branches.
 
 ## Abordagens avaliadas
 
@@ -374,14 +374,15 @@ No Worker, `DATABASE_URL` será substituída em runtime pela connection string d
 
 1. Adicionar dependências Better Auth/PostgreSQL com versões fixadas.
 2. Gerar e revisar a migration do schema `better_auth`.
-3. Aplicar o schema somente no Neon `preview`.
+3. Aplicar o schema primeiro no Neon `preview`.
 4. Montar o handler Better Auth e o resolver de sessão no Fastify.
 5. Integrar Turnstile e o fake de email.
 6. Migrar o `AuthContext` e os clientes do frontend na branch pareada.
 7. Conectar os templates Resend reais em preview.
 8. Criar novas contas e dados sintéticos pelo fluxo normal da aplicação.
 9. Validar preview integrado e rollback por deploy.
-10. Planejar separadamente qualquer promoção futura.
+10. Aplicar o baseline de negócio validado e a mesma migration Better Auth na branch `production` vazia.
+11. Repetir os verificadores em produção sem copiar contas ou dados de preview.
 
 ## Rollback
 
@@ -391,10 +392,11 @@ Durante preview:
 - manter o schema `better_auth` isolado e sem tráfego;
 - manter as contas Better Auth de teste durante a investigação ou recriar o branch Neon.
 
-Durante o futuro cutover:
+Durante a promoção para produção neste produto ainda sem clientes:
 
 - a versão legada permanece disponível até a aceitação final;
-- qualquer falha de signup, login, ownership ou recuperação interrompe a promoção;
+- qualquer falha de schema, signup, login, ownership ou recuperação interrompe a ativação do frontend;
+- a branch `production` recebe apenas migrations versionadas, nunca usuários ou fixtures de preview;
 - nenhuma remoção do Supabase self-hosted ocorre nesta fase.
 
 ## Não objetivos
@@ -407,14 +409,14 @@ Durante o futuro cutover:
 - migrar usuários, UUIDs, senhas, hashes ou sessões Supabase de teste;
 - remover `@supabase/supabase-js` do frontend ou API antes das demais fases;
 - alterar templates visuais da Resend;
-- executar cutover de produção.
+- copiar contas ou dados sintéticos de preview para produção.
 
 ## Critérios de aceite do desenho
 
 - contas legadas descartáveis não são migradas;
 - novos IDs Better Auth são UUIDs compatíveis com `restaurants.owner_id`;
 - frontend nunca manipula o token Better Auth;
-- Better Auth usa Neon preview e schema isolado;
+- Better Auth usa schema isolado no Neon, ensaiado em preview e promovido para production;
 - Turnstile continua protegendo os três endpoints sensíveis;
 - Resend usa templates existentes;
 - autorização multi-tenant continua baseada no banco;

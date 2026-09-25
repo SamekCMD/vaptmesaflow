@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Substituir Supabase Auth por Better Auth no preview do Vapt, começando com um banco de identidade vazio no Neon, novos IDs UUID, cookies HTTP-only, Turnstile e os templates Resend existentes — sem migrar contas, senhas, sessões ou UUIDs de teste.
+**Goal:** Substituir Supabase Auth por Better Auth no Vapt, ensaiando em `preview` e promovendo a mesma migration para `production`, com bancos de identidade vazios no Neon, novos IDs UUID, cookies HTTP-only, Turnstile e os templates Resend existentes — sem migrar contas, senhas, sessões ou UUIDs de teste.
 
 **Architecture:** Better Auth será uma biblioteca interna da API, com núcleo independente de framework, PostgreSQL no schema `better_auth`, adaptador Fastify temporário e uma interface de email que encapsula Resend. A API normaliza a sessão em `{ userId, email, role }`; o frontend usa o cliente React do Better Auth e cookies com `credentials: "include"`. A ativação do frontend tem um gate explícito: nenhuma tela autenticada pode continuar dependendo de JWT/RLS do Supabase quando o `AuthContext` for trocado.
 
@@ -15,7 +15,7 @@
 - Não copiar ou preservar usuários, UUIDs, hashes, senhas, identities ou sessões do Supabase Auth.
 - Não consultar `auth.users`, não adicionar bcrypt e não manter validadores Supabase/Better Auth em paralelo na API nova.
 - Não usar Neon Managed Auth.
-- Não aplicar schema ou dados Better Auth em `production`; o único alvo desta fase é `preview.vapt` no projeto Neon `dawn-morning-27332079`.
+- Não aplicar SQL não ensaiado em `production`. Primeiro validar a migration em `preview.vapt`; depois aplicar o mesmo baseline e a mesma migration versionada em `production.vapt`, sem copiar usuários ou fixtures entre branches.
 - Não versionar `DATABASE_URL`, `BETTER_AUTH_SECRET`, `TURNSTILE_SECRET_KEY`, `RESEND_API_KEY` ou qualquer cookie/token.
 - Não recriar HTML/assunto dos emails; enviar somente template ID/alias e variáveis.
 - Não fazer trabalho de Vercel, Coolify, Easypanel, Hetzner ou DNS nesta fase.
@@ -922,7 +922,7 @@ Expected: PASS.
 
 ---
 
-### Task 9: Apply only to Neon preview and run the integrated acceptance suite
+### Task 9: Validate in Neon preview, then promote the same migrations to production
 
 **Files:**
 
@@ -931,7 +931,7 @@ Expected: PASS.
 - Read: `infra/neon/003_better_auth_schema.sql`
 - Read: `infra/neon/verify-better-auth.sql`
 
-**Interfaces:** No new code interface. This task changes only preview external state and records non-secret evidence.
+**Interfaces:** No new code interface. This task changes Neon preview first and production only after every preview gate passes; it records non-secret evidence for both.
 
 - [ ] **Step 1: Re-run all local verification before external writes**
 
@@ -953,15 +953,17 @@ Expected: all tests/builds PASS. Stop on any failure.
 
 - [ ] **Step 2: Confirm the target by immutable IDs**
 
-Before applying SQL, verify in Neon:
+Before applying SQL, verify both targets in Neon:
 
 ```text
 Project: dawn-morning-27332079
 Branch: preview / br-rough-dew-b6ydeygb
 Database: vapt
+Branch: production / br-odd-term-b6j2n9ms
+Database: vapt
 ```
 
-Explicitly confirm the branch is not `production / br-odd-term-b6j2n9ms`.
+Keep the preview and production SQL editor tabs visibly identified. Every initial application and integration test below targets preview; production is touched only in Step 6.
 
 - [ ] **Step 3: Demonstrate RED then apply once**
 
@@ -969,7 +971,7 @@ Run `infra/neon/verify-better-auth.sql` against `preview.vapt` first. Expected: 
 
 Apply `infra/neon/003_better_auth_schema.sql` once to `preview.vapt`. Then re-run the verifier. Expected: PASS.
 
-Do not apply either file to production.
+Do not apply either file to production before Steps 4 and 5 are green.
 
 - [ ] **Step 4: Run a live local preview flow**
 
@@ -996,21 +998,43 @@ If Fase 4 data access is not GREEN, do not fake this acceptance and do not mint 
 
 In a transaction, verify the newly created identity uses UUID and can own a synthetic restaurant. Roll back any diagnostic-only insert. Confirm zero reads from Supabase `auth.*` and no imported legacy accounts.
 
-- [ ] **Step 6: Record the outcome without secrets**
+- [ ] **Step 6: Promote the validated baseline and auth schema to production**
+
+Because `production.vapt` is empty and has no customers, apply the already validated files in this exact order:
+
+```text
+infra/neon/001_business_schema.sql
+infra/neon/002_business_routines.sql
+infra/neon/003_better_auth_schema.sql
+```
+
+Then run:
+
+```text
+infra/neon/verify-baseline.sql
+infra/neon/verify-routines.sql
+infra/neon/verify-integrity.sql
+infra/neon/verify-better-auth.sql
+```
+
+Expected: all verifiers PASS on `production.vapt`. Do not copy preview users, restaurants or fixtures; production starts empty and receives accounts only through its own public signup flow.
+
+- [ ] **Step 7: Record the outcome without secrets**
 
 `docs/infra-migration-phase-5-better-auth.md` must include:
 
 - commit SHAs from both repositories;
 - package versions;
-- Neon project/branch/database IDs;
+- Neon project plus preview/production branch/database IDs;
 - schema verifier result;
 - template aliases/IDs but no API key;
 - local acceptance result for each flow;
 - explicit statement that legacy users/UUIDs/sessions were not migrated;
+- explicit statement that production received only the validated migrations and no copied preview identities/data;
 - explicit statement that Vercel/Coolify/Easypanel/Hetzner/DNS were not touched;
 - rollback: redeploy previous frontend/API commit and leave `better_auth` idle.
 
-- [ ] **Step 7: Final regression and commit**
+- [ ] **Step 8: Final regression and commit**
 
 ```powershell
 git add docs/infra-migration-phase-4-neon.md docs/infra-migration-phase-5-better-auth.md
@@ -1026,7 +1050,7 @@ Expected: both worktrees clean except the pre-existing untracked `docs/implement
 - [ ] No legacy account, UUID, password, hash or session was read or copied.
 - [ ] `SUPABASE_JWT_SECRET`, `verifySupabaseToken` and bearer auth are absent from the new auth path.
 - [ ] Public order tokens use `PUBLIC_ORDER_TOKEN_SECRET`.
-- [ ] Better Auth tables exist only in `preview.vapt` under `better_auth`.
+- [ ] Better Auth tables exist under `better_auth` in both `preview.vapt` and `production.vapt`; both start without migrated legacy users.
 - [ ] New identity IDs are PostgreSQL UUIDs compatible with `restaurants.owner_id`.
 - [ ] Cookies are HTTP-only/secure in non-local environments and never exposed to frontend JavaScript.
 - [ ] CORS and trusted origins are exact allowlists with credential support.
@@ -1034,5 +1058,5 @@ Expected: both worktrees clean except the pre-existing untracked `docs/implement
 - [ ] Resend uses existing published templates and no HTML/subject is duplicated in code.
 - [ ] `/auth/me` and restaurant access preserve their existing response/error contracts.
 - [ ] Authenticated business operations no longer depend on Supabase JWT/RLS before frontend activation.
-- [ ] No production Neon branch, DNS, Vercel, Coolify, Easypanel or Hetzner configuration was changed.
+- [ ] Production Neon received only migrations that passed preview; DNS, Vercel, Coolify, Easypanel and Hetzner were not changed.
 - [ ] API/frontend tests and builds pass from clean checkouts.
