@@ -44,7 +44,7 @@
 - Produces: DTOs compartilhados por nome e forma, duplicados deliberadamente entre repositórios sem pacote cross-repo.
 - Consumes: colunas reais de `infra/neon/001_business_schema.sql`.
 
-- [ ] **Step 1: Registrar a matriz exata de endpoints**
+- [x] **Step 1: Registrar a matriz exata de endpoints**
 
 Adicionar ao relatório:
 
@@ -70,7 +70,7 @@ Adicionar ao relatório:
 | PUT /public/orders/:orderId/feedback | order token | grava avaliação idempotente |
 ```
 
-- [ ] **Step 2: Definir DTOs concretos nos dois repositórios**
+- [x] **Step 2: Definir DTOs concretos nos dois repositórios**
 
 Usar camelCase na rede. O núcleo mínimo é:
 
@@ -102,7 +102,7 @@ export type MenuItemDto = {
 };
 ```
 
-- [ ] **Step 3: Provar cobertura do inventário**
+- [x] **Step 3: Provar cobertura do inventário**
 
 Run:
 
@@ -112,7 +112,7 @@ rg -l '@/lib/supabase|integrations/supabase/client' src/pages/dashboard src/page
 
 Expected: salvar a lista inicial no relatório; ela é a baseline que Task 10 deve reduzir às ocorrências públicas explicitamente documentadas e `AuthContext` até a Task 6 do plano Better Auth.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```powershell
 git add docs/infra-migration-phase-5-readiness.md src/lib/business-api.types.ts
