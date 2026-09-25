@@ -256,7 +256,7 @@ type BetterAuthConfig = {
 
 Add `betterAuth: BetterAuthConfig` to `AppConfig`. `BETTER_AUTH_URL` is the API origin; the default Better Auth base path remains `/api/auth`.
 
-- [ ] **Step 1: Write failing parser tests**
+- [x] **Step 1: Write failing parser tests**
 
 Table-drive the required variables in `src/lib/config.test.ts`:
 
@@ -284,7 +284,7 @@ npx tsx --test src/lib/config.test.ts
 
 Expected: FAIL because the new config is not parsed.
 
-- [ ] **Step 2: Install exact versions**
+- [x] **Step 2: Install exact versions**
 
 API:
 
@@ -301,13 +301,13 @@ npm install --save-exact better-auth@1.7.6
 
 Expected: lockfiles pin exact versions. Do not use `latest` in `package.json`.
 
-- [ ] **Step 3: Implement parser and fixtures**
+- [x] **Step 3: Implement parser and fixtures**
 
 Parse the nine variables into `config.betterAuth`; preserve `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` because business repositories still use them until the data cutover. Add the variables to `.env.example` with non-secret dummy values.
 
 `BETTER_AUTH_SECRET` must be at least 32 characters; `BETTER_AUTH_TRUSTED_ORIGINS` uses the same comma-separated input convention as `CORS_ORIGINS`, but every entry is reduced to `new URL(value).origin` and duplicate origins are rejected.
 
-- [ ] **Step 4: Verify both projects**
+- [x] **Step 4: Verify both projects**
 
 API:
 
@@ -324,7 +324,7 @@ npm run build
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit separately**
+- [x] **Step 5: Commit separately**
 
 API:
 
