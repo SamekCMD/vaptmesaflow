@@ -89,7 +89,7 @@ Task 0 verde ─────────────────┴→ Task 6 �
 
 **Interfaces:** Nenhuma interface de runtime muda nesta tarefa. O artefato deve separar imports públicos aceitáveis (cardápio/delivery) de operações autenticadas que exigem ownership.
 
-- [ ] **Step 1: Provar o estado atual**
+- [x] **Step 1: Provar o estado atual**
 
 Run from the frontend root:
 
@@ -99,7 +99,7 @@ rg -l '@/lib/supabase|integrations/supabase/client' src/pages/dashboard src/page
 
 Expected now: a non-empty list including at least onboarding, settings, menu management and kitchen. This is the reason the frontend auth cutover is not yet safe.
 
-- [ ] **Step 2: Classificar cada ocorrência**
+- [x] **Step 2: Classificar cada ocorrência**
 
 Write `docs/infra-migration-phase-5-readiness.md` with this exact table shape:
 
@@ -110,7 +110,7 @@ Write `docs/infra-migration-phase-5-readiness.md` with this exact table shape:
 
 For every file returned in Step 1, record whether the operation is public read, public order flow, or authenticated owner operation. Authenticated owner operations must target an API route backed by Neon before Task 6 is activated.
 
-- [ ] **Step 3: Define the binary gate**
+- [x] **Step 3: Define the binary gate**
 
 Add this exact acceptance rule to the report:
 
@@ -121,7 +121,7 @@ Public anonymous reads may remain temporarily only when explicitly listed and sc
 
 Re-run the inventory after the Fase 4 data-access work. Expected before Task 6: no protected surface requires Supabase auth. If still RED, stop after Task 5 and execute a separate Fase 4 data-access plan; do not add a Supabase JWT bridge.
 
-- [ ] **Step 4: Commit the evidence**
+- [x] **Step 4: Commit the evidence**
 
 ```powershell
 git add docs/infra-migration-phase-5-readiness.md
