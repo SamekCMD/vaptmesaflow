@@ -1,12 +1,12 @@
 # Fase 5 — Migração de Supabase Auth para Better Auth
 
-Status: desenho aprovado em 25/09/2026; implementação ainda não iniciada.
+Status: desenho revisado em 25/09/2026 após confirmação de que não existem contas ou dados reais em produção; implementação ainda não iniciada.
 
 ## Objetivo
 
-Migrar a autenticação do Vapt de Supabase Auth para Better Auth executado dentro da API, preservando usuários, senhas e UUIDs existentes, sem alterar a relação `restaurants.owner_id` e sem fazer cutover em big bang.
+Substituir a autenticação Supabase por Better Auth executado dentro da API. Como as contas atuais são apenas testes descartáveis, o ambiente Better Auth começará vazio, sem migração de usuários, senhas, sessões ou UUIDs legados.
 
-O resultado final deve permitir que frontend e API usem sessões Better Auth persistidas no Neon, com Cloudflare Turnstile nos fluxos sensíveis e emails de verificação/recuperação enviados pela Resend por meio dos templates customizados já existentes.
+O resultado final deve permitir que frontend e API usem sessões Better Auth persistidas no Neon, com novos IDs UUID compatíveis com `restaurants.owner_id`, Cloudflare Turnstile nos fluxos sensíveis e emails de verificação/recuperação enviados pela Resend por meio dos templates customizados já existentes.
 
 ## Estado atual
 
@@ -36,38 +36,32 @@ O resultado final deve permitir que frontend e API usem sessões Better Auth per
 
 ## Princípios
 
-1. Preservar os UUIDs dos usuários atuais.
-2. Preservar as senhas atuais sempre que os hashes puderem ser migrados com segurança.
-3. Não migrar sessões Supabase; um novo login será necessário no cutover.
-4. Manter rollback para Supabase Auth durante toda a validação de preview.
-5. Não criar um servidor ou microserviço separado de autenticação.
-6. Não usar Neon Managed Auth.
-7. Não recriar HTML de email no código.
-8. Não expor tokens de sessão ao JavaScript do navegador.
-9. Não promover o schema ou usuários Better Auth para produção antes de um ensaio completo em preview.
+1. Não migrar contas, senhas, sessões ou UUIDs Supabase descartáveis.
+2. Gerar novos IDs UUID para manter compatibilidade de tipo com `restaurants.owner_id`.
+3. Usar branches/deploys como mecanismo de rollback, sem manter dois validadores de autenticação na mesma versão.
+4. Não criar um servidor ou microserviço separado de autenticação.
+5. Não usar Neon Managed Auth.
+6. Não recriar HTML de email no código.
+7. Não expor tokens de sessão ao JavaScript do navegador.
+8. Não promover o schema ou usuários Better Auth para produção antes de um ensaio completo em preview.
 
 ## Abordagens avaliadas
 
-### Escolhida: transição dual dentro da API
+### Escolhida: substituição isolada em preview
 
-A API passa a aceitar sessões Better Auth e, temporariamente, JWTs Supabase. O frontend de preview troca para Better Auth, enquanto o sistema antigo continua disponível para rollback.
+Frontend e API da branch pareada de preview passam diretamente para Better Auth. O deploy legado continua disponível em sua versão anterior para rollback, mas o código novo não aceita JWT Supabase.
 
 Vantagens:
 
-- mudança reversível;
+- mudança reversível por branch/deploy;
 - permite previews pareados de frontend e API;
 - preserva rotas e contratos de autorização;
 - testa Better Auth no Fastify atual antes do porte para Workers;
-- reduz o risco do cutover de identidades.
+- elimina código e testes de compatibilidade sem usuários reais para proteger.
 
-Custo temporário:
+### Rejeitada: modo dual Supabase + Better Auth
 
-- dois validadores de sessão durante a janela de migração;
-- configuração adicional para impedir que o fallback legado permaneça ativo por acidente.
-
-### Rejeitada: substituição imediata
-
-Trocar frontend, middleware, usuários e sessões numa única implantação reduziria código temporário, mas eliminaria o rollback granular e contrariaria o plano conservador.
+Aceitar cookies Better Auth e JWTs Supabase na mesma versão só seria útil para preservar sessões ou usuários ativos. Como existem apenas contas de teste, esse modo adicionaria fallback, configuração, telemetria e testes sem benefício operacional.
 
 ### Rejeitada: serviço de autenticação separado
 
@@ -83,8 +77,7 @@ Frontend Vite preview
 API Vapt preview
         │
         ├── /api/auth/* → Better Auth handler
-        ├── middleware de sessão Better Auth
-        └── fallback JWT Supabase, apenas em modo dual
+        └── middleware de sessão Better Auth
                   │
                   ▼
           AuthContext normalizado
@@ -132,17 +125,7 @@ type AuthContext = {
 type SessionResolver = (request: RequestLike) => Promise<AuthContext | null>;
 ```
 
-Modos permitidos:
-
-```text
-supabase    valida somente JWT legado
-dual        tenta Better Auth e depois JWT legado
-better-auth valida somente Better Auth
-```
-
-O modo deve ser explícito por ambiente. Produção permanece em `supabase` até o cutover aprovado. Preview começa em `dual` e passa a `better-auth` quando os testes de rollback estiverem concluídos.
-
-O fallback só ocorre quando não existe sessão Better Auth válida. Uma sessão Better Auth apresentada e rejeitada não deve ser silenciosamente substituída por outra identidade Supabase no mesmo request.
+O resolver consulta apenas Better Auth. A abstração existe para manter as rotas desacopladas do framework e facilitar testes, não para suportar múltiplos provedores.
 
 ### `auth/routes.ts`
 
@@ -190,7 +173,7 @@ Motivos:
 
 O schema deve ser gerado pela CLI da versão Better Auth fixada no `package-lock.json`, revisado e versionado como SQL antes de ser aplicado em preview. Migrations programáticas em startup não serão usadas em produção.
 
-IDs de usuários migrados serão gravados com o mesmo valor textual UUID usado no Supabase. Não será criada FK entre `public.restaurants.owner_id` e `better_auth.user.id` nesta fase; a autorização continua sendo aplicada pela API. Isso evita acoplamento entre os ciclos de vida dos schemas e preserva rollback.
+Better Auth será configurado para gerar novos IDs UUID. A migration gerada deve ser inspecionada para confirmar que esses IDs podem ser usados diretamente em `public.restaurants.owner_id`. Não será criada FK entre `public.restaurants.owner_id` e `better_auth.user.id` nesta fase; a autorização continua sendo aplicada pela API e os schemas mantêm ciclos de vida independentes.
 
 A role de runtime terá apenas os privilégios necessários em `better_auth` e nas operações de negócio da API. A role de migration será separada quando Hyperdrive/roles forem configurados.
 
@@ -288,30 +271,23 @@ requestPasswordReset
 
 Respostas públicas não revelarão se o endereço já existe.
 
-## Migração de usuários
+## Bootstrap de usuários e dados de teste
 
-A migração real só será executada depois que o acesso somente leitura ao Supabase de origem for restaurado.
+Não será criado script de migração do Supabase Auth. Usuários, senhas, hashes, identities e sessões atuais são descartáveis e não serão lidos nem copiados.
 
-O processo será um script separado, repetível e auditável:
+O bootstrap de preview será:
 
-1. ler `auth.users` e identidades necessárias da origem;
-2. validar email, UUID, metadata e hash antes de escrever;
-3. preservar `user.id` exatamente;
-4. mapear `raw_user_meta_data.full_name` para `better_auth.user.name`;
-5. mapear confirmação de email para `emailVerified`;
-6. criar a conta credential com o hash bcrypt existente;
-7. usar batches e cursor estável;
-8. suportar dry-run e relatório sem dados sensíveis;
-9. ser idempotente por ID/email;
-10. abortar em conflito, sem sobrescrever silenciosamente.
+1. aplicar o schema Better Auth vazio;
+2. cadastrar novas contas de teste pelo fluxo público;
+3. verificar os emails de teste pelo template Resend;
+4. recriar ou reseedar restaurantes de teste ligados aos novos IDs;
+5. eliminar fixtures manuais quando o fluxo de onboarding puder criar os dados necessários.
 
-Better Auth será configurado para verificar os hashes bcrypt migrados. Novas senhas permanecerão compatíveis durante a transição; uma mudança futura de algoritmo terá plano próprio de rehash gradual.
-
-Sessões Supabase não serão copiadas. No cutover, todos os usuários precisarão autenticar novamente uma vez.
+Essa decisão também remove bcrypt e qualquer acesso ao schema `auth.users` da origem do escopo desta fase. O bloqueio de acesso ao Supabase de origem continua relevante para a migração futura dos dados de negócio, mas não bloqueia Better Auth.
 
 ## Compatibilidade de IDs e autorização
 
-O `userId` retornado por Better Auth deve ser o mesmo UUID textual já usado por:
+O novo `userId` retornado por Better Auth deve ser um UUID válido para uso em:
 
 - `restaurants.owner_id`;
 - onboarding;
@@ -320,7 +296,7 @@ O `userId` retornado por Better Auth deve ser o mesmo UUID textual já usado por
 - billing e pagamentos;
 - upload de imagens.
 
-Antes do cutover, um teste de paridade deve executar as mesmas checagens de ownership com uma sessão Supabase e com a sessão Better Auth do mesmo usuário e obter o mesmo restaurante.
+Um teste de integração deve cadastrar um usuário Better Auth novo, criar um restaurante com esse ID e confirmar que todas as checagens de ownership retornam o mesmo restaurante.
 
 Nenhuma role, restaurante ou organização será inferida a partir de dados controlados pelo cliente. A API continuará consultando a relação de ownership no banco.
 
@@ -329,7 +305,6 @@ Nenhuma role, restaurante ou organização será inferida a partir de dados cont
 Novas variáveis previstas na API:
 
 ```text
-AUTH_PROVIDER=supabase|dual|better-auth
 BETTER_AUTH_SECRET
 BETTER_AUTH_URL
 BETTER_AUTH_TRUSTED_ORIGINS
@@ -349,22 +324,19 @@ No Worker, `DATABASE_URL` será substituída em runtime pela connection string d
 - falta de acesso ao restaurante retorna 403, como hoje;
 - falhas internas do Better Auth recebem correlation ID e log estruturado;
 - email e tokens nunca aparecem em logs completos;
-- métricas distinguem provedor de sessão (`supabase` ou `better-auth`) sem registrar o token;
-- modo `dual` registra uso do fallback legado para medir prontidão do cutover;
-- conflitos de migração geram relatório e interrompem a promoção.
+- métricas registram sucesso/falha dos fluxos Better Auth sem registrar cookies ou tokens;
+- falhas de bootstrap de dados de teste interrompem a validação do preview.
 
 ## Testes obrigatórios
 
 ### API
 
-- configuração falha quando variáveis obrigatórias do modo escolhido faltam;
-- modo `supabase` preserva o comportamento atual;
-- modo `dual` aceita cookie Better Auth válido;
-- modo `dual` aceita JWT legado somente quando não há sessão Better Auth apresentada;
-- sessão Better Auth inválida não troca silenciosamente de identidade;
-- modo `better-auth` rejeita JWT legado;
+- configuração falha quando variáveis Better Auth obrigatórias faltam;
+- cookie Better Auth válido cria o contexto normalizado;
+- sessão ausente ou inválida retorna 401;
+- JWT Supabase legado não autentica a versão nova;
 - `/auth/me` mantém o contrato normalizado;
-- ownership recebe o UUID preservado;
+- ownership recebe o novo UUID Better Auth;
 - CORS permite credenciais apenas para origins autorizadas;
 - handlers de email recebem URL e variáveis corretas, usando fake;
 - Turnstile protege cadastro, login e recuperação.
@@ -381,15 +353,13 @@ No Worker, `DATABASE_URL` será substituída em runtime pela connection string d
 - rotas protegidas e refresh do navegador;
 - mensagens não permitem enumeração de emails.
 
-### Migração
+### Bootstrap
 
-- dry-run não escreve;
-- UUID, email, nome e confirmação são preservados;
-- hash bcrypt migrado autentica a senha conhecida de fixture;
-- execução repetida não duplica usuários/contas;
-- conflito de ID/email interrompe o batch;
-- nenhuma sessão Supabase é importada;
-- contagens e ownership fecham com a origem.
+- novo usuário recebe ID UUID válido;
+- cadastro e verificação criam uma conta utilizável;
+- onboarding associa o restaurante ao novo ID;
+- nenhuma tabela Supabase Auth é consultada;
+- nenhuma senha, hash ou sessão legada é importada.
 
 ### Preview integrado
 
@@ -398,37 +368,33 @@ No Worker, `DATABASE_URL` será substituída em runtime pela connection string d
 - recuperação → nova senha → sessões antigas revogadas;
 - dashboard acessa somente o restaurante do usuário;
 - frontend e API da mesma branch usam o Neon preview;
-- rollback para `AUTH_PROVIDER=supabase` restaura o fluxo antigo.
+- rollback do deploy restaura a versão anterior do frontend e da API.
 
 ## Sequência de implementação
 
-1. Introduzir abstrações e testes de sessão sem mudar o provedor ativo.
-2. Adicionar dependências Better Auth/PostgreSQL com versões fixadas.
-3. Gerar e revisar a migration do schema `better_auth`.
-4. Aplicar o schema somente no Neon `preview`.
-5. Montar o handler Better Auth no Fastify e implementar modo `dual`.
-6. Integrar Turnstile e o fake de email.
-7. Migrar o `AuthContext` e os clientes do frontend na branch pareada.
-8. Conectar os templates Resend reais em preview.
-9. Implementar e ensaiar o script de migração com fixtures sintéticas.
-10. Ensaiar usuários reais somente após acesso seguro à origem.
-11. Validar preview integrado e rollback.
-12. Planejar separadamente a janela de produção.
+1. Adicionar dependências Better Auth/PostgreSQL com versões fixadas.
+2. Gerar e revisar a migration do schema `better_auth`.
+3. Aplicar o schema somente no Neon `preview`.
+4. Montar o handler Better Auth e o resolver de sessão no Fastify.
+5. Integrar Turnstile e o fake de email.
+6. Migrar o `AuthContext` e os clientes do frontend na branch pareada.
+7. Conectar os templates Resend reais em preview.
+8. Criar novas contas e dados sintéticos pelo fluxo normal da aplicação.
+9. Validar preview integrado e rollback por deploy.
+10. Planejar separadamente qualquer promoção futura.
 
 ## Rollback
 
 Durante preview:
 
-- mudar `AUTH_PROVIDER` de `dual` para `supabase`;
-- reimplantar o frontend anterior ou a branch correspondente;
+- reimplantar a versão anterior do frontend e da API;
 - manter o schema `better_auth` isolado e sem tráfego;
-- não apagar usuários migrados durante investigação.
+- manter as contas Better Auth de teste durante a investigação ou recriar o branch Neon.
 
 Durante o futuro cutover:
 
-- Supabase Auth permanece disponível até a aceitação final;
-- a origem fica em modo compatível com rollback durante a janela definida;
-- qualquer divergência de contagem, ownership ou login interrompe a promoção;
+- a versão legada permanece disponível até a aceitação final;
+- qualquer falha de signup, login, ownership ou recuperação interrompe a promoção;
 - nenhuma remoção do Supabase self-hosted ocorre nesta fase.
 
 ## Não objetivos
@@ -438,27 +404,26 @@ Durante o futuro cutover:
 - migrar todas as consultas de negócio do Supabase para PostgreSQL;
 - implementar organizations ou convites antes de existir requisito funcional;
 - adicionar login social inexistente hoje;
+- migrar usuários, UUIDs, senhas, hashes ou sessões Supabase de teste;
 - remover `@supabase/supabase-js` do frontend ou API antes das demais fases;
 - alterar templates visuais da Resend;
 - executar cutover de produção.
 
 ## Critérios de aceite do desenho
 
-- UUIDs e senhas existentes são preservados;
-- sessões antigas são conscientemente invalidadas somente no cutover;
+- contas legadas descartáveis não são migradas;
+- novos IDs Better Auth são UUIDs compatíveis com `restaurants.owner_id`;
 - frontend nunca manipula o token Better Auth;
-- modo dual tem prazo e telemetria para remoção;
 - Better Auth usa Neon preview e schema isolado;
 - Turnstile continua protegendo os três endpoints sensíveis;
 - Resend usa templates existentes;
 - autorização multi-tenant continua baseada no banco;
-- produção e Supabase permanecem operacionais durante a validação.
+- rollback ocorre pela versão anterior, sem código dual na implementação nova.
 
 ## Referências oficiais verificadas
 
 - Better Auth — Fastify integration: <https://better-auth.com/docs/integrations/fastify>
 - Better Auth — PostgreSQL adapter: <https://better-auth.com/docs/adapters/postgresql>
-- Better Auth — Supabase migration guide: <https://better-auth.com/docs/guides/supabase-migration-guide>
 - Better Auth — email: <https://better-auth.com/docs/concepts/email>
 - Better Auth — cookies: <https://better-auth.com/docs/concepts/cookies>
 - Better Auth — CAPTCHA/Turnstile: <https://better-auth.com/docs/plugins/captcha>
