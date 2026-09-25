@@ -140,7 +140,7 @@ git -C .worktrees/vapt-api-infra-foundation commit -m "feat: define business API
 - Produces: `Database = Pick<Pool, "query" | "connect">`, `withTransaction<T>(database, work)`, `BuildAppDependencies.database?: Database`.
 - Produces: `vaptApiRequest` sempre com `credentials: "include"`, sem import de Supabase e sem header `Authorization`.
 
-- [ ] **Step 1: Escrever testes vermelhos de lifecycle/transação**
+- [x] **Step 1: Escrever testes vermelhos de lifecycle/transação**
 
 ```ts
 test("withTransaction commits and releases the client", async () => {
@@ -159,7 +159,7 @@ test("withTransaction rolls back and releases after failure", async () => {
 });
 ```
 
-- [ ] **Step 2: Implementar o runtime compartilhado**
+- [x] **Step 2: Implementar o runtime compartilhado**
 
 ```ts
 export type Queryable = Pick<Pool, "query"> | Pick<PoolClient, "query">;
@@ -186,7 +186,7 @@ export async function withTransaction<T>(
 
 `buildApp` cria um único `Pool`, injeta-o no Better Auth e nos módulos de negócio, e encerra apenas pools próprios. Testar runtime/pool injetados para impedir double-close.
 
-- [ ] **Step 3: Escrever e implementar o teste vermelho do cliente web**
+- [x] **Step 3: Escrever e implementar o teste vermelho do cliente web**
 
 ```ts
 test("authenticated API requests use cookies without Supabase bearer tokens", async () => {
@@ -200,7 +200,7 @@ test("authenticated API requests use cookies without Supabase bearer tokens", as
 
 Remover `getAccessToken`, o import de `@/lib/supabase` e a pré-validação local de sessão. Um `401` do servidor continua virando `new VaptApiClientError("unauthorized", "Sessão inválida. Faça login novamente.", 401)`.
 
-- [ ] **Step 4: Ampliar CORS somente para headers reais do browser**
+- [x] **Step 4: Ampliar CORS somente para headers reais do browser**
 
 ```ts
 allowedHeaders: [
@@ -213,7 +213,7 @@ allowedHeaders: [
 
 Adicionar preflight para pedido público com `Idempotency-Key`/`X-Vapt-Order-Token` e manter origem exata/credentials.
 
-- [ ] **Step 5: Verificar e commit**
+- [x] **Step 5: Verificar e commit**
 
 ```powershell
 npx tsx --test src/lib/database.test.ts src/app.test.ts
