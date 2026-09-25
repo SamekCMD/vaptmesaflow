@@ -607,7 +607,7 @@ export type BuildAppDependencies = {
 };
 ```
 
-- [ ] **Step 1: Write failing session tests**
+- [x] **Step 1: Write failing session tests**
 
 Replace JWT construction in `auth.test.ts` with a fake `AuthRuntime`. Cover:
 
@@ -626,7 +626,7 @@ npx tsx --test src/modules/auth/auth.test.ts
 
 Expected: FAIL while `requireAuth` still parses bearer JWTs.
 
-- [ ] **Step 2: Write failing Fastify bridge tests**
+- [x] **Step 2: Write failing Fastify bridge tests**
 
 In `fastify-handler.test.ts`, inject a fake handler and assert:
 
@@ -637,13 +637,13 @@ In `fastify-handler.test.ts`, inject a fake handler and assert:
 - multiple `Set-Cookie` headers survive as distinct response cookies;
 - thrown handler errors become the API's generic 500 contract without token/cookie content.
 
-- [ ] **Step 3: Implement the session resolver and auth guard**
+- [x] **Step 3: Implement the session resolver and auth guard**
 
 Use `fromNodeHeaders` from `better-auth/node`. `requireAuth` must receive a `SessionResolver`, throw the existing generic 401 when it returns null, and never inspect `Authorization`.
 
 Keep the existing Fastify request decoration and downstream `request.auth` contract.
 
-- [ ] **Step 4: Mount Better Auth and inject runtime**
+- [x] **Step 4: Mount Better Auth and inject runtime**
 
 Change `buildApp` to:
 
@@ -656,7 +656,7 @@ export async function buildApp(
 
 Construct the real runtime only when no fake is provided, register its `close()` in `app.addHook("onClose", ...)`, mount `/api/auth/*`, then register `/auth/me` and ownership routes with the resolver.
 
-- [ ] **Step 5: Enable credentialed exact-origin CORS**
+- [x] **Step 5: Enable credentialed exact-origin CORS**
 
 Configure:
 
@@ -670,7 +670,7 @@ Configure:
 
 Keep the existing exact allowlist callback. Add preflight tests proving an allowed origin gets `access-control-allow-credentials: true`, the response echoes only that origin, and an unknown origin is rejected.
 
-- [ ] **Step 6: Remove the old JWT secret and verifier**
+- [x] **Step 6: Remove the old JWT secret and verifier**
 
 Delete `src/lib/jwt.ts`, remove `SUPABASE_JWT_SECRET` and `supabase.jwtSecret`, and update fixtures. Confirm the dedicated `PUBLIC_ORDER_TOKEN_SECRET` remains.
 
@@ -680,7 +680,7 @@ rg -n 'SUPABASE_JWT_SECRET|supabase\.jwtSecret|verifySupabaseToken' src .env.exa
 
 Expected: no matches.
 
-- [ ] **Step 7: Verify and commit**
+- [x] **Step 7: Verify and commit**
 
 ```powershell
 npx tsx --test src/modules/auth/auth.test.ts src/modules/auth/fastify-handler.test.ts src/app.test.ts
