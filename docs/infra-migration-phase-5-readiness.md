@@ -37,6 +37,30 @@ Não será criado um JWT Supabase temporário, nem um modo dual de autenticaçã
 | `src/hooks/useSubscription.ts` | lê assinatura do restaurante próprio | Authenticated owner read | `fetchOwnedRestaurant` | endpoint autenticado de billing/assinatura |
 | `src/lib/order-feedback.ts` via `Overview.tsx` | lê feedback por restaurante | Authenticated owner read | Supabase PostgREST/RLS | endpoint de resumo/feedback na API/Neon |
 
+## Contrato alvo do cutover de dados
+
+| Route | Auth | Purpose |
+|---|---|---|
+| `POST /onboarding` | cookie | cria restaurante e primeiro item atomicamente |
+| `GET /restaurants/me` | cookie | resolve o restaurante do proprietário |
+| `PATCH /restaurants/me` | cookie | atualiza perfil, aparência e configuração |
+| `GET /restaurants/me/menu-items` | cookie | lista itens e variações |
+| `POST /restaurants/me/menu-items` | cookie | cria item e variações |
+| `PATCH /restaurants/me/menu-items/:itemId` | cookie | atualiza item e substitui variações |
+| `DELETE /restaurants/me/menu-items/:itemId` | cookie | remove item do proprietário |
+| `GET /restaurants/me/kitchen/orders` | cookie | lista fila ativa |
+| `PATCH /restaurants/me/kitchen/orders/:orderId/status` | cookie | transiciona status permitido |
+| `GET /restaurants/me/table-sessions` | cookie | lista sessões e agregados |
+| `GET /restaurants/me/table-sessions/:sessionId/orders` | cookie | detalha uma sessão |
+| `POST /restaurants/me/table-sessions/:sessionId/close` | cookie | fecha conta atomicamente |
+| `POST /restaurants/me/table-sessions/:sessionId/transfer` | cookie | transfere sessão e pedidos |
+| `GET /restaurants/me/overview` | cookie | resumo por período e feedback |
+| `GET /public/restaurants/:slug/catalog` | public | restaurante e cardápio publicados |
+| `POST /public/table-sessions/:sessionId/request-check` | token | solicita conta |
+| `PUT /public/orders/:orderId/feedback` | order token | grava avaliação idempotente |
+
+Os contratos de rede usam camelCase. Valores `numeric` são serializados como strings decimais e timestamps como ISO 8601; identificadores de owner, billing e credenciais nunca fazem parte dos DTOs públicos.
+
 ## Operações públicas que não bloqueiam o gate por identidade
 
 Cardápio e delivery públicos podem continuar anônimos durante a transição somente se cada rota estiver explicitamente limitada ao recurso público esperado. Eles não justificam manter Supabase Auth. Escritas públicas — pedido, feedback e solicitação de conta — devem continuar protegidas pelos tokens/contratos públicos já previstos na API e não por `auth.uid()`.
@@ -71,3 +95,22 @@ rg -n 'fetchOwnedRestaurant|supabase\.auth|access_token' src/pages/dashboard src
 ```
 
 O primeiro comando pode continuar retornando componentes estritamente públicos documentados. O segundo não pode retornar autenticação Supabase nem leituras autenticadas por `owner_id` quando o gate estiver GREEN.
+
+## Baseline da Task 0
+
+O inventário direto foi congelado antes do primeiro corte de código em 25/09/2026:
+
+```text
+src/components/cashier/TableSessionModal.tsx
+src/components/menu/FloatingActions.tsx
+src/contexts/AuthContext.tsx
+src/pages/dashboard/AppearancePage.tsx
+src/pages/dashboard/CashierPage.tsx
+src/pages/dashboard/KitchenMonitor.tsx
+src/pages/dashboard/MenuManagement.tsx
+src/pages/dashboard/Overview.tsx
+src/pages/dashboard/SettingsPage.tsx
+src/pages/onboarding/OnboardingPage.tsx
+```
+
+Total inicial: **10 arquivos**. A Task 10 compara novamente a mesma superfície; antes da Task 6 do Better Auth, somente `src/contexts/AuthContext.tsx` pode permanecer como dependência de identidade temporária, nunca como transporte de dados de negócio.
