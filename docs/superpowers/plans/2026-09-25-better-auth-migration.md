@@ -148,7 +148,7 @@ git commit -m "docs: gate Better Auth on business data cutover"
 
 **Interfaces:** Add `security.publicOrderTokenSecret: string` to `AppConfig`. Keep `supabase.jwtSecret` only until Task 5 removes Supabase JWT validation. Every `createOrderService(..., tokenSecret)` call must receive `config.security.publicOrderTokenSecret`.
 
-- [ ] **Step 1: Write failing config tests**
+- [x] **Step 1: Write failing config tests**
 
 Add tests to `src/lib/config.test.ts`:
 
@@ -179,7 +179,7 @@ npx tsx --test src/lib/config.test.ts
 
 Expected: FAIL because `PUBLIC_ORDER_TOKEN_SECRET` is not parsed and `security` does not exist.
 
-- [ ] **Step 2: Implement the dedicated secret**
+- [x] **Step 2: Implement the dedicated secret**
 
 Add to `AppConfig` and `createConfig`:
 
@@ -195,7 +195,7 @@ const publicOrderTokenSecret = requireValue(env, "PUBLIC_ORDER_TOKEN_SECRET");
 
 Return it under `security`. Replace all order/public-token uses of `config.supabase.jwtSecret`; auth validation remains unchanged until Task 5.
 
-- [ ] **Step 3: Update all test fixtures and docs**
+- [x] **Step 3: Update all test fixtures and docs**
 
 Add `PUBLIC_ORDER_TOKEN_SECRET=replace-me` to `.env.example`, document it as an HMAC secret for public order tokens, and update every `AppConfig` literal or env fixture reported by:
 
@@ -205,7 +205,7 @@ rg -n 'AppConfig\s*=|satisfies AppConfig|SUPABASE_JWT_SECRET|supabase\.jwtSecret
 
 Expected after edits: `supabase.jwtSecret` remains only in `src/plugins/auth.ts`, auth tests and config until Task 5; order/payment/storage signatures use `security.publicOrderTokenSecret`.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```powershell
 npm test
@@ -214,7 +214,7 @@ npm run build
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add src .env.example README.md
