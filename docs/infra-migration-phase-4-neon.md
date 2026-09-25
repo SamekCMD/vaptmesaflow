@@ -195,3 +195,18 @@ Os binários `psql`, `pg_dump` e Docker não estão disponíveis neste host. At�
 - migração de identidades e autorização será tratada separadamente com Better Auth.
 
 Esses gates bloqueiam restore e cutover, mas não impedem preparar a topologia de branches nem o schema normalizado após o login.
+
+## Better Auth versionado
+
+O schema do Better Auth foi gerado com o CLI fixado `auth@1.7.6` e a mesma configuração Kysely usada pelo runtime da API. O gerador consultou somente a branch `preview` para detectar o estado atual e não aplicou SQL.
+
+Artefatos adicionados:
+
+```text
+infra/neon/003_better_auth_schema.sql
+infra/neon/verify-better-auth.sql
+```
+
+A migration cria `better_auth.user`, `better_auth.session`, `better_auth.account` e `better_auth.verification` com IDs PostgreSQL `uuid`, mantém as FKs internas do Better Auth e revoga todos os privilégios de `PUBLIC` no schema, tabelas e sequências. Ela não cria FK entre `public.restaurants.owner_id` e `better_auth.user.id`; a API continua responsável pela ordem de criação e autorização entre identidade e negócio.
+
+O verificador exige as quatro tabelas, IDs UUID compatíveis com `public.restaurants.owner_id`, ausência de privilégios `PUBLIC` e ausência da FK cruzada. A aplicação remota continua reservada para o ensaio da Task 9: primeiro preview; depois, somente com todos os checks verdes, o mesmo SQL versionado em production.
