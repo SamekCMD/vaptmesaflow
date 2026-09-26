@@ -24,7 +24,7 @@ export function useCart() {
     });
   }, []);
 
-  const updateQuantity = useCallback((itemId: number, quantity: number) => {
+  const updateQuantity = useCallback((itemId: PublicMenuItem["id"], quantity: number) => {
     setItems((prev) =>
       quantity <= 0
         ? prev.filter((ci) => ci.item.id !== itemId)
@@ -32,7 +32,7 @@ export function useCart() {
     );
   }, []);
 
-  const removeItem = useCallback((itemId: number) => {
+  const removeItem = useCallback((itemId: PublicMenuItem["id"]) => {
     setItems((prev) => prev.filter((ci) => ci.item.id !== itemId));
   }, []);
 

@@ -13,6 +13,7 @@ import { Minus, Plus, Trash2, X, CheckCircle2, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/hooks/use-toast";
 import type { CartItem } from "@/hooks/use-cart";
+import type { PublicMenuItem } from "@/lib/restaurant-config";
 import {
   createOrderIdempotencyKey,
   orderClient,
@@ -28,8 +29,8 @@ interface OrderSummaryDrawerProps {
   onClose: () => void;
   items: CartItem[];
   totalPrice: number;
-  onUpdateQuantity: (id: number, qty: number) => void;
-  onRemove: (id: number) => void;
+  onUpdateQuantity: (id: PublicMenuItem["id"], qty: number) => void;
+  onRemove: (id: PublicMenuItem["id"]) => void;
   onClearCart: () => void;
   primaryColor: string;
   restaurantId?: string;
