@@ -5,9 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Clock, ArrowRight, RefreshCw, Bell, BellOff, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { KitchenSkeleton } from "@/components/skeletons/DashboardSkeletons";
-import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import type { KitchenOrderDto } from "@/lib/business-api.types";
+import {
+  listKitchenOrders,
+  type KitchenOrderTargetStatus,
+  updateKitchenOrderStatus,
+} from "@/lib/kitchen";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import {
@@ -42,26 +46,7 @@ const playDoubleBeep = () => {
   }
 };
 
-interface OrderItem {
-  id: string;
-  product_name: string;
-  quantity: number;
-  unit_price: number;
-  notes: string;
-}
-
-interface Order {
-  id: string;
-  display_id: number;
-  table_number: string | null;
-  total_price: number;
-  status: "paid" | "pending" | "preparing" | "ready";
-  order_channel?: "local" | "delivery" | null;
-  payment_status: string | null;
-  created_at: string;
-  updated_at: string | null;
-  order_items: OrderItem[];
-}
+type Order = KitchenOrderDto;
 
 const columns = [
   { key: "pending" as const, label: "Na Fila", dotColor: "bg-[hsl(44_51%_54%)]" },
@@ -69,7 +54,7 @@ const columns = [
   { key: "ready" as const, label: "Prontos", dotColor: "bg-primary" },
 ];
 
-const nextStatus: Record<string, string> = {
+const nextStatus: Partial<Record<Order["status"], KitchenOrderTargetStatus>> = {
   paid: "preparing",
   pending: "preparing",
   preparing: "ready",
@@ -91,8 +76,8 @@ const isOrderInColumn = (order: Order, columnKey: (typeof columns)[number]["key"
 
 const getTimerDisplay = (order: Order, isReady: boolean) => {
   const now = Date.now();
-  const start = new Date(order.created_at).getTime();
-  const end = isReady && order.updated_at ? new Date(order.updated_at).getTime() : now;
+  const start = new Date(order.createdAt).getTime();
+  const end = isReady ? new Date(order.updatedAt).getTime() : now;
   const elapsedSeconds = Math.max(0, Math.floor((end - start) / 1000));
   const minutes = Math.floor(elapsedSeconds / 60);
   const seconds = elapsedSeconds % 60;
@@ -115,12 +100,14 @@ const getTimerDisplay = (order: Order, isReady: boolean) => {
   return { display, borderClass, textClass };
 };
 
+const errorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Tente novamente.";
+
 const KitchenMonitor = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [channelFilter, setChannelFilter] = useState<"all" | "local" | "delivery">("all");
@@ -130,6 +117,9 @@ const KitchenMonitor = () => {
   });
   const [, setTick] = useState(0);
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
+  const ordersRef = useRef<Order[]>([]);
+  const archivingOrderIdsRef = useRef<Set<string>>(new Set());
+  const mountedRef = useRef(false);
 
   const toggleSound = () => {
     setSoundEnabled((prev) => {
@@ -138,35 +128,6 @@ const KitchenMonitor = () => {
       return next;
     });
   };
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTick((t) => t + 1);
-      setOrders((prev) => {
-        const now = Date.now();
-        const toArchive = prev.filter(
-          (o) => o.status === "ready" && o.updated_at && now - new Date(o.updated_at).getTime() > 60000,
-        );
-        if (toArchive.length > 0) {
-          toArchive.forEach((o) => {
-            supabase.from("orders").update({ status: "delivered" }).eq("id", o.id).then(() => {});
-          });
-          return prev.filter((o) => !toArchive.find((a) => a.id === o.id));
-        }
-        return prev;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    if (!user) return;
-    const fetchRestaurant = async () => {
-      const data = await fetchOwnedRestaurant();
-      if (data) setRestaurantId(data.id);
-    };
-    fetchRestaurant();
-  }, [user]);
 
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("kitchen");
@@ -177,19 +138,17 @@ const KitchenMonitor = () => {
   };
 
   const fetchOrders = useCallback(async () => {
-    if (!restaurantId) return;
-    const { data } = await supabase
-      .from("orders")
-      .select("*, order_items(*)")
-      .eq("restaurant_id", restaurantId)
-      .in("status", ["paid", "pending", "preparing", "ready"])
-      .order("created_at", { ascending: false });
-
-    if (data) {
-      const fetched = data as unknown as Order[];
+    if (!user) return;
+    try {
+      const fetched = await listKitchenOrders();
+      if (!mountedRef.current) return;
       if (knownOrderIdsRef.current.size > 0 && soundEnabled) {
         const newOrders = fetched.filter(
-          (o) => !knownOrderIdsRef.current.has(o.id) && o.payment_status === "CONFIRMED",
+          (order) => {
+            const paymentStatus = order.paymentStatus?.toLowerCase();
+            return !knownOrderIdsRef.current.has(order.id)
+              && (paymentStatus === "paid" || paymentStatus === "confirmed");
+          },
         );
         if (newOrders.length > 0) {
           playDoubleBeep();
@@ -197,48 +156,105 @@ const KitchenMonitor = () => {
         }
       }
       knownOrderIdsRef.current = new Set(fetched.map((o) => o.id));
-      setOrders(fetched);
+      setOrders(fetched.filter((order) => !archivingOrderIdsRef.current.has(order.id)));
+    } catch (error: unknown) {
+      toast({
+        title: "Erro ao carregar pedidos",
+        description: errorMessage(error),
+        variant: "destructive",
+      });
+    } finally {
+      if (mountedRef.current) setLoading(false);
     }
-    setLoading(false);
-  }, [restaurantId, soundEnabled]);
+  }, [soundEnabled, user]);
 
   useEffect(() => {
-    if (restaurantId) fetchOrders();
-  }, [restaurantId, fetchOrders]);
+    ordersRef.current = orders;
+  }, [orders]);
 
   useEffect(() => {
-    if (!restaurantId) return;
-    const interval = setInterval(fetchOrders, 5000);
+    mountedRef.current = true;
+    const interval = setInterval(() => {
+      setTick((tick) => tick + 1);
+      const now = Date.now();
+      const readyToArchive = ordersRef.current.filter(
+        (order) => order.status === "ready"
+          && now - new Date(order.updatedAt).getTime() > 60000
+          && !archivingOrderIdsRef.current.has(order.id),
+      );
+
+      for (const order of readyToArchive) {
+        archivingOrderIdsRef.current.add(order.id);
+        setOrders((current) => current.filter((candidate) => candidate.id !== order.id));
+        void updateKitchenOrderStatus(order.id, "delivered")
+          .catch((error: unknown) => {
+            if (!mountedRef.current) return;
+            setOrders((current) => current.some((candidate) => candidate.id === order.id)
+              ? current
+              : [...current, order].sort(
+                  (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+                ));
+            toast({
+              title: "Erro ao arquivar pedido",
+              description: errorMessage(error),
+              variant: "destructive",
+            });
+          })
+          .finally(() => {
+            archivingOrderIdsRef.current.delete(order.id);
+          });
+      }
+    }, 1000);
+
+    return () => {
+      mountedRef.current = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    void fetchOrders();
+    const interval = setInterval(() => void fetchOrders(), 5000);
     return () => clearInterval(interval);
-  }, [restaurantId, fetchOrders]);
+  }, [fetchOrders, user]);
 
   const advance = async (order: Order) => {
     const next = nextStatus[order.status];
     if (!next) return;
     setUpdatingOrderId(order.id);
-    const previousStatus = order.status;
+    const previousOrder = order;
     setOrders((prev) =>
       prev.map((o) =>
-        o.id === order.id ? { ...o, status: next as Order["status"], updated_at: new Date().toISOString() } : o,
+        o.id === order.id ? { ...o, status: next, updatedAt: new Date().toISOString() } : o,
       ),
     );
-    const { error } = await supabase.from("orders").update({ status: next }).eq("id", order.id);
-    setUpdatingOrderId(null);
-    if (error) {
-      setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, status: previousStatus } : o)));
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
-      return;
+    try {
+      const updated = await updateKitchenOrderStatus(order.id, next);
+      if (mountedRef.current) {
+        setOrders((current) => current.map((candidate) => candidate.id === order.id ? updated : candidate));
+      }
+      toast({
+        title: `Pedido #${order.displayId ?? "—"} atualizado`,
+        description: `Movido para "${columns.find((c) => c.key === next)?.label ?? "Próxima etapa"}"`,
+      });
+    } catch (error: unknown) {
+      if (mountedRef.current) {
+        setOrders((current) => current.map((candidate) => candidate.id === order.id ? previousOrder : candidate));
+      }
+      toast({ title: "Erro", description: errorMessage(error), variant: "destructive" });
+    } finally {
+      if (mountedRef.current) setUpdatingOrderId(null);
     }
-    toast({
-      title: `Pedido #${order.display_id} atualizado`,
-      description: `Movido para "${columns.find((c) => c.key === next)?.label ?? "Próxima etapa"}"`,
-    });
   };
 
   if (loading) return <KitchenSkeleton />;
 
   const getOrderChannel = (order: Order): "local" | "delivery" =>
-    order.order_channel === "delivery" ? "delivery" : "local";
+    order.channel === "delivery" ? "delivery" : "local";
 
   const getOrdersByFilter = (list: Order[]) => {
     if (channelFilter === "all") return list;
@@ -356,7 +372,7 @@ const KitchenMonitor = () => {
                     >
                       <CardContent className="p-3">
                         <div className="mb-2 flex items-center justify-between">
-                          <span className="font-mono text-sm font-medium">#{order.display_id}</span>
+                          <span className="font-mono text-sm font-medium">#{order.displayId ?? "—"}</span>
                           <div className="flex items-center gap-1.5">
                             <Badge
                               variant={orderChannel === "delivery" ? "default" : "outline"}
@@ -365,14 +381,14 @@ const KitchenMonitor = () => {
                               {orderChannel === "delivery" ? "Delivery" : "Local"}
                             </Badge>
                             <Badge variant="outline" className="text-[10px] normal-case tracking-normal">
-                              {order.table_number ? `Mesa ${order.table_number}` : "S/ mesa"}
+                              {order.tableNumber ? `Mesa ${order.tableNumber}` : "S/ mesa"}
                             </Badge>
                           </div>
                         </div>
                         <ul className="mb-2 space-y-0.5">
-                          {order.order_items.map((item) => (
+                          {order.items.map((item) => (
                             <li key={item.id} className="text-xs text-muted-foreground">
-                              • {item.quantity}x {item.product_name}
+                              • {item.quantity}x {item.productName}
                               {item.notes ? ` (${item.notes})` : ""}
                             </li>
                           ))}
