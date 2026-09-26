@@ -251,7 +251,7 @@ git commit -m "refactor: use credentialed API transport"
 - Consumes: `Queryable`, `Database`, existing repository interfaces and SQL functions from `002_business_routines.sql`.
 - Produces: the same service-facing repository interfaces without `SupabaseClient`.
 
-- [ ] **Step 1: Converter ownership para SQL parametrizado**
+- [x] **Step 1: Converter ownership para SQL parametrizado**
 
 ```sql
 select exists (
@@ -262,7 +262,7 @@ select exists (
 
 Testar owner correto, owner incorreto, UUID inválido normalizado como `400`, e erro SQL convertido para o contrato genérico sem query/credencial.
 
-- [ ] **Step 2: Portar `OrderRepository` sem mudar sua interface**
+- [x] **Step 2: Portar `OrderRepository` sem mudar sua interface**
 
 Usar:
 
@@ -275,7 +275,7 @@ select * from public.create_public_order_v3(
 
 e, para leitura pública, `select` com `orders` + `order_items` somente após validar `public_access_token_hash`. Testar `numeric` como string, `display_id` bigint sem perda, idempotência e token errado.
 
-- [ ] **Step 3: Portar `PaymentRepository` método por método**
+- [x] **Step 3: Portar `PaymentRepository` método por método**
 
 Preservar as interfaces existentes e chamar as rotinas já versionadas:
 
@@ -297,7 +297,7 @@ select public.count_pending_payment_effects();
 
 Operações sem função usam SQL parametrizado e `ON CONFLICT`; reserva de webhook precisa distinguir duplicata de falha real. Rodar todos os testes de pagamentos após cada grupo de métodos.
 
-- [ ] **Step 4: Portar OAuth e webhook repositories**
+- [x] **Step 4: Portar OAuth e webhook repositories**
 
 Estados OAuth são consumidos atomicamente:
 
@@ -310,7 +310,7 @@ returning *
 
 Credenciais continuam cifradas e nunca entram em logs/respostas. Eventos de billing usam `ON CONFLICT (provider, provider_event_id) DO NOTHING RETURNING id`.
 
-- [ ] **Step 5: Portar o lookup de menu usado pelo R2**
+- [x] **Step 5: Portar o lookup de menu usado pelo R2**
 
 Substituir `createSupabaseMenuItemExists` por `createMenuItemExists(queryable)`, com uma query que exige simultaneamente item, restaurante e owner:
 
@@ -327,7 +327,7 @@ select exists (
 
 Testar IDs de outro restaurante/owner e erro SQL sanitizado.
 
-- [ ] **Step 6: Provar que nenhum runtime da API usa Supabase**
+- [x] **Step 6: Provar que nenhum runtime da API usa Supabase**
 
 ```powershell
 rg -n 'createSupabaseAdminClient|SupabaseClient|@supabase/supabase-js' src -g '!scripts/migrate-menu-images-to-r2.ts'
@@ -335,7 +335,7 @@ rg -n 'createSupabaseAdminClient|SupabaseClient|@supabase/supabase-js' src -g '!
 
 Expected: zero matches. O script offline R2 é a única exceção explícita.
 
-- [ ] **Step 7: Verificar e commit**
+- [x] **Step 7: Verificar e commit**
 
 ```powershell
 npm test
