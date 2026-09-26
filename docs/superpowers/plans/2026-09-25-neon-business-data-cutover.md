@@ -422,11 +422,11 @@ git commit -m "refactor: load public catalog from API"
 - Produces: `createOwnedRestaurant(userId, input)`, `findOwnedRestaurant(userId)`, `updateOwnedRestaurant(userId, patch)`.
 - Produces endpoints `POST /onboarding`, `GET /restaurants/me`, `PATCH /restaurants/me`.
 
-- [ ] **Step 1: Escrever schemas Zod e testes vermelhos**
+- [x] **Step 1: Escrever schemas Zod e testes vermelhos**
 
 `POST /onboarding` aceita somente `restaurantName`, `slug`, `dishName`, `dishPrice`; rejeita `ownerId`, IDs, plano, billing e campos desconhecidos. `PATCH /restaurants/me` aceita uma união explícita de perfil/aparência/configuração e rejeita `id`, `ownerId`, `planType`, `planStatus` e billing IDs.
 
-- [ ] **Step 2: Implementar onboarding atômico**
+- [x] **Step 2: Implementar onboarding atômico**
 
 Dentro de `withTransaction`:
 
@@ -439,11 +439,11 @@ returning *
 
 Depois inserir o primeiro `menu_items`. Tratar conflito de slug/owner como `409`; se o item falhar, o restaurante não pode permanecer. Como não há produção, impor um único restaurante por owner com migration `004_business_constraints.sql` contendo índice unique em `restaurants(owner_id)`.
 
-- [ ] **Step 3: Implementar read/patch por owner da sessão**
+- [x] **Step 3: Implementar read/patch por owner da sessão**
 
 Nenhuma rota recebe `ownerId`. `PATCH` usa lista fixa de colunas e sempre `where owner_id = $n returning *`; zero linhas vira `404`.
 
-- [ ] **Step 4: Migrar consumidores frontend**
+- [x] **Step 4: Migrar consumidores frontend**
 
 `fetchOwnedRestaurant()` passa a não receber `ownerId` nem string `select`:
 
@@ -460,11 +460,11 @@ export async function fetchOwnedRestaurant(): Promise<RestaurantDto | null> {
 
 Onboarding usa `POST /onboarding`; Appearance/Settings usam `PATCH /restaurants/me`. Alterações de nome/senha da identidade permanecem intocadas até Task 6 do plano Better Auth.
 
-- [ ] **Step 5: Verificar rollback, ownership e UI**
+- [x] **Step 5: Verificar rollback, ownership e UI**
 
 Testar segundo owner, slug duplicado, rollback do prato, patch proibido, restaurante ausente e mapeamento de todos os campos. Rodar onboarding/settings/plan tests e builds.
 
-- [ ] **Step 6: Commit em ambos os repositórios**
+- [x] **Step 6: Commit em ambos os repositórios**
 
 ```powershell
 git add src/modules/restaurants src/app.ts
