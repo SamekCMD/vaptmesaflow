@@ -596,23 +596,23 @@ git commit -m "refactor: use kitchen API"
 - Produces: list/detail/close/transfer endpoints do inventário.
 - Close returns `{ sessionId, status: "closed", closedAt, deliveredOrderIds }`; transfer returns `{ sessionId, tableNumber, updatedOrderIds }`.
 
-- [ ] **Step 1: Escrever testes vermelhos de agregação/ownership**
+- [x] **Step 1: Escrever testes vermelhos de agregação/ownership**
 
 Cobrir apenas `open|check_requested`, soma decimal sem coerção imprecisa, count, detalhe ordenado, owner incorreto, sessão fechada, mesa inválida e sessão inexistente.
 
-- [ ] **Step 2: Implementar close atômico**
+- [x] **Step 2: Implementar close atômico**
 
 Lock da sessão com ownership; atualizar pedidos não finais para `delivered`, depois sessão para `closed`/`closed_at`. Qualquer falha executa rollback. Repetição após fechamento retorna o mesmo estado sem duplicar efeitos.
 
-- [ ] **Step 3: Implementar transfer atômico**
+- [x] **Step 3: Implementar transfer atômico**
 
 Validar `tableNumber` trim, tamanho `1..20`, lock da sessão aberta, atualizar sessão e todos os pedidos vinculados na mesma transação.
 
-- [ ] **Step 4: Migrar Cashier e modal**
+- [x] **Step 4: Migrar Cashier e modal**
 
 Remover queries Supabase e manter os DTOs locais derivados das respostas. Após close/transfer, atualizar lista com a resposta do servidor e refetch quando necessário.
 
-- [ ] **Step 5: Verificar e commit**
+- [x] **Step 5: Verificar e commit**
 
 ```powershell
 npx tsx --test src/modules/table-sessions/table-sessions.test.ts
