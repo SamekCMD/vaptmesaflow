@@ -36,7 +36,7 @@ const PushNotificationBanner = ({ restaurantId }: PushNotificationBannerProps) =
   const handleActivate = async () => {
     if (!restaurantId) return;
     setSubscribing(true);
-    const result = await subscribeToPush(restaurantId);
+    const result = await subscribeToPush();
     setSubscribing(false);
 
     if (result.success) {

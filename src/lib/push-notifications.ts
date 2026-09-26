@@ -57,9 +57,7 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   }
 }
 
-export async function subscribeToPush(
-  restaurantId: string
-): Promise<{ success: boolean; error?: string }> {
+export async function subscribeToPush(): Promise<{ success: boolean; error?: string }> {
   if (!VAPID_PUBLIC_KEY) {
     return { success: false, error: "VAPID key not configured" };
   }
@@ -84,12 +82,10 @@ export async function subscribeToPush(
       }));
 
     await n8nClient.ingest.pushSubscription({
-      restaurant_id: restaurantId,
       subscription: subscription.toJSON(),
       endpoint: subscription.endpoint,
       origin: window.location.origin,
       user_agent: navigator.userAgent,
-      created_at: new Date().toISOString(),
     });
 
     localStorage.setItem("push_subscribed", "true");

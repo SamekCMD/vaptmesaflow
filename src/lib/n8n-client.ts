@@ -1,5 +1,8 @@
-﻿import { ENV } from "@/lib/env";
-import { supabase } from "@/lib/supabase";
+import {
+  vaptApiRequest,
+  VaptApiClientError,
+  type VaptApiRequestOptions,
+} from "@/lib/vapt-api-client";
 
 type N8nErrorCode =
   | "unauthorized"
@@ -20,17 +23,6 @@ export class N8nClientError extends Error {
   }
 }
 
-type HttpMethod = "GET" | "POST";
-
-type RequestOptions = {
-  method?: HttpMethod;
-  route: string;
-  headers?: Record<string, string>;
-  query?: Record<string, string | number | boolean | null | undefined>;
-  body?: unknown;
-  requireAuth?: boolean;
-};
-
 type StripeCreateInput = {
   restaurantId: string;
   email: string;
@@ -48,105 +40,22 @@ type StripeCancelInput = {
   restaurantId: string;
 };
 
-type FeedbackInput = {
-  order_id: string;
-  restaurant_id: string;
-  rating: number;
-  reasons: string[];
-  comment: string | null;
-  created_at: string;
-};
-
 type PushSubscriptionInput = {
-  restaurant_id: string;
   subscription: unknown;
   endpoint: string;
   origin: string;
   user_agent: string;
-  created_at: string;
 };
 
-const normalizeBackendBaseUrl = (): string => ENV.vaptApiBaseUrl.replace(/\/$/, "");
-
-const buildUrl = (
-  route: string,
-  query?: Record<string, string | number | boolean | null | undefined>,
-): string => {
-  const url = new URL(`${normalizeBackendBaseUrl()}/${route.replace(/^\//, "")}`);
-  if (query) {
-    Object.entries(query).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        url.searchParams.set(key, String(value));
-      }
-    });
-  }
-  return url.toString();
-};
-
-const parseJsonSafe = async (response: Response): Promise<unknown> => {
-  const text = await response.text();
-  if (!text) return null;
+const request = async <T>(options: VaptApiRequestOptions): Promise<T> => {
   try {
-    return JSON.parse(text);
-  } catch {
-    return { message: text };
+    return await vaptApiRequest<T>(options);
+  } catch (error) {
+    if (error instanceof VaptApiClientError) {
+      throw new N8nClientError(error.code, error.message, error.status);
+    }
+    throw error;
   }
-};
-
-const getAccessToken = async (): Promise<string | null> => {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
-};
-
-const request = async <T>({
-  method = "POST",
-  route,
-  headers = {},
-  query,
-  body,
-  requireAuth = true,
-}: RequestOptions): Promise<T> => {
-  const token = requireAuth ? await getAccessToken() : null;
-
-  if (requireAuth && !token) {
-    throw new N8nClientError("unauthorized", "Sessão inválida. Faça login novamente.", 401);
-  }
-
-  const response = await fetch(buildUrl(route, query), {
-    method,
-    headers: {
-      ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...headers,
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
-
-  const payload = (await parseJsonSafe(response)) as
-    | {
-        error?: string | { code?: string; message?: string };
-        message?: string;
-      }
-    | null;
-
-  const errorCode =
-    typeof payload?.error === "string"
-      ? payload.error
-      : payload?.error && typeof payload.error === "object"
-        ? payload.error.code
-        : undefined;
-  const errorMessage =
-    typeof payload?.error === "object" && payload.error
-      ? payload.error.message
-      : payload?.message;
-
-  if (!response.ok || errorCode) {
-    const code = errorCode || "provider_unreachable";
-    const message = errorMessage || "Unexpected backend error";
-    throw new N8nClientError(code, message, response.status);
-  }
-
-  return payload as T;
 };
 
 export type StripeStatusResponse = {
@@ -155,8 +64,8 @@ export type StripeStatusResponse = {
   trialEndsAt: string | null;
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
-  billing_last_error?: string | null;
-  subscription_canceled_at?: string | null;
+  billingLastError?: string | null;
+  subscriptionCanceledAt?: string | null;
 };
 
 export const n8nClient = {
@@ -214,33 +123,14 @@ export const n8nClient = {
   },
 
   ingest: {
-    orderFeedback: (payload: FeedbackInput) =>
-      request<{
-        success: boolean;
-        route: string;
-        order_id: string | null;
-        restaurant_id: string | null;
-        rating: number | null;
-        status: string;
-      }>({
-        route: "ingest/order-feedback",
-        requireAuth: false,
-        body: payload,
-      }),
-
     pushSubscription: (payload: PushSubscriptionInput) =>
       request<{
-        success: boolean;
-        route: string;
-        restaurant_id: string | null;
-        endpoint: string | null;
-        status: string;
+        restaurantId: string;
+        endpoint: string;
+        status: "subscribed";
       }>({
         route: "ingest/push-subscription",
-        body: {
-          action: "subscribe",
-          ...payload,
-        },
+        body: payload,
       }),
   },
 };

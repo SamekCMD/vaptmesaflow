@@ -1,138 +1,46 @@
-# n8n Imports
+# n8n integration boundary
 
-Current workflow set:
-- Asaas
-- Stripe
-- Ingest
+The Vapt API is the only owner of application persistence in Neon. n8n may call
+external providers, but an operational workflow must not write application rows
+through Supabase credentials or PostgREST.
 
-## Suggested rollout order
-1. Apply Supabase migrations
-2. Import Vapt Asaas
-3. Import Vapt Stripe
-4. Import Vapt Ingest
-5. Configure credentials and secrets
-6. Run manual smoke tests for each endpoint
-7. Only then update the frontend contracts
+## Current boundary
 
-Supabase migrations required before import/testing:
-- `supabase/migrations/20260404_add_provider_workflow_state.sql`
-- `supabase/migrations/20260404_create_push_subscriptions.sql`
+- Push subscriptions are persisted by the authenticated API route
+  `POST /ingest/push-subscription`. The API derives the restaurant from the
+  Better Auth session and upserts by endpoint in Neon.
+- Order feedback is persisted by
+  `PUT /public/orders/:orderId/feedback`, authenticated with
+  `X-Vapt-Order-Token`. The compatibility route `POST /ingest/order-feedback`
+  delegates to the same token-authenticated service and ignores browser-supplied
+  restaurant identity and timestamps.
+- Stripe create/change/cancel calls may still use n8n for the external Stripe
+  interaction. After a valid upstream response, the API persists the returned
+  billing state in Neon with both `restaurant_id` and `owner_id` in the update
+  predicate. A Neon write failure is returned as an error, never as local
+  success.
 
-## Smoke tests
-- Asaas setup succeeds with valid key
-- Asaas setup fails clearly with invalid key
-- Pix creation returns QR and payload
-- Asaas webhook updates order once
-- Stripe subscription create returns normalized response
-- Stripe plan change works
-- Stripe cancellation works
-- Stripe webhook updates billing state once
-- Push ingest persists record
-- Feedback ingest persists record
+## Retired versioned workflows
 
-## Vapt Asaas
+The following writer exports were removed from the repository on 2026-09-26:
 
-Workflow export:
-- `docs/integrations/n8n/asaas/Vapt Asaas.json`
+- `stripe/Vapt Stripe.json`
+- `ingest/Vapt Ingest.json`
 
-Required credentials:
-- Supabase service credential
-- Asaas access through per-restaurant API key
+They wrote operational rows through Supabase/PostgREST and must not be imported
+as active workflows. Importing, disabling, or editing workflows in the remote
+n8n UI was intentionally not part of this local cutover.
 
-Required secrets:
-- app endpoint secret
-- setup endpoint secret for `x-vapt-webhook-key`
-- admin endpoint secret
+## Legacy Asaas reference
 
-Expected headers:
-- `POST /asaas/setup`: `x-vapt-webhook-key`
-- `POST /asaas/pix/create`: `x-vapt-app-key`
-- `POST /asaas/setup/refresh`: `x-vapt-admin-key`
-- `GET /asaas/setup/status`: `x-vapt-admin-key`
-- `POST /asaas/webhook`: `asaas-access-token`
+`asaas/Vapt Asaas.json` remains only as a legacy, non-runtime reference. It
+contains Supabase nodes and is not approved for activation or import. The current
+API runtime does not register Asaas n8n operations. Any future Asaas restoration
+must first move persistence behind owner-scoped API/Neon repositories and add a
+separate migration plan.
 
-Expected environment variables:
-- `VAPT_SUPABASE_URL`
-- `VAPT_SUPABASE_SERVICE_KEY`
-- `VAPT_APP_ENDPOINT_SECRET`
-- `VAPT_WEBHOOK_SETUP_SECRET`
-- `VAPT_ADMIN_ENDPOINT_SECRET`
-- `VAPT_N8N_WEBHOOK_BASE_URL`
+## Verification
 
-Manual post-import checks:
-- webhook URLs
-- auth token handling
-- restaurant write fields
-- order payment metadata fields expected by the Pix branch
-
-Implementation notes:
-- The setup and admin refresh branches share the same validation, webhook registration, and persistence chain.
-- The Pix branch uses the approved deterministic generic Asaas customer strategy keyed by `vapt-restaurant-<restaurant_id>`.
-- The webhook branch upserts into `payment_provider_events` before applying the idempotent order transition to `payment_status = CONFIRMED` and `status = paid`.
-
-## Vapt Stripe
-
-Workflow export:
-- `docs/integrations/n8n/stripe/Vapt Stripe.json`
-
-Required credentials:
-- Supabase service credential
-- Stripe API credentials
-
-Required secrets:
-- app endpoint secret
-- admin endpoint secret
-
-Expected headers:
-- `POST /stripe/subscription/create`: `x-vapt-app-key`
-- `POST /stripe/subscription/change`: `x-vapt-app-key`
-- `POST /stripe/subscription/cancel`: `x-vapt-app-key`
-- `GET /stripe/subscription/status`: `x-vapt-app-key`
-- `POST /stripe/webhook`: Stripe signature headers
-- `GET /stripe/health`: `x-vapt-admin-key`
-
-Expected environment variables:
-- `VAPT_SUPABASE_URL`
-- `VAPT_SUPABASE_SERVICE_KEY`
-- `VAPT_APP_ENDPOINT_SECRET`
-- `VAPT_ADMIN_ENDPOINT_SECRET`
-- `STRIPE_WEBHOOK_SIGNING_SECRET`
-
-Manual post-import checks:
-- subscription create returns normalized payload
-- plan change supports upgrade and downgrade flows
-- cancellation persists restaurant cancellation metadata
-- webhook verifies signature and upserts billing events
-- health endpoint returns diagnostics without mutating data
-
-Implementation notes:
-- The workflow family keeps Stripe isolated from Asaas and uses Supabase as the persisted billing source of truth.
-- The webhook branch writes to `billing_provider_events` before applying idempotent billing updates to the restaurant record.
-
-## Vapt Ingest
-
-Workflow export:
-- `docs/integrations/n8n/ingest/Vapt Ingest.json`
-
-Required credentials:
-- Supabase service credential
-
-Required secrets:
-- app endpoint secret
-
-Expected headers:
-- `POST /ingest/push-subscription`: `x-vapt-app-key`
-- `POST /ingest/order-feedback`: `x-vapt-app-key`
-
-Expected environment variables:
-- `VAPT_SUPABASE_URL`
-- `VAPT_SUPABASE_SERVICE_KEY`
-- `VAPT_APP_ENDPOINT_SECRET`
-
-Manual post-import checks:
-- push subscription upsert succeeds
-- order feedback upsert succeeds
-- responses stay normalized and idempotent
-
-Implementation notes:
-- The ingest workflow family handles operational data only and should remain independent from payment provider flows.
+The frontend test `src/test/n8n-operational-writers.test.ts` guards the active
+Stripe/ingest directories and the browser n8n client against Supabase,
+service-role, and `/rest/v1` persistence dependencies.
