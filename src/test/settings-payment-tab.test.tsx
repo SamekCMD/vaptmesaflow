@@ -1,22 +1,27 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SettingsPage from "@/pages/dashboard/SettingsPage";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { fetchOwnedRestaurant, updateOwnedRestaurant } from "@/lib/restaurants";
+
+const { authUser } = vi.hoisted(() => ({
+  authUser: {
+    id: "20000000-0000-4000-8000-000000000001",
+    email: "gestor@vapt.test",
+    user_metadata: { full_name: "Gestor Vapt" },
+  },
+}));
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
-    user: {
-      id: "20000000-0000-4000-8000-000000000001",
-      email: "gestor@vapt.test",
-      user_metadata: { full_name: "Gestor Vapt" },
-    },
+    user: authUser,
   }),
 }));
 
 vi.mock("@/lib/restaurants", () => ({
   fetchOwnedRestaurant: vi.fn(),
+  updateOwnedRestaurant: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase", () => ({
@@ -39,26 +44,38 @@ vi.mock("@/components/payments/MercadoPagoSettingsCard", () => ({
 }));
 
 const mockedFetchOwnedRestaurant = vi.mocked(fetchOwnedRestaurant);
+const mockedUpdateOwnedRestaurant = vi.mocked(updateOwnedRestaurant);
 
 describe("aba de pagamentos nas configuracoes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedFetchOwnedRestaurant.mockResolvedValue({
       id: "10000000-0000-4000-8000-000000000001",
-      owner_id: "20000000-0000-4000-8000-000000000001",
-      updated_at: "2026-08-29T12:00:00.000Z",
+      updatedAt: "2026-08-29T12:00:00.000Z",
       cnpj: null,
       name: "Restaurante Teste",
+      slug: "restaurante-teste",
+      whatsapp: null,
       address: "Rua Teste, 1",
       phone: "61999999999",
       hours: "18h as 23h",
       description: "Restaurante de teste",
-      payment_mode: "prepaid",
-      max_pending_orders: 3,
-      max_tables: 20,
-      local_enabled: true,
-      delivery_enabled: true,
+      primaryColor: "#0ea573",
+      secondaryColor: "#1e293b",
+      fontFamily: "modern",
+      logoUrl: null,
+      planType: "starter",
+      planStatus: "trialing",
+      trialEndsAt: "2026-09-29T12:00:00.000Z",
+      totalTables: 1,
+      maxTables: 20,
+      paymentMode: "prepaid",
+      maxPendingOrders: 3,
+      localEnabled: true,
+      deliveryEnabled: true,
+      onboardingCompleted: true,
     });
+    mockedUpdateOwnedRestaurant.mockResolvedValue({ id: "restaurant-1" } as never);
   });
 
   it("separa pagamentos e mantem as tres abas acessiveis no mobile", async () => {
@@ -69,6 +86,7 @@ describe("aba de pagamentos nas configuracoes", () => {
     );
 
     const restaurantTab = await screen.findByRole("tab", { name: "Restaurante" });
+    expect(mockedFetchOwnedRestaurant).toHaveBeenCalledWith();
     const paymentsTab = screen.getByRole("tab", { name: "Pagamentos" });
     const accountTab = screen.getByRole("tab", { name: "Conta" });
 
@@ -92,5 +110,32 @@ describe("aba de pagamentos nas configuracoes", () => {
     expect(await screen.findByText("Meios atuais de teste")).toBeInTheDocument();
     expect(screen.getByText("Mercado Pago de teste")).toBeInTheDocument();
     expect(screen.queryByText("Canais Ativos")).not.toBeInTheDocument();
+  });
+
+  it("saves restaurant and payment settings through the owner-scoped API", async () => {
+    render(
+      <MemoryRouter>
+        <SettingsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByDisplayValue("Restaurante Teste");
+    fireEvent.change(screen.getByDisplayValue("Restaurante Teste"), {
+      target: { value: "Novo Restaurante" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar Alterações" }));
+
+    await waitFor(() => expect(mockedUpdateOwnedRestaurant).toHaveBeenCalledWith(expect.objectContaining({
+      name: "Novo Restaurante",
+      address: "Rua Teste, 1",
+      maxTables: 20,
+      deliveryEnabled: true,
+    })));
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar fluxo do pedido" }));
+    await waitFor(() => expect(mockedUpdateOwnedRestaurant).toHaveBeenCalledWith({
+      paymentMode: "prepaid",
+      maxPendingOrders: 3,
+    }));
   });
 });

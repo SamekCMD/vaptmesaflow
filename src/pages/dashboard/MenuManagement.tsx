@@ -147,10 +147,7 @@ const MenuManagement = () => {
     const fetchItems = async () => {
       if (!user) return;
       try {
-        const rest = await fetchOwnedRestaurant<{ id: string; owner_id: string; updated_at: string }>(
-          user.id,
-          "id, owner_id, updated_at"
-        );
+        const rest = await fetchOwnedRestaurant();
 
         if (!rest) { setLoading(false); return; }
         setRestaurantId(rest.id);

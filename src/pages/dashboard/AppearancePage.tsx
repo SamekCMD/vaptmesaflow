@@ -11,8 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { Upload, Smartphone, ExternalLink, Loader2, UtensilsCrossed } from "lucide-react";
 import { AppearanceFormSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/lib/supabase";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { fetchOwnedRestaurant, updateOwnedRestaurant } from "@/lib/restaurants";
 
 const AppearancePage = () => {
   const { user } = useAuth();
@@ -42,35 +41,21 @@ const AppearancePage = () => {
     const fetch = async () => {
       if (!user) return;
       try {
-        const data = await fetchOwnedRestaurant<{
-          id: string;
-          owner_id: string;
-          updated_at: string;
-          name: string | null;
-          slug: string | null;
-          logo_url: string | null;
-          primary_color: string | null;
-          secondary_color: string | null;
-          font_family: string | null;
-          delivery_enabled: boolean | null;
-        }>(
-          user.id,
-          "id, owner_id, updated_at, name, slug, logo_url, primary_color, secondary_color, font_family, delivery_enabled"
-        );
+        const data = await fetchOwnedRestaurant();
 
         if (data) {
-          setDeliveryEnabled(Boolean(data.delivery_enabled));
+          setDeliveryEnabled(data.deliveryEnabled);
           setConfig({
             id: data.id,
-            name: data.name || "",
-            slug: data.slug || "",
-            logoUrl: data.logo_url || "",
-            primaryColor: data.primary_color || "#0ea573",
-            secondaryColor: data.secondary_color || "#1e293b",
-            fontFamily: (data.font_family as RestaurantConfig["fontFamily"]) || "modern",
+            name: data.name,
+            slug: data.slug,
+            logoUrl: data.logoUrl || "",
+            primaryColor: data.primaryColor || "#0ea573",
+            secondaryColor: data.secondaryColor || "#1e293b",
+            fontFamily: (data.fontFamily as RestaurantConfig["fontFamily"]) || "modern",
             activeModules: { menu: true, kds: true, metrics: true },
           });
-          setLogoPreview(data.logo_url || "");
+          setLogoPreview(data.logoUrl || "");
         }
       } catch (err: unknown) {
         if (import.meta.env.DEV) {
@@ -95,19 +80,14 @@ const AppearancePage = () => {
     if (!user || !config.id) return;
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("restaurants")
-        .update({
-          name: config.name,
-          slug: config.slug,
-          primary_color: config.primaryColor,
-          secondary_color: config.secondaryColor,
-          font_family: config.fontFamily,
-          logo_url: config.logoUrl,
-        })
-        .eq("id", config.id);
-
-      if (error) throw error;
+      await updateOwnedRestaurant({
+        name: config.name,
+        slug: config.slug,
+        primaryColor: config.primaryColor,
+        secondaryColor: config.secondaryColor,
+        fontFamily: config.fontFamily,
+        logoUrl: config.logoUrl || null,
+      });
       toast({ title: "Aparencia salva", description: "As alteracoes de marca foram aplicadas." });
     } catch (err: unknown) {
       const description = err instanceof Error ? err.message : "Tente novamente.";

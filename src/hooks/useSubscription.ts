@@ -5,7 +5,7 @@ import { fetchOwnedRestaurant } from "@/lib/restaurants";
 const SUBSCRIPTION_UPDATED_EVENT = "vapt:subscription-updated";
 
 export type PlanType = "starter" | "pro" | "business" | "trial";
-export type PlanStatus = "trialing" | "active" | "canceled" | "expired";
+export type PlanStatus = "trialing" | "active" | "cancelled" | "expired";
 
 const featureAccess: Record<string, string[]> = {
   cashier: ["pro", "business"],
@@ -28,13 +28,6 @@ export interface SubscriptionData {
   refetch: () => void;
 }
 
-type RestaurantSubscriptionRow = {
-  id: string;
-  plan_type: Exclude<PlanType, "trial"> | null;
-  plan_status: PlanStatus | null;
-  trial_ends_at: string | null;
-};
-
 const normalizePlanType = (
   planType: string | null | undefined,
 ): Exclude<PlanType, "trial"> | "starter" => {
@@ -52,7 +45,7 @@ const normalizePlanStatus = (planStatus: string | null | undefined): PlanStatus 
   if (
     normalized === "trialing" ||
     normalized === "active" ||
-    normalized === "canceled" ||
+    normalized === "cancelled" ||
     normalized === "expired"
   ) {
     return normalized;
@@ -102,10 +95,7 @@ async function loadSubscriptionSnapshot(userId: string): Promise<void> {
 
   inFlightFetch = (async () => {
     try {
-      const data = await fetchOwnedRestaurant<RestaurantSubscriptionRow & { owner_id: string }>(
-        userId,
-        "id, owner_id, plan_type, plan_status, trial_ends_at, updated_at",
-      );
+      const data = await fetchOwnedRestaurant();
 
       if (import.meta.env.DEV) {
         console.info("[useSubscription] selected restaurant", {
@@ -115,15 +105,14 @@ async function loadSubscriptionSnapshot(userId: string): Promise<void> {
       }
 
       if (data) {
-        const row = data as RestaurantSubscriptionRow;
-        const planStatus = normalizePlanStatus(row.plan_status);
-        const planType = normalizePlanType(row.plan_type);
+        const planStatus = normalizePlanStatus(data.planStatus);
+        const planType = normalizePlanType(data.planType);
 
         setSnapshot({
-          restaurantId: row.id,
+          restaurantId: data.id,
           planType: planStatus === "trialing" ? "trial" : planType,
           planStatus,
-          trialEndsAt: row.trial_ends_at ? new Date(row.trial_ends_at) : null,
+          trialEndsAt: data.trialEndsAt ? new Date(data.trialEndsAt) : null,
           loading: false,
         });
       } else {

@@ -61,10 +61,7 @@ const DashboardLayout = () => {
 
   useEffect(() => {
     if (!user) return;
-    fetchOwnedRestaurant<{ id: string; slug: string; owner_id: string; updated_at: string }>(
-      user.id,
-      "id, slug, owner_id, updated_at",
-    ).then((data) => {
+    fetchOwnedRestaurant().then((data) => {
       if (data) {
         setRestaurantId(data.id);
         setRestaurantSlug(data.slug);

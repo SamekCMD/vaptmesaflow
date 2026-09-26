@@ -295,11 +295,14 @@ const Overview = ({ guideProgress }: OverviewProps) => {
       try {
         setLoading(true);
 
-        const restData = await fetchOwnedRestaurant<RestaurantOverviewRecord & { owner_id: string; updated_at: string }>(
-          user.id,
-          "id, owner_id, updated_at, name, payment_mode, onboarding_completed, delivery_enabled"
-        );
-        setRestaurant(restData as RestaurantOverviewRecord);
+        const restData = await fetchOwnedRestaurant();
+        setRestaurant(restData ? {
+          id: restData.id,
+          name: restData.name,
+          payment_mode: restData.paymentMode,
+          onboarding_completed: restData.onboardingCompleted,
+          delivery_enabled: restData.deliveryEnabled,
+        } : null);
 
         if (restData) {
           const periodStart = getStartDate(period);

@@ -17,12 +17,6 @@ import {
 } from "@/lib/onboarding";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-type RestaurantCashierRow = {
-  id: string;
-  total_tables: number | null;
-  max_tables: number | null;
-};
-
 type TableSessionRow = {
   id: string;
   restaurant_id: string;
@@ -77,14 +71,10 @@ const CashierPage = () => {
   useEffect(() => {
     if (!user) return;
     const fetch = async () => {
-      const data = await fetchOwnedRestaurant<RestaurantCashierRow & { owner_id: string; updated_at: string }>(
-        user.id,
-        "id, owner_id, total_tables, max_tables, updated_at",
-      );
+      const data = await fetchOwnedRestaurant();
       if (data) {
-        const row = data as RestaurantCashierRow;
-        setRestaurantId(row.id);
-        setTotalTables(row.max_tables || row.total_tables || 20);
+        setRestaurantId(data.id);
+        setTotalTables(data.maxTables || data.totalTables || 20);
       }
     };
     fetch();

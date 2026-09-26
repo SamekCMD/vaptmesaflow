@@ -16,40 +16,13 @@ import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import CurrentPaymentMethodsCard from "@/components/payments/CurrentPaymentMethodsCard";
 import MercadoPagoSettingsCard from "@/components/payments/MercadoPagoSettingsCard";
 import { ENV } from "@/lib/env";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { fetchOwnedRestaurant, updateOwnedRestaurant } from "@/lib/restaurants";
 import {
   completeGuideModule,
   getGuideModuleHref,
   getNextGuideModule,
   GUIDE_MODULE_CONTENT,
 } from "@/lib/onboarding";
-
-type RestaurantSettingsRow = {
-  id: string;
-  cnpj: string | null;
-  name: string | null;
-  address: string | null;
-  phone: string | null;
-  hours: string | null;
-  description: string | null;
-  payment_mode: "open_tab" | "prepaid" | null;
-  max_pending_orders: number | null;
-  max_tables: number | null;
-  local_enabled: boolean | null;
-  delivery_enabled: boolean | null;
-};
-
-type RestaurantSettingsUpdate = {
-  name?: string;
-  address?: string;
-  phone?: string;
-  hours?: string;
-  description?: string;
-  max_tables?: number;
-  payment_mode?: "open_tab" | "prepaid";
-  max_pending_orders?: number;
-  delivery_enabled?: boolean;
-};
 
 const SettingsPage = () => {
   const { user } = useAuth();
@@ -92,31 +65,25 @@ const SettingsPage = () => {
       if (!user) return;
 
       try {
-        const data = await fetchOwnedRestaurant<
-          RestaurantSettingsRow & { owner_id: string; updated_at: string }
-        >(
-          user.id,
-          "id, owner_id, updated_at, name, cnpj, address, phone, hours, description, payment_mode, max_pending_orders, max_tables, local_enabled, delivery_enabled"
-        );
+        const data = await fetchOwnedRestaurant();
 
         if (data) {
-          const row = data as RestaurantSettingsRow;
-          setRestaurantId(row.id ?? null);
+          setRestaurantId(data.id);
           setForm({
-            name: row.name || "",
-            address: row.address || "",
-            phone: row.phone || "",
-            hours: row.hours || "",
-            description: row.description || "",
-            max_tables: row.max_tables || 20,
+            name: data.name,
+            address: data.address || "",
+            phone: data.phone || "",
+            hours: data.hours || "",
+            description: data.description || "",
+            max_tables: data.maxTables || 20,
           });
           setPaymentForm({
-            payment_mode: row.payment_mode || "open_tab",
-            max_pending_orders: row.max_pending_orders || 3,
+            payment_mode: data.paymentMode,
+            max_pending_orders: data.maxPendingOrders || 3,
           });
           setChannelsForm({
-            local_enabled: row.local_enabled ?? true,
-            delivery_enabled: row.delivery_enabled ?? false,
+            local_enabled: data.localEnabled,
+            delivery_enabled: data.deliveryEnabled,
           });
         }
 
@@ -155,20 +122,15 @@ const SettingsPage = () => {
     if (!user || !restaurantId) return;
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("restaurants")
-        .update({
-          name: form.name,
-          address: form.address,
-          phone: form.phone,
-          hours: form.hours,
-          description: form.description,
-          max_tables: form.max_tables,
-          delivery_enabled: channelsForm.delivery_enabled,
-        } satisfies RestaurantSettingsUpdate)
-        .eq("id", restaurantId);
-
-      if (error) throw error;
+      await updateOwnedRestaurant({
+        name: form.name,
+        address: form.address,
+        phone: form.phone,
+        hours: form.hours,
+        description: form.description,
+        maxTables: form.max_tables,
+        deliveryEnabled: channelsForm.delivery_enabled,
+      });
       toast({ title: "Configurações salvas", description: "As alterações foram aplicadas com sucesso." });
     } catch (error: unknown) {
       const description = error instanceof Error ? error.message : "Não foi possível salvar agora.";
@@ -182,17 +144,10 @@ const SettingsPage = () => {
     if (!user || !restaurantId) return;
     setSavingPayment(true);
     try {
-      const updatePayload: RestaurantSettingsUpdate = {
-        payment_mode: paymentForm.payment_mode,
-        max_pending_orders: paymentForm.max_pending_orders,
-      };
-
-      const { error } = await supabase
-        .from("restaurants")
-        .update(updatePayload)
-        .eq("id", restaurantId);
-
-      if (error) throw error;
+      await updateOwnedRestaurant({
+        paymentMode: paymentForm.payment_mode,
+        maxPendingOrders: paymentForm.max_pending_orders,
+      });
 
       toast({ title: "Fluxo de pagamento salvo", description: "O novo modo já vale para os próximos pedidos." });
     } catch (error: unknown) {

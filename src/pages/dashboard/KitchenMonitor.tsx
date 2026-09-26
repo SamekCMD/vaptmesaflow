@@ -162,10 +162,7 @@ const KitchenMonitor = () => {
   useEffect(() => {
     if (!user) return;
     const fetchRestaurant = async () => {
-      const data = await fetchOwnedRestaurant<{ id: string; owner_id: string; updated_at: string }>(
-        user.id,
-        "id, owner_id, updated_at",
-      );
+      const data = await fetchOwnedRestaurant();
       if (data) setRestaurantId(data.id);
     };
     fetchRestaurant();
