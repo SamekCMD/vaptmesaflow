@@ -362,15 +362,15 @@ git commit -m "refactor: run core repositories on Neon"
 - Produces: `GET /public/restaurants/:slug/catalog -> { restaurant: RestaurantDto; items: MenuItemDto[] }`.
 - Public response excludes `ownerId`, billing IDs, provider credentials, CNPJ when not displayed, and internal flags.
 
-- [ ] **Step 1: Escrever testes vermelhos de contrato e exposição**
+- [x] **Step 1: Escrever testes vermelhos de contrato e exposição**
 
 Cobrir slug inexistente `404`, restaurante encontrado, apenas itens `available = true`, variações agrupadas, ordem estável e ausência de `ownerId`, `stripeCustomerId`, `asaasApiKey` e colunas internas.
 
-- [ ] **Step 2: Implementar consulta pública parametrizada**
+- [x] **Step 2: Implementar consulta pública parametrizada**
 
 Consultar o restaurante por slug e itens/variações em no máximo duas queries; mapear `numeric` para string e timestamps para ISO.
 
-- [ ] **Step 3: Substituir leituras públicas no frontend**
+- [x] **Step 3: Substituir leituras públicas no frontend**
 
 ```ts
 const catalog = await vaptApiRequest<PublicCatalogDto>({
@@ -382,7 +382,7 @@ const catalog = await vaptApiRequest<PublicCatalogDto>({
 
 Remover imports Supabase de `PublicMenu.tsx` e `PublicDelivery.tsx` sem alterar checkout público.
 
-- [ ] **Step 4: Verificar e commit em ambos os repositórios**
+- [x] **Step 4: Verificar e commit em ambos os repositórios**
 
 ```powershell
 npx tsx --test src/modules/catalog/catalog.test.ts
