@@ -542,11 +542,11 @@ git commit -m "refactor: manage menu through API"
 - Produces: `GET /restaurants/me/kitchen/orders` and `PATCH /restaurants/me/kitchen/orders/:orderId/status`.
 - Allowed transitions: `paid|pending -> preparing`, `preparing -> ready`, `ready -> delivered`; same-state retry is idempotent; other transitions return `409`.
 
-- [ ] **Step 1: Escrever testes vermelhos de status e tenant**
+- [x] **Step 1: Escrever testes vermelhos de status e tenant**
 
 Cobrir fila ativa com `order_items`, ordem `created_at desc`, pedido de outro restaurante, transição válida, inválida, retry idempotente e concorrência.
 
-- [ ] **Step 2: Implementar lock e transição**
+- [x] **Step 2: Implementar lock e transição**
 
 ```sql
 select o.status
@@ -558,11 +558,11 @@ for update
 
 Validar transição no serviço e atualizar com `updated_at = now()` dentro da mesma transação. O arquivamento automático usa a mesma rota, não fire-and-forget direto no banco.
 
-- [ ] **Step 3: Migrar KitchenMonitor**
+- [x] **Step 3: Migrar KitchenMonitor**
 
 Substituir fetch/update Supabase por API. Em erro, restaurar o estado otimista e exibir mensagem; cancelar timers ao desmontar.
 
-- [ ] **Step 4: Verificar e commit**
+- [x] **Step 4: Verificar e commit**
 
 ```powershell
 npx tsx --test src/modules/kitchen/kitchen.test.ts
