@@ -716,7 +716,7 @@ git commit -m "refactor: use API for overview and guest actions"
 - Produces: feedback/push persistence directly na API/Neon; n8n pode executar integrações externas, mas não escrever em Supabase.
 - Stripe service persists returned subscription identifiers/status through an ownership-scoped Neon repository.
 
-- [ ] **Step 1: Inventariar nós Supabase versionados e escrever teste de proibição**
+- [x] **Step 1: Inventariar nós Supabase versionados e escrever teste de proibição**
 
 ```powershell
 rg -n 'supabase|SUPABASE_URL|service_role|rest/v1' docs/integrations/n8n src/lib/n8n-client.ts
@@ -724,19 +724,19 @@ rg -n 'supabase|SUPABASE_URL|service_role|rest/v1' docs/integrations/n8n src/lib
 
 Criar teste que lê os JSON versionados e falha se um workflow ativo contiver credencial/nó Supabase ou URL `/rest/v1`.
 
-- [ ] **Step 2: Mover ingest persistence para Neon**
+- [x] **Step 2: Mover ingest persistence para Neon**
 
 `/ingest/order-feedback` passa a delegar à rota pública autenticada por token; `/ingest/push-subscription` usa sessão/ownership e `ON CONFLICT(endpoint) DO UPDATE`. Nenhuma rota chama n8n para persistir linhas.
 
-- [ ] **Step 3: Persistir resultado Stripe na API**
+- [x] **Step 3: Persistir resultado Stripe na API**
 
 Após resposta válida do n8n/Stripe, atualizar somente o restaurante verificado com `stripe_customer_id`, `stripe_subscription_id`, `plan_type`, `plan_status`, `trial_ends_at`, `subscription_canceled_at` conforme a operação. Falha de persistência retorna erro e não afirma sucesso local.
 
-- [ ] **Step 4: Retirar workflows de escrita legada**
+- [x] **Step 4: Retirar workflows de escrita legada**
 
 Remover os dois JSON versionados de escrita legada e registrar no README que eles foram aposentados; o import/disable remoto não faz parte desta execução. Não chamar UI n8n sem autorização/credenciais explícitas.
 
-- [ ] **Step 5: Verificar e commit**
+- [x] **Step 5: Verificar e commit**
 
 ```powershell
 npm test
