@@ -493,23 +493,23 @@ git commit -m "refactor: use restaurant API for owner data"
 - Produces: list/create/update/delete endpoints under `/restaurants/me/menu-items`.
 - Item create/update accepts `{ name, price, description, category, available, imageUrl, availableFrom, availableUntil, badge, isChefSuggestion, prepTimeMinutes, variations }`.
 
-- [ ] **Step 1: Escrever testes vermelhos de validação/tenant**
+- [x] **Step 1: Escrever testes vermelhos de validação/tenant**
 
 Cobrir preço negativo, variação vazia, item de outro owner, chef suggestion única, criação com variações, substituição atômica de variações, remoção e rollback.
 
-- [ ] **Step 2: Implementar repository com ownership em toda query**
+- [x] **Step 2: Implementar repository com ownership em toda query**
 
 Usar joins com `restaurants.owner_id = $userId`; nunca fazer update/delete apenas por `itemId`. Create/update roda em transação, zera outras sugestões do mesmo restaurante quando necessário e substitui variações somente após o item estar validado.
 
-- [ ] **Step 3: Unificar persistência da URL R2**
+- [x] **Step 3: Unificar persistência da URL R2**
 
 Adicionar `PATCH /restaurants/:restaurantId/menu-items/:itemId/image` à rota R2 existente ou fazer o endpoint de menu aceitar `imageUrl` somente se o `itemId` pertence ao owner. Testar que URL arbitrária fora de `config.r2.publicBaseUrl` é rejeitada.
 
-- [ ] **Step 4: Migrar `MenuManagement.tsx`**
+- [x] **Step 4: Migrar `MenuManagement.tsx`**
 
 Remover todas as operações `.from("menu_items")`/`.from("menu_item_variations")`. Após upload R2, usar o patch autenticado; após delete R2, remover item via API. Preservar optimistic UI apenas quando o servidor retornar sucesso.
 
-- [ ] **Step 5: Verificar e commit**
+- [x] **Step 5: Verificar e commit**
 
 ```powershell
 npx tsx --test src/modules/menu/menu.test.ts src/modules/storage/routes.test.ts
