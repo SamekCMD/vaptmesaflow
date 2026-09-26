@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
 import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { listTableSessions } from "@/lib/table-sessions";
 import { useAuth } from "@/contexts/AuthContext";
 import TableCard, { type TableSession } from "@/components/cashier/TableCard";
 import TableSessionModal from "@/components/cashier/TableSessionModal";
@@ -16,20 +16,6 @@ import {
   GUIDE_MODULE_CONTENT,
 } from "@/lib/onboarding";
 import { useNavigate, useSearchParams } from "react-router-dom";
-
-type TableSessionRow = {
-  id: string;
-  restaurant_id: string;
-  table_number: string;
-  status: TableSession["status"];
-  opened_at: string;
-  closed_at: string | null;
-};
-
-type OrderAggregateRow = {
-  table_session_id: string;
-  total_price: number;
-};
 
 const playBellSound = () => {
   try {
@@ -59,7 +45,6 @@ const CashierPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [totalTables, setTotalTables] = useState(20);
   const [sessions, setSessions] = useState<TableSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<TableSession | null>(null);
@@ -73,7 +58,6 @@ const CashierPage = () => {
     const fetch = async () => {
       const data = await fetchOwnedRestaurant();
       if (data) {
-        setRestaurantId(data.id);
         setTotalTables(data.maxTables || data.totalTables || 20);
       }
     };
@@ -94,71 +78,48 @@ const CashierPage = () => {
   }, []);
 
   const fetchSessions = useCallback(async () => {
-    if (!restaurantId) return;
-    const { data: sessionsData } = await supabase
-      .from("table_sessions")
-      .select("*")
-      .eq("restaurant_id", restaurantId)
-      .in("status", ["open", "check_requested"]);
-    if (!sessionsData) return;
-    const sessionRows = sessionsData as TableSessionRow[];
-    const sessionIds = sessionRows.map((s) => s.id);
-    const orderAggs: Record<string, { total: number; count: number }> = {};
-    if (sessionIds.length > 0) {
-      const { data: ordersData } = await supabase
-        .from("orders")
-        .select("table_session_id, total_price")
-        .in("table_session_id", sessionIds);
-      if (ordersData) {
-        for (const o of ordersData as OrderAggregateRow[]) {
-          if (!orderAggs[o.table_session_id]) orderAggs[o.table_session_id] = { total: 0, count: 0 };
-          orderAggs[o.table_session_id].total += Number(o.total_price);
-          orderAggs[o.table_session_id].count += 1;
+    try {
+      const currentSessions = await listTableSessions();
+      const currentCheckRequested = new Set(currentSessions.filter((s) => s.status === "check_requested").map((s) => s.id));
+      if (knownCheckRequestedRef.current.size > 0) {
+        for (const id of currentCheckRequested) {
+          if (!knownCheckRequestedRef.current.has(id)) {
+            playBellSound();
+            const session = currentSessions.find((s) => s.id === id);
+            toast({ title: `Mesa ${session?.tableNumber} pediu a conta!`, description: "Clique na mesa para ver o extrato." });
+            break;
+          }
         }
       }
-    }
-    const mapped: TableSession[] = sessionRows.map((s) => ({
-      id: s.id, restaurant_id: s.restaurant_id, table_number: s.table_number,
-      status: s.status, opened_at: s.opened_at, closed_at: s.closed_at,
-      session_total: orderAggs[s.id]?.total || null, order_count: orderAggs[s.id]?.count || null,
-    }));
-    const currentCheckRequested = new Set(mapped.filter((s) => s.status === "check_requested").map((s) => s.id));
-    if (knownCheckRequestedRef.current.size > 0) {
-      for (const id of currentCheckRequested) {
-        if (!knownCheckRequestedRef.current.has(id)) {
-          playBellSound();
-          const session = mapped.find((s) => s.id === id);
-          toast({ title: `Mesa ${session?.table_number} pediu a conta!`, description: "Clique na mesa para ver o extrato." });
-          break;
+      knownCheckRequestedRef.current = currentCheckRequested;
+      const currentOrderCounts = new Map(currentSessions.map((s) => [s.id, s.orderCount]));
+      if (knownOrderCountRef.current.size > 0) {
+        for (const [id, count] of currentOrderCounts) {
+          const prev = knownOrderCountRef.current.get(id) || 0;
+          if (count > prev) {
+            playBellSound();
+            const session = currentSessions.find((s) => s.id === id);
+            toast({ title: `Novo pedido na Mesa ${session?.tableNumber}!` });
+            break;
+          }
         }
       }
+      knownOrderCountRef.current = currentOrderCounts;
+      setSessions(currentSessions);
+    } catch {
+      toast({ title: "Erro", description: "Não foi possível atualizar as mesas.", variant: "destructive" });
     }
-    knownCheckRequestedRef.current = currentCheckRequested;
-    const currentOrderCounts = new Map(mapped.map((s) => [s.id, s.order_count || 0]));
-    if (knownOrderCountRef.current.size > 0) {
-      for (const [id, count] of currentOrderCounts) {
-        const prev = knownOrderCountRef.current.get(id) || 0;
-        if (count > prev) {
-          playBellSound();
-          const session = mapped.find((s) => s.id === id);
-          toast({ title: `Novo pedido na Mesa ${session?.table_number}!` });
-          break;
-        }
-      }
-    }
-    knownOrderCountRef.current = currentOrderCounts;
-    setSessions(mapped);
-  }, [restaurantId]);
+  }, []);
 
-  useEffect(() => { if (restaurantId) fetchSessions(); }, [restaurantId, fetchSessions]);
+  useEffect(() => { if (user) void fetchSessions(); }, [user, fetchSessions]);
   useEffect(() => {
-    if (!restaurantId) return;
+    if (!user) return;
     const interval = setInterval(fetchSessions, 5000);
     return () => clearInterval(interval);
-  }, [restaurantId, fetchSessions]);
+  }, [user, fetchSessions]);
 
   const handleTableClick = (tableNum: string) => {
-    const session = sessions.find((s) => s.table_number === tableNum) || null;
+    const session = sessions.find((s) => s.tableNumber === tableNum) || null;
     setSelectedSession(session);
     setModalOpen(true);
   };
@@ -206,7 +167,7 @@ const CashierPage = () => {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           {tableNumbers.map((num) => {
-            const session = sessions.find((s) => s.table_number === num) || null;
+            const session = sessions.find((s) => s.tableNumber === num) || null;
             return <TableCard key={num} tableNumber={num} session={session} onClick={() => handleTableClick(num)} tick={tick} />;
           })}
         </div>
