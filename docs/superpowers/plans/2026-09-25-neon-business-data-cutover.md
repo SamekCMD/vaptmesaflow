@@ -650,15 +650,15 @@ git commit -m "refactor: use cashier API"
 - `PUT /public/orders/:orderId/feedback` exige `X-Vapt-Order-Token` e aceita `{ rating, reasons, comment }`.
 - `POST /public/table-sessions/:sessionId/request-check` exige `{ publicOrderId, publicOrderToken }` e só altera a sessão ligada ao pedido/token.
 
-- [ ] **Step 1: Escrever testes vermelhos de período/serialização**
+- [x] **Step 1: Escrever testes vermelhos de período/serialização**
 
 Fixar o relógio; testar limites day/week/month, timezone UTC, feedback vazio, ratings 1/5, decimal como string e ausência de dados de outro owner.
 
-- [ ] **Step 2: Implementar overview por owner**
+- [x] **Step 2: Implementar overview por owner**
 
 Resolver restaurante pelo userId, calcular `periodStart` no serviço e consultar pedidos/items + feedback por `restaurant_id` e `created_at >= $periodStart`.
 
-- [ ] **Step 3: Implementar feedback público idempotente**
+- [x] **Step 3: Implementar feedback público idempotente**
 
 Validar token do pedido com o mesmo hash/secret de `OrderService`, então:
 
@@ -675,15 +675,15 @@ returning *
 
 Token ausente/incorreto retorna `401`; orderId de outro token nunca grava.
 
-- [ ] **Step 4: Implementar request-check limitado ao pedido**
+- [x] **Step 4: Implementar request-check limitado ao pedido**
 
 Após validar token e carregar `table_session_id`, atualizar somente sessão `open` para `check_requested`. Sessão fechada retorna `409`; repetição em `check_requested` é idempotente.
 
-- [ ] **Step 5: Migrar consumidores frontend**
+- [x] **Step 5: Migrar consumidores frontend**
 
 Overview usa um endpoint; `order-feedback.ts` remove Supabase e n8n para persistência; `FloatingActions` envia orderId/token já disponíveis no fluxo público. Atualizar props e testes para impedir chamada sem token.
 
-- [ ] **Step 6: Verificar e commit**
+- [x] **Step 6: Verificar e commit**
 
 ```powershell
 npx tsx --test src/modules/overview/overview.test.ts src/modules/feedback/feedback.test.ts src/modules/table-sessions/table-sessions.test.ts
