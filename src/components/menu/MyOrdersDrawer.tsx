@@ -15,7 +15,8 @@ import { orderClient, readStoredOrderAccess, type PublicOrder } from "@/lib/orde
 
 interface OrderData {
   id: string;
-  display_id: number | null;
+  public_token: string;
+  display_id: string | null;
   table_number: string | null;
   total_price: number;
   status: string;
@@ -41,9 +42,10 @@ const statusConfig: Record<string, { label: string; color: string }> = {
   delivered: { label: "Entregue", color: "bg-gray-400" },
 };
 
-function mapPublicOrder(order: PublicOrder): OrderData {
+function mapPublicOrder(order: PublicOrder, publicToken: string): OrderData {
   return {
     id: order.orderId,
+    public_token: publicToken,
     display_id: order.displayId,
     table_number: order.tableNumber,
     total_price: Number(order.totalPrice),
@@ -68,14 +70,15 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor }: MyOrdersD
 
     try {
       const loaded = await Promise.all(
-        stored.map((access) =>
-          orderClient.get(access.orderId, access.publicToken).catch(() => null),
-        ),
+        stored.map(async (access) => {
+          const order = await orderClient.get(access.orderId, access.publicToken).catch(() => null);
+          return order ? { order, publicToken: access.publicToken } : null;
+        }),
       );
       setOrders(
         loaded
-          .filter((order): order is PublicOrder => Boolean(order))
-          .map(mapPublicOrder)
+          .filter((entry): entry is { order: PublicOrder; publicToken: string } => entry !== null)
+          .map((entry) => mapPublicOrder(entry.order, entry.publicToken))
           .filter((order) => Date.now() - new Date(order.created_at).getTime() <= 24 * 60 * 60 * 1000)
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
       );
@@ -140,7 +143,7 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor }: MyOrdersD
         {order.status === "delivered" && (
           <InlineOrderRatingCard
             orderId={order.id}
-            restaurantId={restaurantId}
+            publicToken={order.public_token}
             displayId={order.display_id ?? 0}
             primaryColor={primaryColor}
           />

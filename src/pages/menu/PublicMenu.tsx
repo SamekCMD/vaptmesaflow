@@ -87,6 +87,7 @@ const PublicMenu = () => {
   const [activeTab, setActiveTab] = useState<"menu" | "orders">("menu");
   const [hasReadyOrder, setHasReadyOrder] = useState(false);
   const [tableSessionId, setTableSessionId] = useState<string | null>(null);
+  const [tableSessionOrderAccess, setTableSessionOrderAccess] = useState<StoredOrderAccess | null>(null);
   const [hasPlacedOrder, setHasPlacedOrder] = useState(false);
 
   const cart = useCart();
@@ -137,7 +138,25 @@ const PublicMenu = () => {
           if (storedSessionId) {
             setTableSessionId(storedSessionId);
             setHasPlacedOrder(true);
+            const storedAccesses = readStoredOrderAccess(restaurantRow.id);
+            const linkedAccesses = await Promise.all(
+              storedAccesses.map(async (access) => {
+                const order = await orderClient.get(access.orderId, access.publicToken).catch(() => null);
+                return order?.tableSessionId === storedSessionId ? access : null;
+              }),
+            );
+            setTableSessionOrderAccess(
+              linkedAccesses.find((access): access is StoredOrderAccess => access !== null) ?? null,
+            );
+          } else {
+            setTableSessionId(null);
+            setTableSessionOrderAccess(null);
+            setHasPlacedOrder(false);
           }
+        } else {
+          setTableSessionId(null);
+          setTableSessionOrderAccess(null);
+          setHasPlacedOrder(false);
         }
 
         const menuItems = mapCatalogItems(catalog.items);
@@ -288,6 +307,7 @@ const PublicMenu = () => {
   const handleOrderPlaced = useCallback((access: StoredOrderAccess) => {
     if (!restaurant) return;
     saveStoredOrderAccess(restaurant.id, access);
+    setTableSessionOrderAccess(access);
 
     try {
       const sessionIds = JSON.parse(sessionStorage.getItem("vapt_current_order_ids") || "[]");
@@ -422,7 +442,13 @@ const PublicMenu = () => {
         tableSessionId={tableSessionId}
         paymentMode={paymentMode}
       />
-      {paymentMode === "open_tab" && hasPlacedOrder && tableSessionId && <FloatingActions sessionId={tableSessionId} primaryColor={restaurant.primaryColor} />}
+      {paymentMode === "open_tab" && hasPlacedOrder && tableSessionId && (
+        <FloatingActions
+          sessionId={tableSessionId}
+          orderAccess={tableSessionOrderAccess}
+          primaryColor={restaurant.primaryColor}
+        />
+      )}
     </div>
   );
 };
