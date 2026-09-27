@@ -826,7 +826,7 @@ git commit -m "feat: use Better Auth in frontend context"
 
 **Interfaces:** UI consumes only the Task 6 `AuthContextValue`; pages never import `authClient` or Supabase auth directly.
 
-- [ ] **Step 1: Write failing flow tests**
+- [x] **Step 1: Write failing flow tests**
 
 Cover:
 
@@ -848,7 +848,7 @@ npm test -- src/test/login-turnstile.test.tsx src/test/better-auth-flows.test.ts
 
 Expected: FAIL.
 
-- [ ] **Step 2: Add routes and pages**
+- [x] **Step 2: Add routes and pages**
 
 Add public routes:
 
@@ -860,11 +860,11 @@ Add public routes:
 
 The reset page reads `token` and `error` from `URLSearchParams`. Neither value is logged or persisted.
 
-- [ ] **Step 3: Update existing screens**
+- [x] **Step 3: Update existing screens**
 
 Signup navigates to `/verify-email` after the generic successful result. Login gains a forgot-password link and resets Turnstile after success or terminal error. Settings replaces `user.user_metadata.full_name` with `user.name`, removes `supabase.auth.updateUser`, and adds the current-password field required by Better Auth.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 ```powershell
 npm test -- src/test/login-turnstile.test.tsx src/test/better-auth-flows.test.tsx src/test/settings-payment-tab.test.tsx
