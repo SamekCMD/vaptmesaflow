@@ -763,7 +763,7 @@ Expected: nenhum workflow ativo referencia Supabase/PostgREST.
 **Interfaces:**
 - Produces: gate `GREEN` e uma baseline em que Tasks 6–9 do plano Better Auth podem continuar.
 
-- [ ] **Step 1: Rodar inventários finais**
+- [x] **Step 1: Rodar inventários finais**
 
 ```powershell
 rg -n 'supabase\.auth|access_token|fetchOwnedRestaurant\([^)]*,|Authorization.*Bearer' src/pages/dashboard src/pages/onboarding src/contexts src/hooks src/components src/lib
@@ -773,11 +773,11 @@ rg -n 'createSupabaseAdminClient|SupabaseClient|@supabase/supabase-js' .worktree
 
 Expected before Task 6: a primeira e a segunda busca retornam somente `src/contexts/AuthContext.tsx` e seus testes de identidade; nenhuma operação de negócio autenticada ou pública retorna. A terceira retorna zero runtime matches.
 
-- [ ] **Step 2: Remover clientes/dependências não usados**
+- [x] **Step 2: Remover clientes/dependências não usados**
 
 Remover `src/lib/supabase.ts` da API e retirar `supabase` de `AppConfig`; o script R2 continua lendo suas próprias variáveis de ambiente e justifica manter `@supabase/supabase-js`, `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` em uma seção explicitamente offline do `.env.example`. Manter os dois clientes Supabase do frontend somente até a Task 6 do plano Better Auth remover o último consumidor, `AuthContext`; a remoção do pacote frontend entra no mesmo commit dessa Task 6.
 
-- [ ] **Step 3: Atualizar o relatório para GREEN**
+- [x] **Step 3: Atualizar o relatório para GREEN**
 
 Registrar por superfície a nova rota, teste e commit. Usar exatamente:
 
@@ -786,7 +786,7 @@ GREEN: no authenticated frontend operation depends on a Supabase access token or
 The Better Auth frontend cutover may proceed with Tasks 6–9.
 ```
 
-- [ ] **Step 4: Verificação cruzada final**
+- [x] **Step 4: Verificação cruzada final**
 
 ```powershell
 npm test

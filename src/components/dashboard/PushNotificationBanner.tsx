@@ -8,6 +8,7 @@ import {
   isPushDismissed,
   isAlreadySubscribed,
   dismissPushBanner,
+  reconcilePushSubscriptionOwner,
   subscribeToPush,
 } from "@/lib/push-notifications";
 import { toast } from "@/hooks/use-toast";
@@ -21,22 +22,40 @@ const PushNotificationBanner = ({ restaurantId }: PushNotificationBannerProps) =
   const [subscribing, setSubscribing] = useState(false);
 
   useEffect(() => {
-    if (
-      isPushSupported() &&
-      isPushConfigured() &&
-      !isPushDismissed() &&
-      !isAlreadySubscribed() &&
-      Notification.permission !== "denied"
-    ) {
-      const timer = setTimeout(() => setVisible(true), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, []);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    setVisible(false);
+
+    const prepare = async () => {
+      if (
+        !restaurantId ||
+        !isPushSupported() ||
+        !isPushConfigured() ||
+        Notification.permission === "denied"
+      ) return;
+
+      const reconciled = await reconcilePushSubscriptionOwner(restaurantId);
+      if (
+        !cancelled &&
+        reconciled &&
+        !isPushDismissed(restaurantId) &&
+        !isAlreadySubscribed(restaurantId)
+      ) {
+        timer = setTimeout(() => setVisible(true), 2000);
+      }
+    };
+
+    void prepare();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [restaurantId]);
 
   const handleActivate = async () => {
     if (!restaurantId) return;
     setSubscribing(true);
-    const result = await subscribeToPush();
+    const result = await subscribeToPush(restaurantId);
     setSubscribing(false);
 
     if (result.success) {
@@ -48,7 +67,7 @@ const PushNotificationBanner = ({ restaurantId }: PushNotificationBannerProps) =
         description: "Permita notificações nas configurações do navegador.",
         variant: "destructive",
       });
-      dismissPushBanner();
+      dismissPushBanner(restaurantId);
       setVisible(false);
     } else {
       toast({ title: "Erro ao ativar", description: result.error || "Tente novamente mais tarde.", variant: "destructive" });
@@ -56,7 +75,7 @@ const PushNotificationBanner = ({ restaurantId }: PushNotificationBannerProps) =
   };
 
   const handleDismiss = () => {
-    dismissPushBanner();
+    if (restaurantId) dismissPushBanner(restaurantId);
     setVisible(false);
   };
 

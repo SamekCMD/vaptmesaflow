@@ -1,116 +1,112 @@
 # Fase 5 — Gate de acesso a dados antes do Better Auth
 
-Data da inspeção: 25/09/2026.
+Data da reavaliação: 26/09/2026.
 
 ## Resultado
 
-**Gate atual: RED.**
+**Gate de dados autenticados: GREEN.**
 
-O backend Better Auth, o schema de identidade e o adaptador de sessão podem ser implementados enquanto este gate está vermelho. A troca do `AuthContext` e do transporte autenticado no frontend não pode ser ativada até as operações autenticadas abaixo usarem rotas da API apoiadas no Neon.
+As Tasks 1–9 do cutover de negócio moveram onboarding, restaurante, cardápio,
+cozinha, caixa, overview, feedback, solicitação de conta, push subscriptions e
+estado local de billing para rotas da API apoiadas em PostgreSQL/Neon. O browser
+não envia mais access token Supabase para essas operações e nenhuma delas depende
+de `auth.uid()` ou RLS Supabase.
 
-Motivo: o frontend atual usa o access token Supabase implicitamente nas consultas PostgREST/RLS. Uma sessão Better Auth em cookie não cria `auth.uid()` no Supabase. Trocar apenas o login faria o cadastro inicial e as mutações autenticadas de restaurante, cardápio, cozinha e caixa falharem.
+```text
+GREEN: no authenticated frontend operation depends on a Supabase access token or auth.uid().
+The Better Auth frontend cutover may proceed with Tasks 6–9.
+```
 
-Não será criado um JWT Supabase temporário, nem um modo dual de autenticação. Como não existem clientes ou dados reais, o caminho de menor legado é terminar o cutover de dados da Fase 4 e então ativar Better Auth.
+O `AuthContext` e duas ações de conta em `SettingsPage` ainda usam
+`supabase.auth` exclusivamente como implementação temporária de identidade. Eles
+não transportam operações de negócio e serão substituídos pelas Tasks 6 e 7 do
+plano Better Auth. Não existe ponte JWT Supabase/Better Auth.
 
-## Inventário direto
+## Evidência por superfície
 
-| Surface | Operation | Public or authenticated | Current transport | Required transport before Better Auth cutover |
-|---|---|---|---|---|
-| `src/contexts/AuthContext.tsx` | sessão, signup, signin e signout | Authenticated identity | `supabase.auth` | Better Auth `/api/auth/*` com cookie HTTP-only |
-| `src/pages/onboarding/OnboardingPage.tsx` | cria restaurante e primeiro item do cardápio | Authenticated owner write | Supabase PostgREST + `auth.uid()` | `POST /onboarding` transacional na API/Neon usando `request.auth.userId` |
-| `src/pages/dashboard/AppearancePage.tsx` | lê restaurante próprio e atualiza marca/aparência | Authenticated owner read/write | Supabase PostgREST/RLS | `GET/PATCH /restaurants/me` na API/Neon |
-| `src/pages/dashboard/SettingsPage.tsx` | lê/atualiza restaurante, canais e fluxo de pagamento; atualiza nome/senha | Authenticated owner read/write and identity write | Supabase PostgREST/RLS + `supabase.auth.updateUser` | API/Neon para restaurante; Better Auth para nome/senha |
-| `src/pages/dashboard/MenuManagement.tsx` | lista, cria, altera e remove itens/variações; salva URL R2 | Authenticated owner read/write | Supabase PostgREST/RLS | rotas CRUD de cardápio na API/Neon com ownership |
-| `src/pages/dashboard/KitchenMonitor.tsx` | lista pedidos e avança/arquiva status | Authenticated owner read/write | Supabase PostgREST/RLS | rotas de fila/status de pedidos na API/Neon com ownership |
-| `src/pages/dashboard/CashierPage.tsx` | lista sessões de mesa e agrega pedidos | Authenticated owner read | Supabase PostgREST/RLS | rotas de caixa/sessões na API/Neon com ownership |
-| `src/components/cashier/TableSessionModal.tsx` | lista pedidos, fecha conta, encerra/transfere sessão e mesa | Authenticated owner read/write | Supabase PostgREST/RLS | rotas de sessão/fechamento/transferência na API/Neon com ownership e transação |
-| `src/pages/dashboard/Overview.tsx` | lê restaurante, pedidos e feedback do período | Authenticated owner read | Supabase PostgREST/RLS por `fetchOwnedRestaurant`, orders e feedback | endpoint de resumo na API/Neon com ownership |
-| `src/components/menu/FloatingActions.tsx` | solicita conta para uma sessão pública | Public customer write scoped by session | Supabase PostgREST anônimo | rota pública limitada na API/Neon; não depende de identidade do proprietário |
+| Surface | Estado após o cutover | Transporte atual |
+|---|---|---|
+| `src/pages/onboarding/OnboardingPage.tsx` | GREEN | `POST /onboarding` com cookie |
+| `src/pages/dashboard/AppearancePage.tsx` | GREEN | `GET/PATCH /restaurants/me` |
+| `src/pages/dashboard/SettingsPage.tsx` — restaurante | GREEN | `GET/PATCH /restaurants/me` |
+| `src/pages/dashboard/SettingsPage.tsx` — nome/senha | identidade pendente | `supabase.auth` até Better Auth Task 7 |
+| `src/pages/dashboard/MenuManagement.tsx` | GREEN | CRUD autenticado de menu + R2 |
+| `src/pages/dashboard/KitchenMonitor.tsx` | GREEN | fila/status autenticados da API |
+| `src/pages/dashboard/CashierPage.tsx` | GREEN | sessões/caixa autenticados da API |
+| `src/components/cashier/TableSessionModal.tsx` | GREEN | close/transfer transacionais da API |
+| `src/pages/dashboard/Overview.tsx` | GREEN | snapshot owner-scoped da API |
+| `src/components/menu/FloatingActions.tsx` | GREEN | rota pública limitada por order token |
+| `src/lib/order-feedback.ts` | GREEN | rota pública limitada por order token |
+| `src/lib/push-notifications.ts` | GREEN | sessão Better Auth + owner derivado no servidor |
+| `src/lib/n8n-client.ts` | GREEN | cookies via `vaptApiRequest`; sem bearer Supabase |
+| `src/contexts/AuthContext.tsx` | identidade pendente | substituição prevista na Better Auth Task 6 |
 
-## Dependências indiretas
+## Contratos que fecharam o gate
 
-| Surface | Operation | Public or authenticated | Current transport | Required transport before Better Auth cutover |
-|---|---|---|---|---|
-| `src/lib/restaurants.ts` | seleciona restaurante por `owner_id` | Authenticated owner read | Supabase PostgREST; hoje a seleção também depende de políticas excessivamente amplas de leitura | `GET /restaurants/me`; o servidor deriva o owner da sessão |
-| `src/components/DashboardLayout.tsx` | resolve restaurante/slug do usuário | Authenticated owner read | `fetchOwnedRestaurant` | `GET /restaurants/me` |
-| `src/hooks/use-plan.ts` | lê plano do restaurante próprio | Authenticated owner read | `fetchOwnedRestaurant` | `GET /restaurants/me/plan` ou payload consolidado de restaurante |
-| `src/hooks/useSubscription.ts` | lê assinatura do restaurante próprio | Authenticated owner read | `fetchOwnedRestaurant` | endpoint autenticado de billing/assinatura |
-| `src/lib/order-feedback.ts` via `Overview.tsx` | lê feedback por restaurante | Authenticated owner read | Supabase PostgREST/RLS | endpoint de resumo/feedback na API/Neon |
-
-## Contrato alvo do cutover de dados
-
-| Route | Auth | Purpose |
+| Route | Auth | Garantia principal |
 |---|---|---|
 | `POST /onboarding` | cookie | cria restaurante e primeiro item atomicamente |
-| `GET /restaurants/me` | cookie | resolve o restaurante do proprietário |
-| `PATCH /restaurants/me` | cookie | atualiza perfil, aparência e configuração |
-| `GET /restaurants/me/menu-items` | cookie | lista itens e variações |
-| `POST /restaurants/me/menu-items` | cookie | cria item e variações |
-| `PATCH /restaurants/me/menu-items/:itemId` | cookie | atualiza item e substitui variações |
-| `DELETE /restaurants/me/menu-items/:itemId` | cookie | remove item do proprietário |
-| `GET /restaurants/me/kitchen/orders` | cookie | lista fila ativa |
-| `PATCH /restaurants/me/kitchen/orders/:orderId/status` | cookie | transiciona status permitido |
-| `GET /restaurants/me/table-sessions` | cookie | lista sessões e agregados |
-| `GET /restaurants/me/table-sessions/:sessionId/orders` | cookie | detalha uma sessão |
-| `POST /restaurants/me/table-sessions/:sessionId/close` | cookie | fecha conta atomicamente |
-| `POST /restaurants/me/table-sessions/:sessionId/transfer` | cookie | transfere sessão e pedidos |
-| `GET /restaurants/me/overview` | cookie | resumo por período e feedback |
-| `GET /public/restaurants/:slug/catalog` | public | restaurante e cardápio publicados |
-| `POST /public/table-sessions/:sessionId/request-check` | token | solicita conta |
-| `PUT /public/orders/:orderId/feedback` | order token | grava avaliação idempotente |
+| `GET/PATCH /restaurants/me` | cookie | owner sempre derivado da sessão |
+| `/restaurants/me/menu-items*` | cookie | CRUD de item/variação owner-scoped |
+| `/restaurants/me/kitchen/orders*` | cookie | fila e máquina de estados owner-scoped |
+| `/restaurants/me/table-sessions*` | cookie | leitura, close e transfer transacionais |
+| `GET /restaurants/me/overview` | cookie | período calculado uma vez no servidor |
+| `GET /public/restaurants/:slug/catalog` | public | DTO público sem campos internos |
+| `POST /public/table-sessions/:sessionId/request-check` | order token | sessão limitada ao pedido validado |
+| `PUT /public/orders/:orderId/feedback` | order token | identidade do pedido/restaurante derivada no servidor |
+| `POST /ingest/push-subscription` | cookie | restaurante derivado do owner; upsert por endpoint |
+| `POST /billing/stripe/checkout` | cookie | plano limitado a enum; preço e e-mail resolvidos no servidor; resultado persistido owner-scoped |
+| `POST /billing/stripe/subscription/change` | cookie | preço resolvido no servidor e plano retornado deve coincidir com o solicitado |
+| `GET /billing/stripe/subscription` | cookie | leitura owner-scoped diretamente do Neon, sem round-trip pelo n8n |
 
-Os contratos de rede usam camelCase. Valores `numeric` são serializados como strings decimais e timestamps como ISO 8601; identificadores de owner, billing e credenciais nunca fazem parte dos DTOs públicos.
+Todos os contratos frontend/API autenticados usam camelCase. A rota legada de
+compatibilidade `POST /ingest/order-feedback` ainda aceita os campos snake_case
+do antigo chamador n8n, mas delega ao mesmo serviço público autenticado por token.
+Valores `numeric`/`bigint` são
+serializados como strings e timestamps como ISO 8601. Identificadores de owner,
+credenciais e segredos não fazem parte dos DTOs públicos.
 
-## Operações públicas que não bloqueiam o gate por identidade
+## Inventário final
 
-Cardápio e delivery públicos podem continuar anônimos durante a transição somente se cada rota estiver explicitamente limitada ao recurso público esperado. Eles não justificam manter Supabase Auth. Escritas públicas — pedido, feedback e solicitação de conta — devem continuar protegidas pelos tokens/contratos públicos já previstos na API e não por `auth.uid()`.
-
-## Regra binária do gate
-
-```text
-GREEN only when no authenticated frontend operation depends on a Supabase access token or auth.uid().
-Public anonymous reads may remain temporarily only when explicitly listed and scheduled for later removal.
-```
-
-Para mudar de RED para GREEN:
-
-1. implementar as rotas de negócio autenticadas na API com ownership derivado da sessão;
-2. apontar essas rotas para o Neon, não para o PostgREST legado;
-3. substituir os consumidores autenticados listados acima;
-4. repetir os inventários abaixo e obter zero dependências autenticadas;
-5. só então executar as Tasks 6–9 do plano Better Auth.
-
-## Comandos de verificação
-
-Inventário direto:
-
-```powershell
-rg -l '@/lib/supabase|integrations/supabase/client' src/pages/dashboard src/pages/onboarding src/contexts src/hooks src/components
-```
-
-Inventário indireto de ownership:
-
-```powershell
-rg -n 'fetchOwnedRestaurant|supabase\.auth|access_token' src/pages/dashboard src/pages/onboarding src/contexts src/hooks src/components src/lib
-```
-
-O primeiro comando pode continuar retornando componentes estritamente públicos documentados. O segundo não pode retornar autenticação Supabase nem leituras autenticadas por `owner_id` quando o gate estiver GREEN.
-
-## Baseline da Task 0
-
-O inventário direto foi congelado antes do primeiro corte de código em 25/09/2026:
+O inventário direto inicial continha 10 arquivos com Supabase em operações de
+negócio. Após o cutover, a busca nas superfícies protegidas retorna somente:
 
 ```text
-src/components/cashier/TableSessionModal.tsx
-src/components/menu/FloatingActions.tsx
 src/contexts/AuthContext.tsx
-src/pages/dashboard/AppearancePage.tsx
-src/pages/dashboard/CashierPage.tsx
-src/pages/dashboard/KitchenMonitor.tsx
-src/pages/dashboard/MenuManagement.tsx
-src/pages/dashboard/Overview.tsx
 src/pages/dashboard/SettingsPage.tsx
-src/pages/onboarding/OnboardingPage.tsx
 ```
 
-Total inicial: **10 arquivos**. A Task 10 compara novamente a mesma superfície; antes da Task 6 do Better Auth, somente `src/contexts/AuthContext.tsx` pode permanecer como dependência de identidade temporária, nunca como transporte de dados de negócio.
+As ocorrências restantes são de identidade, não de tabelas/RPCs/PostgREST. Não
+há `Authorization: Bearer`, leitura de `access_token` nem chamada de
+`fetchOwnedRestaurant` com token nas operações de negócio.
+
+Na API, o inventário runtime para `createSupabaseAdminClient`, `SupabaseClient` e
+`@supabase/supabase-js` retorna zero quando o script offline
+`src/scripts/migrate-menu-images-to-r2.ts` é excluído. O pacote permanece apenas
+para esse script recuperável e sem execução automática.
+
+## Evidência de testes
+
+Estado verificado na Task 9/10:
+
+- API completa: 334/334 testes;
+- frontend completo: 98/98 testes;
+- builds da API e frontend: PASS;
+- typecheck frontend: PASS;
+- testes locais usam runtime/repositórios injetados; nenhum smoke conecta ao Neon;
+- `git diff --check`: PASS;
+- nenhuma ação foi executada em n8n, DNS, Coolify, Hetzner, Vercel ou Easypanel.
+
+## Próxima etapa autorizada
+
+Retomar `docs/superpowers/plans/2026-09-25-better-auth-migration.md` na Task 6,
+seguida pelas Tasks 7 e 8. A Task 9 remota continua separada: primeiro validar a
+migration versionada de identidade em `preview`, depois aplicar o mesmo SQL em
+`production`; nenhuma conta, UUID, senha ou sessão de teste será preservada.
+
+Este GREEN é exclusivamente o gate de transporte/autorização para o cutover do
+frontend ao Better Auth; não é um selo de prontidão de billing para produção.
+Antes de habilitar cobrança real ainda é obrigatório fechar e homologar, em uma
+etapa própria, a reconciliação direta de eventos Stripe no Neon e a propagação
+efetiva de uma chave de idempotência até a chamada Stripe. Não há clientes nem
+assinaturas reais durante esta migração local.

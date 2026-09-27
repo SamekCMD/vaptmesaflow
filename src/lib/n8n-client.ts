@@ -25,15 +25,12 @@ export class N8nClientError extends Error {
 
 type StripeCreateInput = {
   restaurantId: string;
-  email: string;
-  planType: string;
-  priceId: string;
+  planType: "starter" | "pro" | "business";
 };
 
 type StripeChangeInput = {
   restaurantId: string;
-  targetPlanType: string;
-  targetPriceId: string;
+  targetPlanType: "starter" | "pro" | "business";
 };
 
 type StripeCancelInput = {
@@ -80,9 +77,7 @@ export const n8nClient = {
         route: "billing/stripe/checkout",
         body: {
           restaurantId: input.restaurantId,
-          email: input.email,
           planType: input.planType,
-          priceId: input.priceId,
         },
       }),
 
@@ -97,7 +92,6 @@ export const n8nClient = {
         body: {
           restaurantId: input.restaurantId,
           targetPlanType: input.targetPlanType,
-          targetPriceId: input.targetPriceId,
         },
       }),
 

@@ -116,13 +116,10 @@ export default function StripeCheckoutModal({ open, onOpenChange, plan, onAutoCh
             ? await n8nClient.stripe.changeSubscription({
                 restaurantId,
                 targetPlanType: plan.id,
-                targetPriceId: plan.priceId,
               })
             : await n8nClient.stripe.createSubscription({
                 restaurantId,
-                email: user.email || "",
                 planType: plan.id,
-                priceId: plan.priceId,
               });
 
         if (data.autoCharged === true) {

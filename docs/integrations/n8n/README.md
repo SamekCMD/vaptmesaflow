@@ -15,10 +15,12 @@ through Supabase credentials or PostgREST.
   delegates to the same token-authenticated service and ignores browser-supplied
   restaurant identity and timestamps.
 - Stripe create/change/cancel calls may still use n8n for the external Stripe
-  interaction. After a valid upstream response, the API persists the returned
-  billing state in Neon with both `restaurant_id` and `owner_id` in the update
-  predicate. A Neon write failure is returned as an error, never as local
-  success.
+  interaction. The browser sends only the requested plan; the API derives the
+  authenticated email and resolves the trusted Stripe price ID from server-side
+  configuration. After a correlated upstream response, the API persists the
+  returned billing state in Neon with both `restaurant_id` and `owner_id` in the
+  update predicate. A Neon write failure is returned as an error, never as local
+  success. Subscription status is read directly from Neon.
 
 ## Retired versioned workflows
 

@@ -74,6 +74,22 @@ Task 1 → Task 2 → Task 3 → Task 4 → Task 5
 Task 0 verde ─────────────────┴→ Task 6 → Task 7 → Task 8 → Task 9
 ```
 
+## Gate status after the business-data cutover
+
+Re-evaluated on 26/09/2026 after Tasks 1–10 of
+`2026-09-25-neon-business-data-cutover.md`:
+
+```text
+GREEN: no authenticated frontend operation depends on a Supabase access token or auth.uid().
+The Better Auth frontend cutover may proceed with Tasks 6–9.
+```
+
+All protected business surfaces now use cookie-capable API routes backed by
+owner-scoped PostgreSQL repositories. The remaining `supabase.auth` calls are
+identity-only code in `AuthContext` and `SettingsPage`; Tasks 6–7 replace them.
+The API runtime has no Supabase client. `@supabase/supabase-js` remains in the API
+package only for the manual, offline Storage-to-R2 migration script.
+
 ---
 
 ### Task 0: Registrar e verificar o gate de cutover dos dados autenticados
@@ -696,7 +712,7 @@ Expected: PASS.
 
 ### Task 6: Replace the frontend auth client and context — only after Task 0 is GREEN
 
-**Gate:** Do not start this task while authenticated business operations still require Supabase JWT/RLS. If Task 0 is RED, stop here and finish the Fase 4 data-access cutover first.
+**Gate:** Satisfied on 26/09/2026. Authenticated business operations no longer require Supabase JWT/RLS, so this task is the authorized continuation point. If a future inventory regresses this status, stop and restore the GREEN gate before activating the frontend auth client.
 
 **Files:**
 

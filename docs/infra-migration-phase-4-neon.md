@@ -1,6 +1,6 @@
 # Fase 4 — Supabase PostgreSQL para Neon
 
-Status em 25/09/2026: topologia Neon criada e primeiro baseline normalizado aplicado exclusivamente em `preview.vapt`. O projeto se chama `vapt`, permanece na região AWS South America East 1 (São Paulo), ID `dawn-morning-27332079`. A branch `production` não recebeu SQL da aplicação; nenhuma connection string foi guardada e a aplicação ainda não foi conectada ao Neon.
+Status em 26/09/2026: topologia Neon criada e primeiro baseline normalizado aplicado exclusivamente em `preview.vapt`. O cutover local de dados de negócio está completo: frontend e API usam contratos owner-scoped da API/Neon, mas nenhum deploy ou promoção remota foi feito nesta etapa. O projeto se chama `vapt`, permanece na região AWS South America East 1 (São Paulo), ID `dawn-morning-27332079`. A branch `production` não recebeu SQL da aplicação e nenhuma connection string foi versionada.
 
 ## Correção de arquitetura após revisão
 
@@ -95,7 +95,7 @@ Evidências do ensaio:
 - uma leitura posterior confirmou zero restaurantes, pagamentos ou efeitos residuais do smoke;
 - nenhum comando desse ensaio foi executado na branch `production`.
 
-Este baseline é provisório. Ele foi reconstruído a partir das migrations locais e dos consumidores atuais do frontend/API porque a origem Supabase permanece indisponível. Antes de qualquer carga real ou promoção, será obrigatório compará-lo com um dump do estado efetivo da origem. Em particular, a normalização de `order_feedback.order_id` como UUID com FK única substitui versões históricas conflitantes e precisa ser confirmada contra os dados reais.
+Este baseline foi reconstruído a partir das migrations locais e dos consumidores atuais do frontend/API. O Vapt ainda não possui clientes nem dados de produção; contas e registros existentes eram somente testes. Por decisão explícita, não haverá restore da origem nem preservação de UUIDs, usuários, senhas ou sessões de teste. A promoção usará o schema versionado vazio e novos dados criados pela aplicação.
 
 ## Ruling operacional
 
@@ -104,7 +104,7 @@ Este baseline é provisório. Ele foi reconstruído a partir das migrations loca
 - não usar Neon Managed Auth;
 - não apontar frontend, API ou DNS de produção ao novo banco durante o ensaio;
 - não reproduzir a cadeia `supabase/migrations` diretamente no Neon;
-- preservar IDs de negócio e separar a futura migração de identidades da Fase 5 (Better Auth).
+- não preservar IDs de negócio ou identidade de testes; a Fase 5 (Better Auth) começa com tabelas vazias e novos UUIDs.
 
 ## Inventário local
 
@@ -161,40 +161,42 @@ count_pending_payment_effects
 2. A migration-base escreve em `storage.buckets`, cria policies em `storage.objects` e altera a publicação `supabase_realtime`; esses objetos não existem no Neon e não pertencem ao schema de negócio.
 3. Policies chamam `auth.uid()` e concedem privilégios a roles próprias do Supabase. Better Auth e a API Worker substituirão esse limite de confiança.
 4. Funções de pedido e pagamento verificam ou concedem acesso a `service_role`; a autorização precisa ser adaptada para uma role interna da API, sem depender de claims PostgREST.
-5. O frontend ainda acessa diretamente `restaurants`, `menu_items`, `menu_item_variations`, `table_sessions`, `orders` e `order_feedback` via Supabase. A API ainda usa `supabase-js` para tabelas e RPCs de pedidos, storage, webhooks e pagamentos.
+5. O replay histórico também carregaria contratos Supabase que já foram removidos do runtime. O frontend não acessa mais tabelas de negócio diretamente; a API runtime não usa `supabase-js`. A única dependência restante é o script offline e manual de inventário/cópia de imagens para R2.
 
-## Artefatos exigidos antes do primeiro restore
+## Artefatos exigidos antes da promoção
 
-- dump real de schema da origem, sem confiar apenas no histórico de migrations;
-- dump de dados separado de objetos de auth/storage;
-- schema Neon normalizado com apenas tabelas, constraints, indexes, funções e triggers necessários;
-- mapa explícito de objetos removidos, adaptados ou preservados;
-- consultas de validação de contagem, chaves estrangeiras, valores financeiros e ownership;
-- relatório reversível do ensaio de restore.
+- schema Neon normalizado e versionado com apenas tabelas, constraints, indexes, funções e triggers necessários;
+- migrations Better Auth versionadas e verificadas primeiro em `preview`;
+- consultas de validação de chaves estrangeiras, valores financeiros, ownership e privilégios;
+- smoke transacional com dados sintéticos e rollback;
+- registro não secreto dos resultados de preview e production.
 
-Os binários `psql`, `pg_dump` e Docker não estão disponíveis neste host. Até a origem voltar a responder, o primeiro ensaio pode usar o SQL Editor do Neon para validar apenas o schema normalizado; o restore de dados exige uma ferramenta PostgreSQL confiável e conectividade com a origem.
+Não há restore de dados da origem nesta migração. `pg_dump`/`pg_restore` deixam de ser requisito porque não existe dado real a transportar. A promoção de schema continua exigindo uma conexão PostgreSQL direta e o mesmo SQL já ensaiado em `preview`.
 
 ## Sequência segura de preview
 
 1. ~~Renomear o projeto vazio `vapt-preview` para `vapt` e confirmar que a branch raiz se chama `production`.~~ Concluído.
 2. ~~Preparar o database de negócio `vapt` na raiz e criar a branch filha `preview` antes de qualquer carga.~~ Concluído.
 3. Guardar cada connection string como segredo local/de CI, nunca no Git ou no frontend.
-4. Restaurar o acesso somente leitura à origem Supabase e capturar schema, extensões, roles e contagens reais.
-5. Gerar um schema Neon normalizado a partir do estado real, não por concatenação cega das migrations. Um baseline provisório local já existe; a reconciliação com o estado real segue bloqueada pela origem.
+4. ~~Restaurar o acesso à origem Supabase e capturar dados reais.~~ Cancelado: não existem clientes/dados de produção e não serão preservados registros de teste.
+5. ~~Gerar um schema Neon normalizado sem concatenação cega das migrations.~~ Concluído com `infra/neon/001_business_schema.sql` e `002_business_routines.sql`.
 6. ~~Aplicar o schema somente na branch `preview` e registrar cada incompatibilidade.~~ Primeiro ensaio provisório concluído.
-7. Importar uma cópia de dados de ensaio preservando UUIDs e sem expor dados pessoais desnecessários. Até agora foram usados somente dados sintéticos com rollback.
-8. Validar tabelas, constraints, indexes, funções e amostras de relações multi-tenant. A estrutura e o smoke sintético passaram; a validação com dados reais permanece pendente.
-9. Adaptar a API para PostgreSQL/Hyperdrive e mover os acessos diretos do frontend antes de qualquer cutover.
-10. Repetir o ensaio com dados atualizados até obter paridade documentada; só então preparar `production`.
+7. ~~Importar uma cópia de dados preservando UUIDs.~~ Cancelado; usar somente dados sintéticos descartáveis.
+8. ~~Validar tabelas, constraints, indexes, funções e relações multi-tenant.~~ Estrutura e smoke sintético passaram; as suítes owner-scoped locais complementam essa evidência.
+9. ~~Adaptar a API para PostgreSQL e mover os acessos diretos do frontend.~~ Cutover local concluído nas Tasks 1–9 do plano de dados; conexão/deploy remoto permanece separado.
+10. Aplicar em `production` somente o mesmo schema/migrations ensaiados em `preview`, seguido pelos mesmos verificadores e sem carga de dados legados.
 
 ## Gates atuais
 
-- origem Supabase atual indisponível nos testes de rede;
-- ausência local de `psql`, `pg_dump` e Docker;
-- frontend e API ainda dependem diretamente das APIs Supabase;
-- migração de identidades e autorização será tratada separadamente com Better Auth.
+- o gate local de acesso a dados de negócio está GREEN;
+- `AuthContext` e as ações de identidade em Settings ainda serão trocados nas Tasks 6–7 do Better Auth;
+- a Neon CLI está autenticada; a consulta somente leitura confirmou o projeto
+  `vapt`, as branches `production`/`preview` em estado `ready` e o database
+  `vapt` em ambas, sem aplicar SQL ou alterar estado remoto;
+- nenhuma migration da aplicação foi aplicada em `production`;
+- conexão/deploy da API e promoção remota continuam fora desta execução.
 
-Esses gates bloqueiam restore e cutover, mas não impedem preparar a topologia de branches nem o schema normalizado após o login.
+Não existe mais gate de restore da origem. O próximo gate remoto é aplicar e verificar o Better Auth primeiro em `preview`, então promover exatamente o mesmo SQL para `production`.
 
 ## Better Auth versionado
 
@@ -209,4 +211,4 @@ infra/neon/verify-better-auth.sql
 
 A migration cria `better_auth.user`, `better_auth.session`, `better_auth.account` e `better_auth.verification` com IDs PostgreSQL `uuid`, mantém as FKs internas do Better Auth e revoga todos os privilégios de `PUBLIC` no schema, tabelas e sequências. Ela não cria FK entre `public.restaurants.owner_id` e `better_auth.user.id`; a API continua responsável pela ordem de criação e autorização entre identidade e negócio.
 
-O verificador exige as quatro tabelas, IDs UUID compatíveis com `public.restaurants.owner_id`, ausência de privilégios `PUBLIC` e ausência da FK cruzada. A aplicação remota continua reservada para o ensaio da Task 9: primeiro preview; depois, somente com todos os checks verdes, o mesmo SQL versionado em production.
+O verificador exige as quatro tabelas, IDs UUID compatíveis com `public.restaurants.owner_id`, ausência de privilégios `PUBLIC` e ausência da FK cruzada. A aplicação remota continua reservada para a Task 9 do plano Better Auth: primeiro `preview`; depois, somente com todos os checks verdes, o mesmo SQL versionado em `production`. A Task 10 atual não executou nenhuma mutation remota.
