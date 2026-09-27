@@ -952,7 +952,7 @@ Expected: PASS.
 
 **Interfaces:** No new code interface. This task changes Neon preview first and production only after every preview gate passes; it records non-secret evidence for both.
 
-- [ ] **Step 1: Re-run all local verification before external writes**
+- [x] **Step 1: Re-run all local verification before external writes**
 
 API:
 
@@ -970,7 +970,7 @@ npm run build
 
 Expected: all tests/builds PASS. Stop on any failure.
 
-- [ ] **Step 2: Confirm the target by immutable IDs**
+- [x] **Step 2: Confirm the target by immutable IDs**
 
 Before applying SQL, verify both targets in Neon:
 
@@ -984,7 +984,7 @@ Database: vapt
 
 Keep the preview and production SQL editor tabs visibly identified. Every initial application and integration test below targets preview; production is touched only in Step 6.
 
-- [ ] **Step 3: Demonstrate RED then apply once**
+- [x] **Step 3: Demonstrate RED then apply once**
 
 Run `infra/neon/verify-better-auth.sql` against `preview.vapt` first. Expected: FAIL because `better_auth` is absent.
 
@@ -992,7 +992,7 @@ Apply `infra/neon/003_better_auth_schema.sql` once to `preview.vapt`. Then re-ru
 
 Do not apply either file to production before Steps 4 and 5 are green.
 
-- [ ] **Step 4: Run a live local preview flow**
+- [x] **Step 4: Run a live local preview flow**
 
 Run frontend and API locally using:
 
@@ -1013,11 +1013,11 @@ ownership → the new Better Auth UUID equals restaurants.owner_id
 
 If Fase 4 data access is not GREEN, do not fake this acceptance and do not mint a Supabase JWT bridge; record the blocker and stop before frontend activation.
 
-- [ ] **Step 5: Validate database evidence**
+- [x] **Step 5: Validate database evidence**
 
 In a transaction, verify the newly created identity uses UUID and can own a synthetic restaurant. Roll back any diagnostic-only insert. Confirm zero reads from Supabase `auth.*` and no imported legacy accounts.
 
-- [ ] **Step 6: Promote the validated baseline and auth schema to production**
+- [x] **Step 6: Promote the validated baseline and auth schema to production**
 
 Because `production.vapt` is empty and has no customers, apply the already validated files in this exact order:
 
@@ -1038,7 +1038,7 @@ infra/neon/verify-better-auth.sql
 
 Expected: all verifiers PASS on `production.vapt`. Do not copy preview users, restaurants or fixtures; production starts empty and receives accounts only through its own public signup flow.
 
-- [ ] **Step 7: Record the outcome without secrets**
+- [x] **Step 7: Record the outcome without secrets**
 
 `docs/infra-migration-phase-5-better-auth.md` must include:
 
@@ -1053,7 +1053,7 @@ Expected: all verifiers PASS on `production.vapt`. Do not copy preview users, re
 - explicit statement that Vercel/Coolify/Easypanel/Hetzner/DNS were not touched;
 - rollback: redeploy previous frontend/API commit and leave `better_auth` idle.
 
-- [ ] **Step 8: Final regression and commit**
+- [x] **Step 8: Final regression and commit**
 
 ```powershell
 git add docs/infra-migration-phase-4-neon.md docs/infra-migration-phase-5-better-auth.md
@@ -1066,16 +1066,16 @@ Expected: both worktrees clean except the pre-existing untracked `docs/implement
 
 ## Final Acceptance Checklist
 
-- [ ] No legacy account, UUID, password, hash or session was read or copied.
-- [ ] `SUPABASE_JWT_SECRET`, `verifySupabaseToken` and bearer auth are absent from the new auth path.
-- [ ] Public order tokens use `PUBLIC_ORDER_TOKEN_SECRET`.
-- [ ] Better Auth tables exist under `better_auth` in both `preview.vapt` and `production.vapt`; both start without migrated legacy users.
-- [ ] New identity IDs are PostgreSQL UUIDs compatible with `restaurants.owner_id`.
-- [ ] Cookies are HTTP-only/secure in non-local environments and never exposed to frontend JavaScript.
-- [ ] CORS and trusted origins are exact allowlists with credential support.
-- [ ] Turnstile protects signup, signin and password-reset request.
-- [ ] Resend uses existing published templates and no HTML/subject is duplicated in code.
-- [ ] `/auth/me` and restaurant access preserve their existing response/error contracts.
-- [ ] Authenticated business operations no longer depend on Supabase JWT/RLS before frontend activation.
-- [ ] Production Neon received only migrations that passed preview; DNS, Vercel, Coolify, Easypanel and Hetzner were not changed.
-- [ ] API/frontend tests and builds pass from clean checkouts.
+- [x] No legacy account, UUID, password, hash or session was read or copied.
+- [x] `SUPABASE_JWT_SECRET`, `verifySupabaseToken` and bearer auth are absent from the new auth path.
+- [x] Public order tokens use `PUBLIC_ORDER_TOKEN_SECRET`.
+- [x] Better Auth tables exist under `better_auth` in both `preview.vapt` and `production.vapt`; both start without migrated legacy users.
+- [x] New identity IDs are PostgreSQL UUIDs compatible with `restaurants.owner_id`.
+- [x] Cookies are HTTP-only/secure in non-local environments and never exposed to frontend JavaScript.
+- [x] CORS and trusted origins are exact allowlists with credential support.
+- [x] Turnstile protects signup, signin and password-reset request.
+- [x] Resend uses existing published templates and no HTML/subject is duplicated in code.
+- [x] `/auth/me` and restaurant access preserve their existing response/error contracts.
+- [x] Authenticated business operations no longer depend on Supabase JWT/RLS before frontend activation.
+- [x] Production Neon received only migrations that passed preview; DNS, Vercel, Coolify, Easypanel and Hetzner were not changed.
+- [x] API/frontend tests and builds pass from clean checkouts.

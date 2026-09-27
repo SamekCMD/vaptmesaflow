@@ -1,6 +1,12 @@
 # Fase 4 — Supabase PostgreSQL para Neon
 
-Status em 26/09/2026: topologia Neon criada e primeiro baseline normalizado aplicado exclusivamente em `preview.vapt`. O cutover local de dados de negócio está completo: frontend e API usam contratos owner-scoped da API/Neon, mas nenhum deploy ou promoção remota foi feito nesta etapa. O projeto se chama `vapt`, permanece na região AWS South America East 1 (São Paulo), ID `dawn-morning-27332079`. A branch `production` não recebeu SQL da aplicação e nenhuma connection string foi versionada.
+Status em 27/09/2026: topologia Neon criada, baseline normalizado e schema
+Better Auth validados em `preview.vapt` e promovidos sem dados para
+`production.vapt`. O cutover local de dados de negócio está completo: frontend
+e API usam contratos owner-scoped da API/Neon. Nenhum deploy ou troca de DNS foi
+feito nesta etapa. O projeto se chama `vapt`, permanece na região AWS South
+America East 1 (São Paulo), ID `dawn-morning-27332079`. Nenhuma connection
+string foi versionada.
 
 ## Correção de arquitetura após revisão
 
@@ -93,7 +99,8 @@ Evidências do ensaio:
 - `verify-integrity.sql` passou validando database, colunas críticas, constraints, indexes, ausência de objetos Supabase, ACLs e configuração segura das rotinas;
 - `smoke-preview.sql` passou dentro de `BEGIN`/`ROLLBACK`, exercitando pedido público, replay idempotente, pagamento, outbox e leases;
 - uma leitura posterior confirmou zero restaurantes, pagamentos ou efeitos residuais do smoke;
-- nenhum comando desse ensaio foi executado na branch `production`.
+- durante esse primeiro ensaio, nenhum comando foi executado na branch
+  `production`; a promoção posterior está registrada na Fase 5.
 
 Este baseline foi reconstruído a partir das migrations locais e dos consumidores atuais do frontend/API. O Vapt ainda não possui clientes nem dados de produção; contas e registros existentes eram somente testes. Por decisão explícita, não haverá restore da origem nem preservação de UUIDs, usuários, senhas ou sessões de teste. A promoção usará o schema versionado vazio e novos dados criados pela aplicação.
 
@@ -184,19 +191,23 @@ Não há restore de dados da origem nesta migração. `pg_dump`/`pg_restore` dei
 7. ~~Importar uma cópia de dados preservando UUIDs.~~ Cancelado; usar somente dados sintéticos descartáveis.
 8. ~~Validar tabelas, constraints, indexes, funções e relações multi-tenant.~~ Estrutura e smoke sintético passaram; as suítes owner-scoped locais complementam essa evidência.
 9. ~~Adaptar a API para PostgreSQL e mover os acessos diretos do frontend.~~ Cutover local concluído nas Tasks 1–9 do plano de dados; conexão/deploy remoto permanece separado.
-10. Aplicar em `production` somente o mesmo schema/migrations ensaiados em `preview`, seguido pelos mesmos verificadores e sem carga de dados legados.
+10. ~~Aplicar em `production` somente o mesmo schema/migrations ensaiados em `preview`, seguido pelos mesmos verificadores e sem carga de dados legados.~~ Concluído em 27/09/2026.
 
 ## Gates atuais
 
 - o gate local de acesso a dados de negócio está GREEN;
-- `AuthContext` e as ações de identidade em Settings ainda serão trocados nas Tasks 6–7 do Better Auth;
-- a Neon CLI está autenticada; a consulta somente leitura confirmou o projeto
-  `vapt`, as branches `production`/`preview` em estado `ready` e o database
-  `vapt` em ambas, sem aplicar SQL ou alterar estado remoto;
-- nenhuma migration da aplicação foi aplicada em `production`;
-- conexão/deploy da API e promoção remota continuam fora desta execução.
+- `AuthContext`, Settings e os fluxos de verificação/reset usam Better Auth;
+- a Neon CLI autenticada confirmou o projeto `vapt`, as branches
+  `production`/`preview` em estado `ready` e o database `vapt` em ambas;
+- os schemas de negócio e Better Auth foram validados primeiro em `preview` e
+  os mesmos arquivos/hashes foram promovidos para `production`;
+- os quatro verificadores passam nas duas branches;
+- `preview` e `production` terminaram sem usuários ou dados sintéticos;
+- conexão/deploy da API permanece uma etapa separada.
 
-Não existe mais gate de restore da origem. O próximo gate remoto é aplicar e verificar o Better Auth primeiro em `preview`, então promover exatamente o mesmo SQL para `production`.
+Não existe mais gate de restore da origem. A evidência detalhada do aceite Better
+Auth, Resend e da promoção vazia está em
+`docs/infra-migration-phase-5-better-auth.md`.
 
 ## Better Auth versionado
 
@@ -211,4 +222,8 @@ infra/neon/verify-better-auth.sql
 
 A migration cria `better_auth.user`, `better_auth.session`, `better_auth.account` e `better_auth.verification` com IDs PostgreSQL `uuid`, mantém as FKs internas do Better Auth e revoga todos os privilégios de `PUBLIC` no schema, tabelas e sequências. Ela não cria FK entre `public.restaurants.owner_id` e `better_auth.user.id`; a API continua responsável pela ordem de criação e autorização entre identidade e negócio.
 
-O verificador exige as quatro tabelas, IDs UUID compatíveis com `public.restaurants.owner_id`, ausência de privilégios `PUBLIC` e ausência da FK cruzada. A aplicação remota continua reservada para a Task 9 do plano Better Auth: primeiro `preview`; depois, somente com todos os checks verdes, o mesmo SQL versionado em `production`. A Task 10 atual não executou nenhuma mutation remota.
+O verificador exige as quatro tabelas, IDs UUID compatíveis com
+`public.restaurants.owner_id`, ausência de privilégios `PUBLIC` e ausência da FK
+cruzada. A Task 9 aplicou e verificou o schema primeiro em `preview`; somente
+depois do fluxo funcional e do envio real pelo Resend, promoveu o mesmo SQL
+versionado para `production`, sem copiar identidades ou fixtures.
