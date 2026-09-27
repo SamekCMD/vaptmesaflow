@@ -7,7 +7,7 @@ It connects menu, tables, kitchen, cashier, and metrics in one flow.
 
 - React 18 + TypeScript + Vite
 - Tailwind + shadcn/ui
-- Supabase
+- Neon Postgres + Better Auth
 - Stripe
 - Backend API: `vapt-api`
 
@@ -16,9 +16,6 @@ It connects menu, tables, kitchen, cashier, and metrics in one flow.
 Create `.env.local` in this project root with:
 
 ```bash
-VITE_SUPABASE_URL=https://your-supabase-host
-VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
-
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_or_live_key
 
 VITE_VAPT_API_BASE_URL=https://your-vapt-api-host

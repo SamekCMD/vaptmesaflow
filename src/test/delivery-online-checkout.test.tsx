@@ -28,24 +28,6 @@ const menuItem = {
   available: true,
 };
 
-const maybeSingle = vi.fn().mockResolvedValue({ data: restaurant, error: null });
-const menuQuery = {
-  select: vi.fn(),
-  eq: vi.fn(),
-  order: vi.fn(),
-  then: (resolve: (value: unknown) => void) => resolve({ data: [menuItem], error: null }),
-};
-menuQuery.select.mockReturnValue(menuQuery);
-menuQuery.eq.mockReturnValue(menuQuery);
-menuQuery.order.mockReturnValue(menuQuery);
-
-vi.mock("@/lib/supabase", () => ({
-  supabase: {
-    rpc: vi.fn(() => ({ maybeSingle })),
-    from: vi.fn(() => menuQuery),
-  },
-}));
-
 vi.mock("@/lib/vapt-api-client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/vapt-api-client")>();
   return {

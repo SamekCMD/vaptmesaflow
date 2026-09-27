@@ -30,7 +30,7 @@ declare global {
 }
 
 interface TurnstileWidgetProps {
-  action: "login" | "signup";
+  action: "login" | "signup" | "password-reset";
   onTokenChange: (token: string | null) => void;
   resetKey?: number;
 }

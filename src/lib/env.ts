@@ -25,8 +25,6 @@ const readRequiredEnv = (key: string): string => {
 };
 
 export const ENV = {
-  supabaseUrl: readRequiredEnv("VITE_SUPABASE_URL"),
-  supabaseAnonKey: readRequiredEnv("VITE_SUPABASE_ANON_KEY"),
   stripePublishableKey: readRequiredEnv("VITE_STRIPE_PUBLISHABLE_KEY"),
   vaptApiBaseUrl: readRequiredEnv("VITE_VAPT_API_BASE_URL"),
   paymentEnvironment: readPaymentEnvironment(),

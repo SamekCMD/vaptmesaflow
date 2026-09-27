@@ -64,7 +64,7 @@ const SignupPage = () => {
         setCaptchaResetKey((value) => value + 1);
       }
     } else {
-      navigate("/onboarding");
+      navigate("/verify-email");
     }
   };
 

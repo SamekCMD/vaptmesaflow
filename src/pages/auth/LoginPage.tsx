@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ const loginSchema = z.object({
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { signIn, user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,12 +47,23 @@ const LoginPage = () => {
     const { error } = await signIn(email, password, captchaToken ?? undefined);
     setLoading(false);
     if (error) {
-      setErrors({ email: "Email ou senha incorretos" });
+      const code = "code" in error && typeof error.code === "string"
+        ? error.code
+        : undefined;
+      setErrors({
+        email: code === "EMAIL_NOT_VERIFIED"
+          ? "Verifique seu email antes de entrar."
+          : "Email ou senha incorretos",
+      });
       if (ENV.turnstileEnabled) {
         setCaptchaToken(null);
         setCaptchaResetKey((value) => value + 1);
       }
     } else {
+      if (ENV.turnstileEnabled) {
+        setCaptchaToken(null);
+        setCaptchaResetKey((value) => value + 1);
+      }
       navigate("/dashboard");
     }
   };
@@ -65,6 +77,11 @@ const LoginPage = () => {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {searchParams.get("verified") === "1" && (
+              <p className="rounded-md border border-primary/20 bg-primary/10 px-3 py-2 text-sm text-foreground" role="status">
+                Email confirmado. Você já pode entrar.
+              </p>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" placeholder="voce@restaurante.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
@@ -79,6 +96,11 @@ const LoginPage = () => {
                 </button>
               </div>
               {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
+              <div className="text-right">
+                <Link to="/forgot-password" className="text-xs text-primary hover:underline">
+                  Esqueci minha senha
+                </Link>
+              </div>
             </div>
             {ENV.turnstileEnabled && (
               <TurnstileWidget
