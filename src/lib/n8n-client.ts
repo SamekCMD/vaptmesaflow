@@ -23,20 +23,6 @@ export class N8nClientError extends Error {
   }
 }
 
-type StripeCreateInput = {
-  restaurantId: string;
-  planType: "starter" | "pro" | "business";
-};
-
-type StripeChangeInput = {
-  restaurantId: string;
-  targetPlanType: "starter" | "pro" | "business";
-};
-
-type StripeCancelInput = {
-  restaurantId: string;
-};
-
 type PushSubscriptionInput = {
   subscription: unknown;
   endpoint: string;
@@ -55,67 +41,7 @@ const request = async <T>(options: VaptApiRequestOptions): Promise<T> => {
   }
 };
 
-export type StripeStatusResponse = {
-  planType: string | null;
-  planStatus: string | null;
-  trialEndsAt: string | null;
-  stripeCustomerId: string | null;
-  stripeSubscriptionId: string | null;
-  billingLastError?: string | null;
-  subscriptionCanceledAt?: string | null;
-};
-
 export const n8nClient = {
-  stripe: {
-    createSubscription: (input: StripeCreateInput) =>
-      request<{
-        clientSecret: string | null;
-        subscriptionId: string | null;
-        customerId: string | null;
-        autoCharged: boolean;
-      }>({
-        route: "billing/stripe/checkout",
-        body: {
-          restaurantId: input.restaurantId,
-          planType: input.planType,
-        },
-      }),
-
-    changeSubscription: (input: StripeChangeInput) =>
-      request<{
-        subscriptionId: string | null;
-        planType: string;
-        status: string;
-        autoCharged: boolean;
-      }>({
-        route: "billing/stripe/subscription/change",
-        body: {
-          restaurantId: input.restaurantId,
-          targetPlanType: input.targetPlanType,
-        },
-      }),
-
-    cancelSubscription: (input: StripeCancelInput) =>
-      request<{
-        subscriptionId: string | null;
-        status: string;
-      }>({
-        route: "billing/stripe/subscription/cancel",
-        body: {
-          restaurantId: input.restaurantId,
-        },
-      }),
-
-    getSubscriptionStatus: (restaurantId: string) =>
-      request<StripeStatusResponse>({
-        method: "GET",
-        route: "billing/stripe/subscription",
-        query: {
-          restaurantId,
-        },
-      }),
-  },
-
   ingest: {
     pushSubscription: (payload: PushSubscriptionInput) =>
       request<{

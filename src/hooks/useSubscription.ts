@@ -1,216 +1,119 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { billingClient, type BillingPlanStatus } from "@/lib/billing-client";
 
 const SUBSCRIPTION_UPDATED_EVENT = "vapt:subscription-updated";
-
 export type PlanType = "starter" | "pro" | "business" | "trial";
-export type PlanStatus = "trialing" | "active" | "cancelled" | "expired";
-
+export type PlanStatus = BillingPlanStatus;
 const featureAccess: Record<string, string[]> = {
-  cashier: ["pro", "business"],
-  open_tab: ["pro", "business"],
-  metrics: ["pro", "business"],
-  multi_user: ["business"],
-  advanced_reports: ["business"],
+  cashier: ["pro", "business"], open_tab: ["pro", "business"], metrics: ["pro", "business"],
+  multi_user: ["business"], advanced_reports: ["business"],
 };
-
 export interface SubscriptionData {
-  planType: PlanType;
-  planStatus: PlanStatus;
-  trialEndsAt: Date | null;
-  trialDaysLeft: number;
-  isTrialing: boolean;
-  isActive: boolean;
-  restaurantId: string | null;
-  canAccess: (feature: string) => boolean;
-  loading: boolean;
-  refetch: () => void;
+  planType: PlanType; planStatus: PlanStatus; trialEndsAt: Date | null;
+  trialDaysLeft: number; isTrialing: boolean; isActive: boolean; restaurantId: string | null;
+  currentPeriodEnd: Date | null; cancelAtPeriodEnd: boolean; subscriptionCanceledAt: Date | null;
+  canManageBilling: boolean; requiresBillingAction: boolean;
+  billingError: string | null; canAccess: (feature: string) => boolean; loading: boolean;
+  refetch: () => Promise<void>;
 }
-
-const normalizePlanType = (
-  planType: string | null | undefined,
-): Exclude<PlanType, "trial"> | "starter" => {
-  if (typeof planType !== "string") return "starter";
-  const normalized = planType.trim().toLowerCase();
-  return normalized === "starter" || normalized === "pro" || normalized === "business"
-    ? normalized
-    : "starter";
-};
-
-const normalizePlanStatus = (planStatus: string | null | undefined): PlanStatus => {
-  if (typeof planStatus !== "string") return "trialing";
-  const normalized = planStatus.trim().toLowerCase();
-
-  if (
-    normalized === "trialing" ||
-    normalized === "active" ||
-    normalized === "cancelled" ||
-    normalized === "expired"
-  ) {
-    return normalized;
-  }
-
-  return "trialing";
-};
-
-type SubscriptionSnapshot = {
-  planType: PlanType;
-  planStatus: PlanStatus;
-  trialEndsAt: Date | null;
-  restaurantId: string | null;
-  loading: boolean;
-};
-
+type SubscriptionSnapshot = Pick<SubscriptionData,
+  "planType" | "planStatus" | "trialEndsAt" | "restaurantId" | "loading" |
+  "currentPeriodEnd" | "cancelAtPeriodEnd" | "subscriptionCanceledAt" |
+  "canManageBilling" | "requiresBillingAction" | "billingError">;
 const DEFAULT_SNAPSHOT: SubscriptionSnapshot = {
-  planType: "trial",
-  planStatus: "trialing",
-  trialEndsAt: null,
-  restaurantId: null,
-  loading: true,
+  planType: "starter", planStatus: "expired", trialEndsAt: null, restaurantId: null,
+  currentPeriodEnd: null, cancelAtPeriodEnd: false, subscriptionCanceledAt: null,
+  canManageBilling: false, requiresBillingAction: false, billingError: null, loading: true,
 };
-
-let subscriptionSnapshot: SubscriptionSnapshot = DEFAULT_SNAPSHOT;
-let inFlightFetch: Promise<void> | null = null;
+let subscriptionSnapshot = { ...DEFAULT_SNAPSHOT };
+let snapshotUserId: string | null = null;
+let generation = 0;
+let inFlightFetch: { userId: string; promise: Promise<void> } | null = null;
 const listeners = new Set<(snapshot: SubscriptionSnapshot) => void>();
-
-const emitSnapshot = () => {
-  listeners.forEach((listener) => listener(subscriptionSnapshot));
-};
-
-const setSnapshot = (partial: Partial<SubscriptionSnapshot>) => {
+function setSnapshot(partial: Partial<SubscriptionSnapshot>) {
   subscriptionSnapshot = { ...subscriptionSnapshot, ...partial };
-  emitSnapshot();
-};
-
-const resetSnapshot = () => {
-  subscriptionSnapshot = { ...DEFAULT_SNAPSHOT, loading: false };
-  emitSnapshot();
-};
-
+  listeners.forEach(listener => listener(subscriptionSnapshot));
+}
+function selectUser(userId: string | null) {
+  if (snapshotUserId === userId) return;
+  snapshotUserId = userId;
+  generation++;
+  inFlightFetch = null;
+  setSnapshot({ ...DEFAULT_SNAPSHOT, loading: userId !== null });
+}
 async function loadSubscriptionSnapshot(userId: string): Promise<void> {
-  if (inFlightFetch) {
-    return inFlightFetch;
-  }
-
-  inFlightFetch = (async () => {
+  selectUser(userId);
+  if (inFlightFetch?.userId === userId) return inFlightFetch.promise;
+  const currentGeneration = generation;
+  setSnapshot({ loading: true, billingError: null });
+  const promise = (async () => {
     try {
-      const data = await fetchOwnedRestaurant();
-
-      if (import.meta.env.DEV) {
-        console.info("[useSubscription] selected restaurant", {
-          userId,
-          restaurant: data,
-        });
+      const restaurant = await fetchOwnedRestaurant();
+      const billing = restaurant ? await billingClient.getSubscriptionStatus(restaurant.id) : null;
+      // An old owner's response must never overwrite the next authenticated owner.
+      if (currentGeneration !== generation) return;
+      if (!restaurant || !billing) {
+        setSnapshot({ ...DEFAULT_SNAPSHOT, loading: false });
+        return;
       }
-
-      if (data) {
-        const planStatus = normalizePlanStatus(data.planStatus);
-        const planType = normalizePlanType(data.planType);
-
-        setSnapshot({
-          restaurantId: data.id,
-          planType: planStatus === "trialing" ? "trial" : planType,
-          planStatus,
-          trialEndsAt: data.trialEndsAt ? new Date(data.trialEndsAt) : null,
-          loading: false,
-        });
-      } else {
-        resetSnapshot();
-      }
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error("[useSubscription] failed to fetch restaurant subscription", error);
-      }
-      resetSnapshot();
+      setSnapshot({
+        restaurantId: restaurant.id, planType: billing.planStatus === "trialing" ? "trial" : billing.planType,
+        planStatus: billing.planStatus, trialEndsAt: billing.trialEndsAt ? new Date(billing.trialEndsAt) : null,
+        currentPeriodEnd: billing.currentPeriodEnd ? new Date(billing.currentPeriodEnd) : null,
+        cancelAtPeriodEnd: billing.cancelAtPeriodEnd,
+        subscriptionCanceledAt: billing.subscriptionCanceledAt ? new Date(billing.subscriptionCanceledAt) : null,
+        canManageBilling: billing.canManageBilling, requiresBillingAction: billing.requiresBillingAction,
+        billingError: null, loading: false,
+      });
+    } catch {
+      if (currentGeneration === generation) setSnapshot({
+        ...DEFAULT_SNAPSHOT, loading: false,
+        billingError: "Não foi possível carregar sua assinatura. Tente novamente.",
+      });
     } finally {
-      inFlightFetch = null;
+      if (currentGeneration === generation) inFlightFetch = null;
     }
   })();
-
-  return inFlightFetch;
+  inFlightFetch = { userId, promise };
+  return promise;
 }
-
 export function useSubscription(): SubscriptionData {
   const { user } = useAuth();
+  const userId = user?.id ?? null;
   const [snapshot, setLocalSnapshot] = useState<SubscriptionSnapshot>(subscriptionSnapshot);
-
   const fetchPlan = useCallback(async () => {
-    if (!user) {
-      resetSnapshot();
-      return;
-    }
-    setSnapshot({ loading: true });
-    await loadSubscriptionSnapshot(user.id);
-  }, [user]);
-
-  const refetch = useCallback(async () => {
-    await fetchPlan();
-
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent(SUBSCRIPTION_UPDATED_EVENT));
-    }
-  }, [fetchPlan]);
-
+    selectUser(userId);
+    if (userId) await loadSubscriptionSnapshot(userId);
+    else setSnapshot({ ...DEFAULT_SNAPSHOT, loading: false });
+  }, [userId]);
+  const refetch = useCallback(async () => { await fetchPlan(); }, [fetchPlan]);
   useEffect(() => {
-    fetchPlan();
-  }, [fetchPlan]);
-
-  useEffect(() => {
-    const listener = (nextSnapshot: SubscriptionSnapshot) => {
-      setLocalSnapshot(nextSnapshot);
-    };
-
-    listeners.add(listener);
-
-    if (typeof window === "undefined") return;
-
-    const handleSubscriptionUpdated = () => {
-      fetchPlan();
-    };
-
-    window.addEventListener(SUBSCRIPTION_UPDATED_EVENT, handleSubscriptionUpdated);
-
+    listeners.add(setLocalSnapshot);
+    void fetchPlan();
+    setLocalSnapshot(subscriptionSnapshot);
+    const onRefresh = () => { void fetchPlan(); };
+    window.addEventListener(SUBSCRIPTION_UPDATED_EVENT, onRefresh);
+    window.addEventListener("focus", onRefresh);
     return () => {
-      listeners.delete(listener);
-      window.removeEventListener(SUBSCRIPTION_UPDATED_EVENT, handleSubscriptionUpdated);
+      listeners.delete(setLocalSnapshot);
+      window.removeEventListener(SUBSCRIPTION_UPDATED_EVENT, onRefresh);
+      window.removeEventListener("focus", onRefresh);
     };
   }, [fetchPlan]);
-
+  // Do not render a different owner's cached entitlement before effects run.
+  const visible = snapshotUserId === userId ? snapshot : DEFAULT_SNAPSHOT;
   const now = new Date();
-  const trialDaysLeft = snapshot.trialEndsAt
-    ? Math.max(0, Math.ceil((snapshot.trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
-    : 0;
-
-  const isTrialing =
-    snapshot.planStatus === "trialing" &&
-    snapshot.trialEndsAt !== null &&
-    snapshot.trialEndsAt > now;
-
-  const isActive = snapshot.planStatus === "active" || isTrialing;
-
-  const canAccess = useCallback(
-    (feature: string): boolean => {
-      if (isTrialing) return true;
-      if (snapshot.planStatus !== "active") return false;
-      const allowed = featureAccess[feature];
-      if (!allowed) return true;
-      const actualPlan = snapshot.planType === "trial" ? "starter" : snapshot.planType;
-      return allowed.includes(actualPlan);
-    },
-    [isTrialing, snapshot.planStatus, snapshot.planType]
-  );
-
-  return {
-    planType: snapshot.planType,
-    planStatus: snapshot.planStatus,
-    trialEndsAt: snapshot.trialEndsAt,
-    trialDaysLeft,
-    isTrialing,
-    isActive,
-    restaurantId: snapshot.restaurantId,
-    canAccess,
-    loading: snapshot.loading,
-    refetch,
-  };
+  const trialDaysLeft = visible.trialEndsAt
+    ? Math.max(0, Math.ceil((visible.trialEndsAt.getTime() - now.getTime()) / 86_400_000)) : 0;
+  const isTrialing = visible.planStatus === "trialing" && visible.trialEndsAt !== null && visible.trialEndsAt > now;
+  const isActive = visible.planStatus === "active" || isTrialing;
+  const canAccess = useCallback((feature: string) => {
+    if (isTrialing) return true;
+    if (visible.planStatus !== "active") return false;
+    const allowed = featureAccess[feature];
+    return !allowed || allowed.includes(visible.planType === "trial" ? "starter" : visible.planType);
+  }, [isTrialing, visible.planStatus, visible.planType]);
+  return { ...visible, trialDaysLeft, isTrialing, isActive, canAccess, refetch };
 }

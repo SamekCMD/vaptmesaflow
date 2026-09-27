@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { n8nClient } from "@/lib/n8n-client";
+import { billingClient } from "@/lib/billing-client";
 import { VaptApiClientError, vaptApiRequest } from "@/lib/vapt-api-client";
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -44,17 +44,20 @@ describe("transporte de autenticação por cookie", () => {
     );
   });
 
-  it("mantém clientes protegidos derivados, como n8n, no transporte por cookie", async () => {
+  it("mantém o billing no transporte por cookie sem IDs privados", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(jsonResponse({
       planType: "starter",
       planStatus: "active",
       trialEndsAt: null,
-      stripeCustomerId: null,
-      stripeSubscriptionId: null,
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+      subscriptionCanceledAt: null,
+      canManageBilling: false,
+      requiresBillingAction: false,
     }));
     vi.stubGlobal("fetch", fetchSpy);
 
-    await n8nClient.stripe.getSubscriptionStatus("restaurant-1");
+    await billingClient.getSubscriptionStatus("restaurant-1");
 
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.stringContaining("billing/stripe/subscription"),
@@ -73,7 +76,7 @@ describe("transporte de autenticação por cookie", () => {
     await expect(vaptApiRequest({
       method: "GET",
       route: "/restaurants/me",
-    })).rejects.toEqual(expect.objectContaining<VaptApiClientError>({
+    })).rejects.toEqual(expect.objectContaining({
       code: "unauthorized",
       message: "Sessão inválida. Faça login novamente.",
       status: 401,
