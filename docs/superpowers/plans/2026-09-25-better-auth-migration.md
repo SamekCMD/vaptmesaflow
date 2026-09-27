@@ -753,7 +753,7 @@ interface AuthContextValue {
 }
 ```
 
-- [ ] **Step 1: Write failing client-contract tests**
+- [x] **Step 1: Write failing client-contract tests**
 
 Mock `@/lib/auth-client` and assert:
 
@@ -773,7 +773,7 @@ npm test -- src/test/auth-captcha-options.test.tsx src/test/auth-session.test.ts
 
 Expected: FAIL.
 
-- [ ] **Step 2: Create the Better Auth React client**
+- [x] **Step 2: Create the Better Auth React client**
 
 ```ts
 export const authClient = createAuthClient({
@@ -784,13 +784,13 @@ export const authClient = createAuthClient({
 
 Do not add local/session storage or a token getter.
 
-- [ ] **Step 3: Rewrite the provider**
+- [x] **Step 3: Rewrite the provider**
 
 Use `authClient.useSession()` as the source of truth and normalize its data to `VaptUser`/`VaptSession`. After successful sign-in, sign-out, name update or password change, refetch the session. Convert Better Auth errors to `Error` without exposing server internals.
 
 Set signup callback to `${window.location.origin}/login?verified=1`. Do not navigate from the provider.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```powershell
 npm test -- src/test/auth-captcha-options.test.tsx src/test/auth-session.test.tsx
@@ -799,7 +799,7 @@ npm run build
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add src/lib/auth-client.ts src/contexts/AuthContext.tsx src/test/auth-captcha-options.test.tsx src/test/auth-session.test.tsx src/test/setup.ts

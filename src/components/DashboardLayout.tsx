@@ -75,7 +75,7 @@ const DashboardLayout = () => {
     }
   }, [planLoading, isActive, location.pathname, navigate]);
 
-  const fullName = user?.user_metadata?.full_name || "Usuário";
+  const fullName = user?.name || "Usuário";
   const initials = fullName
     .split(" ")
     .map((n: string) => n[0])

@@ -88,7 +88,7 @@ const SettingsPage = () => {
         }
 
         setAccountForm({
-          full_name: user.user_metadata?.full_name || "",
+          full_name: user.name || "",
           email: user.email || "",
           new_password: "",
           confirm_password: "",
@@ -163,7 +163,7 @@ const SettingsPage = () => {
     setSavingAccount(true);
     try {
       // Update name
-      if (accountForm.full_name !== user.user_metadata?.full_name) {
+      if (accountForm.full_name !== user.name) {
         const { error } = await supabase.auth.updateUser({
           data: { full_name: accountForm.full_name },
         });
