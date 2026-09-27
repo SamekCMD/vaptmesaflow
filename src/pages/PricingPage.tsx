@@ -14,11 +14,11 @@ import { billingClient, redirectToBilling, type BillingPlanType } from "@/lib/bi
 const PricingPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { planType, planStatus, restaurantId, canManageBilling, loading, billingError } = useSubscription();
+  const { planType, planStatus, restaurantId, canManageBilling, canStartCheckout, loading, billingError } = useSubscription();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestInFlight = useRef(false);
-  const managed = canManageBilling && planStatus !== "expired" && planStatus !== "cancelled";
+  const managed = canManageBilling && !canStartCheckout;
 
   const handleSubscribe = async (planId?: BillingPlanType) => {
     if (!user) {

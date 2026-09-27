@@ -8,7 +8,7 @@ const statusSchema = z.object({
   planStatus: z.enum(["trialing", "active", "past_due", "incomplete", "unpaid", "paused", "expired", "cancelled"]),
   trialEndsAt: z.string().datetime().nullable(), currentPeriodEnd: z.string().datetime().nullable(),
   cancelAtPeriodEnd: z.boolean(), subscriptionCanceledAt: z.string().datetime().nullable(),
-  canManageBilling: z.boolean(), requiresBillingAction: z.boolean(),
+  canManageBilling: z.boolean(), canStartCheckout: z.boolean(), requiresBillingAction: z.boolean(),
 });
 export type BillingStatus = z.infer<typeof statusSchema>;
 function invalidResponse(): never {

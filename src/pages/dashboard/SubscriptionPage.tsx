@@ -31,13 +31,13 @@ const COMPARISON_FEATURES = [
 
 const SubscriptionPage = () => {
   const { planType, planStatus, isTrialing, trialDaysLeft, restaurantId,
-    canManageBilling, requiresBillingAction, billingError, loading, refetch } = useSubscription();
+    canManageBilling, canStartCheckout, requiresBillingAction, billingError, loading, refetch } = useSubscription();
   const [pending, setPending] = useState<"checkout" | "portal" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const requestInFlight = useRef(false);
   const activePlanId = planStatus === "active" ? planType : null;
   const currentPlan = PLANS.find(p => p.id === activePlanId);
-  const showCheckout = !canManageBilling || planStatus === "expired" || planStatus === "cancelled";
+  const showCheckout = canStartCheckout;
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("checkout") === "returned") void refetch();

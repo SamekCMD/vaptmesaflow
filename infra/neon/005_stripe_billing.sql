@@ -66,6 +66,7 @@ create table public.billing_email_outbox (
   restaurant_id uuid not null,
   provider_event_id text not null,
   email_kind text not null,
+  billing_resource_id text not null,
   payload jsonb not null default '{}'::jsonb,
   delivery_status text not null default 'pending',
   attempt_count integer not null default 0,
@@ -78,6 +79,7 @@ create table public.billing_email_outbox (
   constraint billing_email_outbox_restaurant_fkey foreign key (restaurant_id)
     references public.restaurants(id) on delete cascade,
   constraint billing_email_outbox_event_kind_key unique (provider_event_id, email_kind),
+  constraint billing_email_outbox_resource_kind_key unique (restaurant_id, billing_resource_id, email_kind),
   constraint billing_email_outbox_kind_check check (
     email_kind in (
       'subscription_activated', 'subscription_renewed', 'payment_failed',

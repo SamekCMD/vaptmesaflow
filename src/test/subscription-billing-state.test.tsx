@@ -11,7 +11,7 @@ afterEach(cleanup);
 it("uses safe billing snapshot instead of restaurant fallback entitlement", async () => {
   getStatus.mockResolvedValue({ planType: "pro", planStatus: "past_due", trialEndsAt: null,
     currentPeriodEnd: "2030-01-01T00:00:00.000Z", cancelAtPeriodEnd: false,
-    subscriptionCanceledAt: null, canManageBilling: true, requiresBillingAction: true });
+    subscriptionCanceledAt: null, canManageBilling: true, canStartCheckout: false, requiresBillingAction: true });
   const { result } = renderHook(useSubscription);
   await waitFor(() => expect(result.current.loading).toBe(false));
   expect(getStatus).toHaveBeenCalledWith("restaurant-1");
@@ -22,7 +22,7 @@ it("uses safe billing snapshot instead of restaurant fallback entitlement", asyn
 it("keeps a local trial usable without claiming a Stripe billing Customer", async () => {
   getStatus.mockResolvedValue({ planType: "starter", planStatus: "trialing", trialEndsAt: "2030-01-01T00:00:00.000Z",
     currentPeriodEnd: null, cancelAtPeriodEnd: false, subscriptionCanceledAt: null,
-    canManageBilling: false, requiresBillingAction: false });
+    canManageBilling: false, canStartCheckout: true, requiresBillingAction: false });
   const { result } = renderHook(useSubscription);
   await waitFor(() => expect(result.current.loading).toBe(false));
   expect(result.current.isTrialing).toBe(true); expect(result.current.canManageBilling).toBe(false);

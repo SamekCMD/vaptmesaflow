@@ -53,6 +53,7 @@ describe("transporte de autenticação por cookie", () => {
       cancelAtPeriodEnd: false,
       subscriptionCanceledAt: null,
       canManageBilling: false,
+      canStartCheckout: true,
       requiresBillingAction: false,
     }));
     vi.stubGlobal("fetch", fetchSpy);

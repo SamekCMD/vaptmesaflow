@@ -6,7 +6,7 @@ import SubscriptionPage from "@/pages/dashboard/SubscriptionPage";
 
 const state = vi.hoisted(() => ({ planType: "starter", planStatus: "expired", isTrialing: false,
   trialDaysLeft: 0, restaurantId: "restaurant-1", loading: false, canManageBilling: false,
-  requiresBillingAction: false, refetch: vi.fn() }));
+  canStartCheckout: true, requiresBillingAction: false, refetch: vi.fn() }));
 vi.mock("@/hooks/useSubscription", () => ({ useSubscription: () => state }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "owner-1", email: "owner@example.com" } }) }));
 vi.mock("@/lib/billing-client", async importOriginal => ({
@@ -18,7 +18,7 @@ const response = (body: unknown, status = 200) => new Response(JSON.stringify(bo
 const checkout = { checkoutSessionId: "cs_test_vapt", url: "https://checkout.stripe.com/c/pay/vapt" };
 beforeEach(() => {
   Object.assign(state, { planType: "starter", planStatus: "expired", isTrialing: false, canManageBilling: false,
-    requiresBillingAction: false, loading: false });
+    canStartCheckout: true, requiresBillingAction: false, loading: false });
   vi.clearAllMocks(); window.history.replaceState({}, "", "/dashboard/subscription");
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -64,7 +64,7 @@ describe("página de assinatura", () => {
     expect(state.planStatus).toBe("expired"); expect(state.refetch).not.toHaveBeenCalled();
   });
   it("plano ativo gerencia pelo Portal, não por change/cancel locais", async () => {
-    Object.assign(state, { planStatus: "active", canManageBilling: true });
+    Object.assign(state, { planStatus: "active", canManageBilling: true, canStartCheckout: false });
     const fetchSpy = vi.fn().mockResolvedValue(response({ url: "https://billing.stripe.com/p/session/vapt" })); vi.stubGlobal("fetch", fetchSpy);
     render(<SubscriptionPage />); fireEvent.click(screen.getByRole("button", { name: "Gerenciar cobrança" }));
     await waitFor(() => expect(redirectToBilling).toHaveBeenCalledWith("https://billing.stripe.com/p/session/vapt"));
@@ -77,11 +77,19 @@ describe("página de assinatura", () => {
     expect(state.planStatus).toBe("expired"); expect(screen.queryByText("Plano Ativo")).not.toBeInTheDocument();
   });
   it("past_due mostra ação necessária e Portal; trial local ainda pode assinar", async () => {
-    Object.assign(state, { planStatus: "past_due", canManageBilling: true, requiresBillingAction: true }); render(<SubscriptionPage />);
+    Object.assign(state, { planStatus: "past_due", canManageBilling: true, canStartCheckout: false, requiresBillingAction: true }); render(<SubscriptionPage />);
     expect(screen.getByRole("alert")).toHaveTextContent(/pagamento|cobrança/i);
     expect(screen.getByRole("button", { name: "Gerenciar cobrança" })).toBeEnabled();
-    cleanup(); Object.assign(state, { planStatus: "trialing", canManageBilling: false, requiresBillingAction: false, isTrialing: true });
+    cleanup(); Object.assign(state, { planStatus: "trialing", canManageBilling: false, canStartCheckout: true, requiresBillingAction: false, isTrialing: true });
     render(<SubscriptionPage />); expect(screen.getByRole("button", { name: "Assinar Pro" })).toBeEnabled();
+  });
+  it("trial com Customer sem Subscription mantém Checkout após abandono ou expiração", async () => {
+    Object.assign(state, { planStatus: "trialing", canManageBilling: true, canStartCheckout: true, isTrialing: true });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(checkout)));
+    render(<SubscriptionPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Assinar Pro" }));
+    await waitFor(() => expect(redirectToBilling).toHaveBeenCalledWith(checkout.url));
+    expect(screen.getByRole("button", { name: "Gerenciar cobrança" })).toBeEnabled();
   });
   it("falha mantém a página com mensagem e permite tentar novamente", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({ error: { code: "stripe_unavailable", message: "raw provider error" } }, 503)));

@@ -333,14 +333,14 @@ begin
     raise exception 'pending billing event could not be retried';
   end if;
 
-  insert into public.billing_email_outbox (restaurant_id, provider_event_id, email_kind, payload)
-  values (v_restaurant_id, v_billing_event_id, 'subscription_activated',
+  insert into public.billing_email_outbox (restaurant_id, provider_event_id, email_kind, billing_resource_id, payload)
+  values (v_restaurant_id, v_billing_event_id, 'subscription_activated', 'in_billing_smoke',
     jsonb_build_object('planType', 'starter'))
-  on conflict (provider_event_id, email_kind) do nothing;
-  insert into public.billing_email_outbox (restaurant_id, provider_event_id, email_kind, payload)
-  values (v_restaurant_id, v_billing_event_id, 'subscription_activated',
+  on conflict do nothing;
+  insert into public.billing_email_outbox (restaurant_id, provider_event_id, email_kind, billing_resource_id, payload)
+  values (v_restaurant_id, v_billing_event_id || '_second', 'subscription_activated', 'in_billing_smoke',
     jsonb_build_object('planType', 'starter'))
-  on conflict (provider_event_id, email_kind) do nothing;
+  on conflict do nothing;
   if (select count(*) from public.billing_email_outbox
        where provider_event_id = v_billing_event_id) <> 1 then
     raise exception 'billing email intent was duplicated';

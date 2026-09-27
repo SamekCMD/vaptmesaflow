@@ -54,3 +54,27 @@ DEFERRED-LIVE: live keys, Prices and webhook endpoint wait for the Cloudflare Wo
 ```
 
 Every gate is binary. A partial checkout or a successful redirect without a verified webhook is not a pass. Live activation remains outside Phase 7 until the Cloudflare Worker is deployed.
+
+## Local code gate and independent review
+
+Tasks 1–7 replaced billing forwarding with the official SDK, hosted Checkout,
+Customer Portal, signed local webhooks and Neon event/outbox persistence. Push
+registration uses the cookie-authenticated API directly; n8n runtime/config is removed.
+
+The fresh whole-branch review found four Important issues, reproduced RED and
+corrected GREEN: Customer-only trials retain Checkout via safe `canStartCheckout`;
+in-flight event claims return retryable 503; email intents deduplicate by invoice or
+Subscription resource as well as event; locked canonical state is not discarded
+because of application-host clock skew. Migration 005 is still unapplied at this gate;
+its new resource-key constraint changes the preparation hash before promotion.
+
+Current verification: API 396/396 tests and strict build; frontend 135/135 tests and
+production build; both diff checks pass. The prescribed root TypeScript command
+passes but does not check the app project. The real app project still has 21 existing
+diagnostics and zero new diagnostics compared with the pre-billing commit. These
+auth/order/menu baseline repairs are not claimed complete here.
+
+One Minor remains deferred: a lost Stripe Checkout response or a database rollback
+followed by a fresh browser attempt key can leave an orphan Test Session. No duplicate
+charging was demonstrated. Durable server-side attempt recovery is follow-up hardening.
+Queue email delivery and Worker/Live deployment remain later-phase gates.

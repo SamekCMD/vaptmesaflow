@@ -14,18 +14,18 @@ export interface SubscriptionData {
   planType: PlanType; planStatus: PlanStatus; trialEndsAt: Date | null;
   trialDaysLeft: number; isTrialing: boolean; isActive: boolean; restaurantId: string | null;
   currentPeriodEnd: Date | null; cancelAtPeriodEnd: boolean; subscriptionCanceledAt: Date | null;
-  canManageBilling: boolean; requiresBillingAction: boolean;
+  canManageBilling: boolean; canStartCheckout: boolean; requiresBillingAction: boolean;
   billingError: string | null; canAccess: (feature: string) => boolean; loading: boolean;
   refetch: () => Promise<void>;
 }
 type SubscriptionSnapshot = Pick<SubscriptionData,
   "planType" | "planStatus" | "trialEndsAt" | "restaurantId" | "loading" |
   "currentPeriodEnd" | "cancelAtPeriodEnd" | "subscriptionCanceledAt" |
-  "canManageBilling" | "requiresBillingAction" | "billingError">;
+  "canManageBilling" | "canStartCheckout" | "requiresBillingAction" | "billingError">;
 const DEFAULT_SNAPSHOT: SubscriptionSnapshot = {
   planType: "starter", planStatus: "expired", trialEndsAt: null, restaurantId: null,
   currentPeriodEnd: null, cancelAtPeriodEnd: false, subscriptionCanceledAt: null,
-  canManageBilling: false, requiresBillingAction: false, billingError: null, loading: true,
+  canManageBilling: false, canStartCheckout: false, requiresBillingAction: false, billingError: null, loading: true,
 };
 let subscriptionSnapshot = { ...DEFAULT_SNAPSHOT };
 let snapshotUserId: string | null = null;
@@ -64,7 +64,7 @@ async function loadSubscriptionSnapshot(userId: string): Promise<void> {
         currentPeriodEnd: billing.currentPeriodEnd ? new Date(billing.currentPeriodEnd) : null,
         cancelAtPeriodEnd: billing.cancelAtPeriodEnd,
         subscriptionCanceledAt: billing.subscriptionCanceledAt ? new Date(billing.subscriptionCanceledAt) : null,
-        canManageBilling: billing.canManageBilling, requiresBillingAction: billing.requiresBillingAction,
+        canManageBilling: billing.canManageBilling, canStartCheckout: billing.canStartCheckout, requiresBillingAction: billing.requiresBillingAction,
         billingError: null, loading: false,
       });
     } catch {
