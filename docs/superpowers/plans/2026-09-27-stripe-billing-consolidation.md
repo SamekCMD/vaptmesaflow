@@ -820,23 +820,23 @@ git commit -m "docs: validate Stripe billing in preview"
 - Modify: `docs/infra-migration-phase-4-neon.md`
 - Modify: `docs/infra-migration-plan.md` checklist/status only
 
-- [ ] **Step 1: Prove production RED, then apply the identical migration**
+- [x] **Step 1: Prove production RED, then apply the identical migration**
 
 Run `verify-stripe-billing.sql` against `production.vapt`, capture RED, compare the local migration SHA-256 with preview evidence, apply the identical file, and run the complete verifier set.
 
-- [ ] **Step 2: Confirm production remains empty**
+- [x] **Step 2: Confirm production remains empty**
 
 Assert zero production rows in Better Auth, restaurants, billing events and billing email outbox. Do not copy the preview user, Stripe IDs or events.
 
-- [ ] **Step 3: Document the deployment gate**
+- [x] **Step 3: Document the deployment gate**
 
 Mark code, preview and production schema GREEN. Mark Stripe Live activation explicitly deferred until the Cloudflare Worker has a stable API URL and secret store. The later deployment must provide live key, live Price IDs, live Portal configuration and a live webhook endpoint selecting exactly the handled events.
 
-- [ ] **Step 4: Document rollback**
+- [x] **Step 4: Document rollback**
 
 Rollback before live activation is code-only: redeploy the previous API/frontend commit. Keep migration `005` in place because it is additive and empty; do not drop billing audit/outbox tables. If preview processing misbehaves, disable the Test Mode webhook destination and restore the previous code while preserving events for diagnosis.
 
-- [ ] **Step 5: Final verification and commit**
+- [x] **Step 5: Final verification and commit**
 
 ```powershell
 git diff --check
@@ -850,21 +850,21 @@ Commit documentation only after every claimed gate has current evidence.
 
 ## Exit criteria
 
-- [ ] No API or frontend runtime path depends on n8n.
-- [ ] API uses pinned official `stripe-node`; REST fallback was not introduced.
-- [ ] New subscriptions use hosted Checkout Sessions.
-- [ ] Existing subscriptions use Customer Portal.
-- [ ] Browser-controlled Price/email/Stripe IDs are rejected.
-- [ ] State changes only through verified webhooks.
-- [ ] All five minimum event types are handled and tested.
-- [ ] Duplicate, retry and concurrent webhook behavior is proven.
-- [ ] Customer and Subscription IDs are unique per restaurant binding.
-- [ ] Email intents are durable and deduplicated; no Resend call occurs in the webhook.
-- [ ] Preview real Test Mode checkout/Portal flow passed and was cleaned.
-- [ ] Production has the identical schema and zero test data.
-- [ ] Stripe Live activation is deferred to the Worker deployment, not silently pointed at the current legacy runtime.
-- [ ] API and frontend full tests/build/typecheck pass.
-- [ ] Critical/Important review findings are zero.
+- [x] No API or frontend runtime path depends on n8n.
+- [x] API uses pinned official `stripe-node`; REST fallback was not introduced.
+- [x] New subscriptions use hosted Checkout Sessions.
+- [x] Existing subscriptions use Customer Portal.
+- [x] Browser-controlled Price/email/Stripe IDs are rejected.
+- [x] State changes only through verified webhooks.
+- [x] All five minimum event types are handled and tested.
+- [x] Duplicate, retry and concurrent webhook behavior is proven.
+- [x] Customer and Subscription IDs are unique per restaurant binding.
+- [x] Email intents are durable and deduplicated; no Resend call occurs in the webhook.
+- [x] Preview real Test Mode checkout/Portal flow passed and was cleaned.
+- [x] Production has the identical schema and zero test data.
+- [x] Stripe Live activation is deferred to the Worker deployment, not silently pointed at the current legacy runtime.
+- [ ] API and frontend full tests/build/typecheck pass. (Tests/build pass; real frontend app typecheck has 21 pre-existing diagnostics, 0 new.)
+- [x] Critical/Important review findings are zero.
 
 ## Official references used for the design
 

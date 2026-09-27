@@ -68,7 +68,7 @@ Subscription resource as well as event; locked canonical state is not discarded
 because of application-host clock skew. Migration 005 is still unapplied at this gate;
 its new resource-key constraint changes the preparation hash before promotion.
 
-Current verification: API 396/396 tests and strict build; frontend 135/135 tests and
+Final verification: API 397/397 tests and strict build; frontend 135/135 tests and
 production build; both diff checks pass. The prescribed root TypeScript command
 passes but does not check the app project. The real app project still has 21 existing
 diagnostics and zero new diagnostics compared with the pre-billing commit. These
@@ -155,3 +155,36 @@ verifiers passed again after cleanup. The three Test Products/Prices and
 Portal configuration intentionally remain for preview; no Live resource was
 changed. GREEN-PREVIEW is established by the full lifecycle and cleanup,
 not merely by the Checkout redirect or the first Portal screen.
+
+## Production schema gate — Task 10
+
+Target: Neon project `dawn-morning-27332079`, production branch
+`br-odd-term-b6j2n9ms`, database `vapt`. The Stripe verifier was RED before
+promotion because `billing_email_outbox` was absent. Production had zero
+Better Auth users/sessions/accounts/verifications, restaurants and billing
+events before the change. The local 005 SHA-256 matched the preview-applied
+file exactly: `8a91fb9d530709d04682898734c83f08f5dec200904d948c7460d634a7a69c94`.
+That same additive file was applied over a direct connection. All five
+versioned verifiers listed above passed both during application and in a
+fresh repeat; all seven counted production tables, including the new outbox,
+remained at zero. Preview was independently reverified at zero as well.
+No synthetic identities, Customers, Subscriptions or events were copied to
+production.
+
+Phase 7 gates: billing code GREEN, real preview Stripe Test Mode lifecycle
+GREEN, production schema GREEN. This is **not** a live billing activation or
+Cloudflare Worker deployment. Stripe Live keys, monthly Price IDs, Portal
+configuration and a public webhook endpoint remain deferred until the Worker
+has its stable API URL and secret store. That endpoint must select exactly the
+handled events (`checkout.session.completed`, `checkout.session.expired`,
+`invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated`,
+`customer.subscription.deleted`) and use the pinned SDK API version. Do not
+point it at legacy infrastructure. Queue/Resend delivery of durable billing
+email intents also remains a separate later phase.
+
+Before Live activation, rollback is code-only: redeploy the previous
+frontend/API commits. Keep migration 005 in Neon because it is additive and
+empty; do not drop audit or outbox tables. If preview processing fails,
+disable the Test Mode webhook destination, restore previous code and preserve
+any events for diagnosis. The local CLI forwarding used by this smoke has
+already been stopped, and no public Test Mode destination was created.

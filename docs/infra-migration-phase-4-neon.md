@@ -244,6 +244,9 @@ transacional e o fluxo real Stripe Test Mode (Checkout, webhooks, Portal,
 cancelamento ao fim do período e limpeza) passaram. As tabelas de Auth,
 restaurantes, eventos e outbox em preview terminaram com zero linhas. A
 evidência não secreta e os IDs dos recursos de teste estão no relatório da
-Phase 7. A Task 10 promove esse mesmo hash para production, sem dados. A
-outbox guarda intents de email; a entrega por Queue/Resend pertence à fase
-seguinte.
+Phase 7. A Task 10 promoveu o mesmo hash para `production` após observar o
+verificador em RED e confirmar a branch vazia. Os cinco verificadores passam
+em ambas as branches e as sete tabelas contadas de Auth, negócio e billing
+terminaram com zero linhas em cada uma. Nenhuma identidade, Customer ou evento
+sintético foi copiado. A outbox guarda intents de email; a entrega por
+Queue/Resend pertence à fase seguinte.

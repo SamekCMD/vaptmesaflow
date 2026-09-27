@@ -1410,6 +1410,13 @@ Conectar Better Auth → Resend usando **templates existentes**.
 ## Etapa 7
 Consolidar Stripe dentro da API e validar billing.
 
+Estado em 27/09/2026: código e fluxo real Stripe Test Mode validados na branch
+Neon `preview`; schema aditivo idêntico aplicado e verificado em `production`,
+ambas sem dados sintéticos ao final. A ativação Stripe Live aguarda API em
+Cloudflare Worker com URL estável e secrets, sem apontamento para runtime
+legado. A entrega de emails de billing via Queue/Resend é a Etapa 8, não foi
+ativada nesta etapa. Evidência: `docs/infra-migration-phase-7-stripe.md`.
+
 ## Etapa 8
 Adicionar Queue para emails/eventos assíncronos de billing.
 
