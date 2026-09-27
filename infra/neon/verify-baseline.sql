@@ -14,6 +14,7 @@ declare
     'push_subscriptions',
     'payment_provider_events',
     'billing_provider_events',
+    'billing_email_outbox',
     'payment_provider_accounts',
     'payment_transactions',
     'payment_webhook_events',

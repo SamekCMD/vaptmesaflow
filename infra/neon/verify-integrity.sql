@@ -14,6 +14,7 @@ declare
     'push_subscriptions',
     'payment_provider_events',
     'billing_provider_events',
+    'billing_email_outbox',
     'payment_provider_accounts',
     'payment_transactions',
     'payment_webhook_events',
@@ -41,7 +42,17 @@ declare
     'payment_transactions_order_tenant_fkey',
     'payment_transactions_provider_account_tenant_fkey',
     'payment_webhook_events_transaction_tenant_fkey',
-    'payment_effect_outbox_transaction_tenant_fkey'
+    'payment_effect_outbox_transaction_tenant_fkey',
+    'restaurants_plan_status_check',
+    'restaurants_stripe_checkout_check',
+    'billing_provider_events_processing_status_check',
+    'billing_provider_events_attempt_count_check',
+    'billing_email_outbox_restaurant_fkey',
+    'billing_email_outbox_event_kind_key',
+    'billing_email_outbox_kind_check',
+    'billing_email_outbox_delivery_status_check',
+    'billing_email_outbox_attempt_count_check',
+    'billing_email_outbox_payload_check'
   ];
   expected_indexes constant text[] := array[
     'orders_restaurant_idempotency_key_idx',
@@ -50,7 +61,11 @@ declare
     'payment_transactions_one_active_manual_per_order_idx',
     'payment_webhook_events_pending_idx',
     'payment_effect_outbox_available_idx',
-    'payment_effect_outbox_expired_lease_idx'
+    'payment_effect_outbox_expired_lease_idx',
+    'restaurants_stripe_customer_uidx',
+    'restaurants_stripe_subscription_uidx',
+    'billing_provider_events_retry_idx',
+    'billing_email_outbox_delivery_idx'
   ];
   missing_columns text[];
   unexpected_tables text[];
@@ -71,6 +86,20 @@ begin
       ('restaurants', 'cnpj', 'text', 'YES'),
       ('restaurants', 'stripe_customer_id', 'text', 'YES'),
       ('restaurants', 'stripe_subscription_id', 'text', 'YES'),
+      ('restaurants', 'stripe_subscription_item_id', 'text', 'YES'),
+      ('restaurants', 'stripe_current_period_end', 'timestamptz', 'YES'),
+      ('restaurants', 'stripe_cancel_at_period_end', 'bool', 'NO'),
+      ('restaurants', 'stripe_state_updated_at', 'timestamptz', 'YES'),
+      ('restaurants', 'stripe_checkout_session_id', 'text', 'YES'),
+      ('restaurants', 'stripe_checkout_plan_type', 'text', 'YES'),
+      ('restaurants', 'stripe_checkout_expires_at', 'timestamptz', 'YES'),
+      ('billing_provider_events', 'processing_status', 'text', 'NO'),
+      ('billing_provider_events', 'attempt_count', 'int4', 'NO'),
+      ('billing_provider_events', 'processed_at', 'timestamptz', 'YES'),
+      ('billing_email_outbox', 'restaurant_id', 'uuid', 'NO'),
+      ('billing_email_outbox', 'provider_event_id', 'text', 'NO'),
+      ('billing_email_outbox', 'email_kind', 'text', 'NO'),
+      ('billing_email_outbox', 'delivery_status', 'text', 'NO'),
       ('restaurants', 'asaas_api_key', 'text', 'YES'),
       ('restaurants', 'asaas_webhook_token', 'text', 'YES'),
       ('restaurants', 'local_enabled', 'bool', 'NO'),

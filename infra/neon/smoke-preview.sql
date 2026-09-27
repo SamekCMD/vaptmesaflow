@@ -23,6 +23,9 @@ declare
   v_order_payment_status text;
   v_order_payment_transaction_id uuid;
   v_updated_at timestamptz;
+  v_billing_event_id text := 'evt_smoke_' || replace(gen_random_uuid()::text, '-', '');
+  v_billing_status text;
+  v_billing_processed_at timestamptz;
 begin
   insert into public.restaurants (
     id,
@@ -271,6 +274,81 @@ begin
   if v_pending_effects <> 1 then
     raise exception 'expected 1 pending/failed effect after lease checks, got %', v_pending_effects;
   end if;
+
+  -- Billing state and intent persistence stay in the same rollback-only smoke.
+  update public.restaurants
+     set stripe_customer_id = 'cus_smoke_' || v_restaurant_id::text,
+         stripe_subscription_id = 'sub_smoke_' || v_restaurant_id::text,
+         stripe_checkout_session_id = 'cs_test_smoke',
+         stripe_checkout_plan_type = 'starter',
+         stripe_checkout_expires_at = now() + interval '1 hour'
+   where id = v_restaurant_id;
+
+  begin
+    insert into public.restaurants (owner_id, name, slug, stripe_customer_id)
+    values (gen_random_uuid(), 'Duplicate customer', v_slug || '_customer',
+      'cus_smoke_' || v_restaurant_id::text);
+    raise exception 'Stripe Customer was associated with two restaurants';
+  exception when unique_violation then
+    null;
+  end;
+
+  begin
+    insert into public.restaurants (owner_id, name, slug, stripe_subscription_id)
+    values (gen_random_uuid(), 'Duplicate subscription', v_slug || '_subscription',
+      'sub_smoke_' || v_restaurant_id::text);
+    raise exception 'Stripe Subscription was associated with two restaurants';
+  exception when unique_violation then
+    null;
+  end;
+
+  begin
+    update public.restaurants set plan_status = 'not_a_status' where id = v_restaurant_id;
+    raise exception 'invalid billing status was accepted';
+  exception when check_violation then
+    null;
+  end;
+
+  insert into public.billing_provider_events (
+    provider, provider_event_id, event_type, restaurant_id, payload
+  ) values ('stripe', v_billing_event_id, 'invoice.paid', v_restaurant_id, '{}'::jsonb);
+
+  select processing_status, processed_at into v_billing_status, v_billing_processed_at
+    from public.billing_provider_events
+   where provider = 'stripe' and provider_event_id = v_billing_event_id;
+  if v_billing_status <> 'received' or v_billing_processed_at is not null then
+    raise exception 'new billing event was incorrectly marked as processed';
+  end if;
+
+  update public.billing_provider_events
+     set processing_status = 'pending_retry', attempt_count = 1,
+         last_error = 'intentional_smoke_failure'
+   where provider = 'stripe' and provider_event_id = v_billing_event_id;
+  update public.billing_provider_events
+     set processing_status = 'processing', attempt_count = attempt_count + 1,
+         processing_started_at = now(), last_error = null
+   where provider = 'stripe' and provider_event_id = v_billing_event_id
+     and processing_status = 'pending_retry';
+  if not found then
+    raise exception 'pending billing event could not be retried';
+  end if;
+
+  insert into public.billing_email_outbox (restaurant_id, provider_event_id, email_kind, payload)
+  values (v_restaurant_id, v_billing_event_id, 'subscription_activated',
+    jsonb_build_object('planType', 'starter'))
+  on conflict (provider_event_id, email_kind) do nothing;
+  insert into public.billing_email_outbox (restaurant_id, provider_event_id, email_kind, payload)
+  values (v_restaurant_id, v_billing_event_id, 'subscription_activated',
+    jsonb_build_object('planType', 'starter'))
+  on conflict (provider_event_id, email_kind) do nothing;
+  if (select count(*) from public.billing_email_outbox
+       where provider_event_id = v_billing_event_id) <> 1 then
+    raise exception 'billing email intent was duplicated';
+  end if;
+
+  update public.billing_provider_events
+     set processing_status = 'processed', processed_at = now(), processing_started_at = null
+   where provider = 'stripe' and provider_event_id = v_billing_event_id;
 end
 $smoke$;
 

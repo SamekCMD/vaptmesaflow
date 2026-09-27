@@ -227,3 +227,16 @@ O verificador exige as quatro tabelas, IDs UUID compatíveis com
 cruzada. A Task 9 aplicou e verificou o schema primeiro em `preview`; somente
 depois do fluxo funcional e do envio real pelo Resend, promoveu o mesmo SQL
 versionado para `production`, sem copiar identidades ou fixtures.
+
+## Stripe billing versionado — Phase 7
+
+`infra/neon/005_stripe_billing.sql` é a migration aditiva para o estado de
+assinatura, Checkout pendente, claims com retry e `billing_email_outbox`.
+O verificador `verify-stripe-billing.sql` exige as colunas, constraints, índices
+parciais únicos e ausência de acesso PUBLIC à outbox. O lookup público de
+restaurante permanece sem campos Stripe.
+
+Esta Task 2 versiona os arquivos sem aplicação remota. A Task 9 deve registrar
+o verificador em RED antes de aplicar `005` em preview; a Task 10 promove o
+mesmo hash para production após o smoke completo. A outbox guarda intents de
+email; a entrega por Queue/Resend pertence à fase seguinte.
