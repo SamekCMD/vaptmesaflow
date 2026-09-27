@@ -31,9 +31,11 @@ describe("n8n operational persistence boundary", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("keeps the browser n8n client independent from Supabase auth", () => {
-    const client = readFileSync(join(repositoryRoot, "src", "lib", "n8n-client.ts"), "utf8");
-    expect(client).not.toMatch(bannedWriterPattern);
-    expect(client).not.toContain("getAccessToken");
+  it("has no browser n8n client and uses the Vapt API directly for push", () => {
+    expect(existsSync(join(repositoryRoot, "src", "lib", "n8n-client.ts"))).toBe(false);
+    const client = readFileSync(join(repositoryRoot, "src", "lib", "push-notifications.ts"), "utf8");
+    expect(client).not.toMatch(/n8nClient|N8nClient|n8n-client/);
+    expect(client).toContain("vaptApiRequest");
+    expect(client).toContain("ingest/push-subscription");
   });
 });

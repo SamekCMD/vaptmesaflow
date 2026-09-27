@@ -1,5 +1,5 @@
 ﻿import { ENV } from "@/lib/env";
-import { n8nClient } from "@/lib/n8n-client";
+import { vaptApiRequest } from "@/lib/vapt-api-client";
 
 const VAPID_PUBLIC_KEY = ENV.vapidPublicKey;
 
@@ -130,11 +130,14 @@ export async function subscribeToPush(restaurantId: string): Promise<{ success: 
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
       }));
 
-    await n8nClient.ingest.pushSubscription({
-      subscription: subscription.toJSON(),
-      endpoint: subscription.endpoint,
-      origin: window.location.origin,
-      user_agent: navigator.userAgent,
+    await vaptApiRequest<{ restaurantId: string; endpoint: string; status: "subscribed" }>({
+      route: "ingest/push-subscription",
+      body: {
+        subscription: subscription.toJSON(),
+        endpoint: subscription.endpoint,
+        origin: window.location.origin,
+        user_agent: navigator.userAgent,
+      },
     });
 
     clearPushSubscriptionMarkers();
