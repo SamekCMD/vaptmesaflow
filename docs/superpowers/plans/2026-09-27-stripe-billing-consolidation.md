@@ -758,11 +758,11 @@ Use `superpowers:requesting-code-review`. Review tenant isolation, external-call
 
 **Remote scope:** Neon preview branch and Stripe Test Mode only. No DNS, deployment platform or live charge.
 
-- [ ] **Step 1: Prove RED on Neon preview**
+- [x] **Step 1: Prove RED on Neon preview**
 
 Run `verify-stripe-billing.sql` against `preview.vapt` before applying `005`; record the missing objects without recording the connection string.
 
-- [ ] **Step 2: Apply the exact migration and all verifiers**
+- [x] **Step 2: Apply the exact migration and all verifiers**
 
 Apply only the reviewed bytes of `005_stripe_billing.sql`. Then run:
 
@@ -776,11 +776,11 @@ verify-stripe-billing.sql
 
 Record SHA-256 for the migration and every verifier.
 
-- [ ] **Step 3: Validate or create Stripe Test Mode resources**
+- [x] **Step 3: Validate or create Stripe Test Mode resources**
 
 Reuse existing Test Mode resources only when they match the contract. If a Product, Price or Portal configuration is missing/incompatible, create a clean Test Mode replacement through the official API and store only its non-secret ID in the local environment. Retrieve all configured Prices through the gateway and assert active, recurring monthly, BRL and expected amounts. Retrieve the configured Portal configuration and assert payment-method update, invoice history, plan switching among the three configured Prices and cancel-at-period-end are enabled. Do not create or modify Live Mode resources.
 
-- [ ] **Step 4: Run a real synthetic checkout**
+- [x] **Step 4: Run a real synthetic checkout**
 
 Use one disposable Better Auth user and restaurant in Neon preview. Start the API locally with preview database credentials and Stripe Test Mode credentials. Use Stripe CLI forwarding or another official test-mode webhook path to reach the local `POST /webhooks/stripe`; do not change public DNS.
 
@@ -793,15 +793,15 @@ Complete hosted Checkout with Stripe test data and prove:
 - replaying the same Stripe event returns success without a second state write/outbox row;
 - authenticated status returns the safe snapshot without Stripe IDs.
 
-- [ ] **Step 5: Validate Portal and cancellation lifecycle**
+- [x] **Step 5: Validate Portal and cancellation lifecycle**
 
 Create a Portal session for the same restaurant, prove the URL is short-lived/Test Mode, change plan or schedule cancel-at-period-end, and confirm the resulting webhook updates Neon. Unit/integration tests remain the required proof for `invoice.payment_failed`; use a Stripe Test Clock remotely only if it can be completed without creating persistent noise.
 
-- [ ] **Step 6: Clean all synthetic state**
+- [x] **Step 6: Clean all synthetic state**
 
 Delete/cancel the Test Mode Customer/Subscription created for the smoke and delete the synthetic Better Auth/business/billing rows from preview. Re-run counts and all Neon verifiers. Production stays untouched in this step.
 
-- [ ] **Step 7: Record evidence and commit**
+- [x] **Step 7: Record evidence and commit**
 
 Record red/green outputs, non-secret Stripe object IDs, event IDs, row counts, cleanup and exact commits. Never record secret keys, signatures, checkout URLs or customer email.
 

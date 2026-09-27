@@ -236,7 +236,14 @@ O verificador `verify-stripe-billing.sql` exige as colunas, constraints, índice
 parciais únicos e ausência de acesso PUBLIC à outbox. O lookup público de
 restaurante permanece sem campos Stripe.
 
-Esta Task 2 versiona os arquivos sem aplicação remota. A Task 9 deve registrar
-o verificador em RED antes de aplicar `005` em preview; a Task 10 promove o
-mesmo hash para production após o smoke completo. A outbox guarda intents de
-email; a entrega por Queue/Resend pertence à fase seguinte.
+O verificador Stripe foi observado em RED antes da aplicação de `005` na
+branch `preview`. A migration de SHA-256
+`8a91fb9d530709d04682898734c83f08f5dec200904d948c7460d634a7a69c94`
+foi aplicada com conexão direta; os cinco verificadores passaram. O smoke
+transacional e o fluxo real Stripe Test Mode (Checkout, webhooks, Portal,
+cancelamento ao fim do período e limpeza) passaram. As tabelas de Auth,
+restaurantes, eventos e outbox em preview terminaram com zero linhas. A
+evidência não secreta e os IDs dos recursos de teste estão no relatório da
+Phase 7. A Task 10 promove esse mesmo hash para production, sem dados. A
+outbox guarda intents de email; a entrega por Queue/Resend pertence à fase
+seguinte.
