@@ -52,10 +52,11 @@ export async function vaptApiRequest<T>({
   headers = {},
   query,
   body,
+  requireAuth = true,
 }: VaptApiRequestOptions): Promise<T> {
   const response = await fetch(buildUrl(route, query), {
     method,
-    credentials: "include",
+    credentials: requireAuth ? "include" : "omit",
     headers: {
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
       ...headers,

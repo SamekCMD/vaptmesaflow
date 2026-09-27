@@ -46,7 +46,7 @@ type PushSubscriptionInput = {
 
 const request = async <T>(options: VaptApiRequestOptions): Promise<T> => {
   try {
-    return await vaptApiRequest<T>(options);
+    return await vaptApiRequest<T>({ ...options, requireAuth: true });
   } catch (error) {
     if (error instanceof VaptApiClientError) {
       throw new N8nClientError(error.code, error.message, error.status);

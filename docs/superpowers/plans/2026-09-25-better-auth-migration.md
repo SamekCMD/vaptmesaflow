@@ -887,7 +887,7 @@ Expected: PASS.
 
 **Interfaces:** Preserve existing public function names and response/error shapes. `requireAuth` remains an internal request option only to choose `credentials: "include"` versus `credentials: "omit"`; it no longer performs a client-side token check.
 
-- [ ] **Step 1: Write failing transport tests**
+- [x] **Step 1: Write failing transport tests**
 
 Mock `fetch` and assert:
 
@@ -909,7 +909,7 @@ npm test -- src/test/api-cookie-credentials.test.ts
 
 Expected: FAIL because both clients read `supabase.auth.getSession()` and send bearer tokens.
 
-- [ ] **Step 2: Implement cookie transport**
+- [x] **Step 2: Implement cookie transport**
 
 Delete Supabase imports and `getAccessToken` helpers. Set:
 
@@ -919,7 +919,7 @@ credentials: requireAuth ? "include" : "omit"
 
 Never construct an `Authorization` header. Let the API return 401 after validating the cookie.
 
-- [ ] **Step 3: Prove auth code no longer imports Supabase**
+- [x] **Step 3: Prove auth code no longer imports Supabase**
 
 ```powershell
 rg -n 'supabase\.auth|getSession\(\).*access_token|Authorization.*Bearer' src/contexts src/lib src/pages/auth src/pages/dashboard/SettingsPage.tsx src/components/DashboardLayout.tsx
@@ -927,7 +927,7 @@ rg -n 'supabase\.auth|getSession\(\).*access_token|Authorization.*Bearer' src/co
 
 Expected: no auth-related matches. Business-data Supabase imports may remain only where Task 0 explicitly classified them and only if the gate has a corresponding API cutover.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 ```powershell
 npm test -- src/test/api-cookie-credentials.test.ts
