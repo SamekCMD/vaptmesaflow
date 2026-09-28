@@ -28,6 +28,27 @@ After action-time confirmation, one Resend test send per template went to `deliv
 
 Desktop previews were visually checked. A narrow-screen preview control was not available in the Resend editor/browser interface used here; the template body uses fluid `width:100%`, a `600px` maximum width, and `24px` content padding, but mobile rendering remains a visual QA follow-up before a live-customer send.
 
+## Preview deployment and validation
+
+On 2026-09-28, Cloudflare account `3ce69408aa5112617a282957aba71932` had the existing `vapt-emails-preview` and `vapt-emails-production` Queues. The separate `vapt-emails-preview-dlq` was created. `vapt-billing-email-preview` was first bootstrapped without a route, Cron or Queue consumer, because installing Wrangler secrets deploys a Worker version. Its branch-scoped pooled Neon `DATABASE_URL` and a Resend Sending-only, `vapt.app.br`-restricted `RESEND_API_KEY` were then installed as encrypted Worker secrets. No values were written to this repository. Two interim Resend keys exposed to the private browser accessibility trace were revoked after rotation; only the final restricted billing key remains active.
+
+The final preview Worker deployment was version `21e20815-7f29-4e89-a9a2-c191c296e227`, with `* * * * *` Cron, one producer and one consumer on `vapt-emails-preview`, batch size 10, 60-second retry delay, three Queue retries and `vapt-emails-preview-dlq`. No route or workers.dev URL was enabled. The production Queue still had zero producers and consumers; no production Worker was deployed in this task.
+
+The preview Neon branch started with zero restaurants, Better Auth users and outbox rows. A disposable owner/restaurant with a unique `BillingSmoke20260928` marker and `delivered@resend.dev` address supplied four synthetic outbox intents. Cron dispatched each to the Queue; the Worker recorded each as `sent`, attempt 1, no error, with the expected published alias. Resend showed `Delivered` for exactly these four message IDs:
+
+| Kind | Outbox ID | Resend ID |
+| --- | --- | --- |
+| `subscription_activated` | `e9261d19-bc7f-46e5-a135-6cd1191ce216` | `01a0e9fe-cab8-7211-8213-c7493d6f0ff4` |
+| `subscription_renewed` | `bb52ff90-a5ac-4db7-bb58-3a844fb5c925` | `01a0e9fe-cf4b-7620-9cb2-f630d2ee3592` |
+| `payment_failed` | `e5ac4de5-148b-45b7-911b-4db184175c1c` | `01a0e9fe-d3a5-7151-9e6d-8bc374420064` |
+| `subscription_cancelled` | `76a1754d-f774-4e9e-84a8-a618a4494d45` | `01a0e9fe-d68e-7294-a879-dc3f0af854e8` |
+
+Re-inserting the activated intent with the same business and event keys returned zero new rows. Replaying its Queue body left all four rows at attempt 1 with the same Resend IDs; the already-sent message was acknowledged without another send. The API's Stripe webhook service/repository tests cover transactional outbox insertion and duplicate event handling, and the API source has no billing Resend call. This live smoke inserted synthetic intents directly rather than posting signed Stripe events to the Coolify API; it validates the deployed outbox-to-email path, not the remote webhook ingress. The Worker tests cover transient Resend errors, exponential backoff, stale-lease recovery and the 24-hour uncertainty cutoff without emitting extra live emails.
+
+A malformed, recipient-free JSON message was submitted to `vapt-emails-preview`. The consumer rejected it, Cloudflare exhausted the configured retries and `vapt-emails-preview-dlq` showed one message of realtime backlog at 20:42 BRT. The source Queue later showed zero realtime backlog, six ingested messages and six acknowledged messages. This synthetic dead letter is intentionally retained for manual inspection; it must not be replayed or purged automatically. No outbox row or email resulted from that malformed body. The scoped cleanup removed the one marked synthetic restaurant and its owner; the four outbox rows cascaded. A final preview query returned zero outbox rows (including zero active), restaurants and Better Auth users.
+
+The deployed preview exercised Queue retry/DLQ behavior; Resend transient-failure, exponential-backoff, lease-recovery and ambiguous-send cases were exercised with fake senders plus real preview Postgres integration tests, not by deliberately failing live Resend delivery. The final Worker run passed 47/47 tests with preview Postgres and the API suite passed 397/397. The remote Stripe webhook ingress remains a separate activation check before a real customer billing event.
+
 ## Deployment and operations
 
-Pending Tasks 7–8. No Worker is deployed by the schema migration alone.
+Production parity remains Task 8. No DNS, Vercel, Easypanel, Coolify API, Stripe Live or auth-template change is part of this Worker deployment.
