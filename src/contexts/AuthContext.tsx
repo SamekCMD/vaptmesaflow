@@ -1,67 +1,197 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { supabase } from "@/lib/supabase";
-import type { User, Session } from "@supabase/supabase-js";
+import { createContext, useContext, type ReactNode } from "react";
+import { authClient } from "@/lib/auth-client";
+
+export type VaptUser = {
+  id: string;
+  email: string;
+  name: string;
+};
+
+export type VaptSession = {
+  id: string;
+  userId: string;
+  expiresAt: Date;
+};
+
+export class AuthOperationError extends Error {
+  readonly status?: number;
+  readonly code?: string;
+
+  constructor(error?: { status?: number; code?: string }) {
+    super("Não foi possível concluir a operação.");
+    this.name = "AuthOperationError";
+    this.status = error?.status;
+    this.code = error?.code;
+  }
+}
+
+type AuthResult = { error: Error | null };
 
 interface AuthContextValue {
-  user: User | null;
-  session: Session | null;
+  user: VaptUser | null;
+  session: VaptSession | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (
+    email: string,
+    password: string,
+    name: string,
+    captchaToken?: string,
+  ) => Promise<AuthResult>;
+  signIn: (
+    email: string,
+    password: string,
+    captchaToken?: string,
+  ) => Promise<AuthResult>;
   signOut: () => Promise<void>;
+  sendPasswordReset: (
+    email: string,
+    captchaToken?: string,
+  ) => Promise<AuthResult>;
+  resetPassword: (token: string, newPassword: string) => Promise<AuthResult>;
+  updateName: (name: string) => Promise<AuthResult>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<AuthResult>;
 }
+
+type BetterAuthError = {
+  status?: number;
+  code?: string;
+} | null;
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // 1. Fetch existing session first
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    // 2. Listen for future changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+const captchaFetchOptions = (captchaToken?: string) =>
+  captchaToken
+    ? {
+        fetchOptions: {
+          headers: { "x-captcha-response": captchaToken },
+        },
       }
+    : {};
+
+const toAuthResult = (error: BetterAuthError): AuthResult => ({
+  error: error ? new AuthOperationError(error) : null,
+});
+
+const safeAuthResult = async (
+  operation: () => Promise<{ error: BetterAuthError }>,
+  onSuccess?: () => Promise<unknown>,
+): Promise<AuthResult> => {
+  try {
+    const { error } = await operation();
+    if (error) return toAuthResult(error);
+    await onSuccess?.();
+    return { error: null };
+  } catch {
+    return { error: new AuthOperationError() };
+  }
+};
+
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const { data, isPending, isRefetching, refetch } = authClient.useSession();
+
+  const user: VaptUser | null = data?.user
+    ? {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.name,
+      }
+    : null;
+
+  const session: VaptSession | null = data?.session
+    ? {
+        id: data.session.id,
+        userId: data.session.userId,
+        expiresAt: new Date(data.session.expiresAt),
+      }
+    : null;
+
+  const signUp = (
+    email: string,
+    password: string,
+    name: string,
+    captchaToken?: string,
+  ) =>
+    safeAuthResult(() =>
+      authClient.signUp.email({
+        email,
+        password,
+        name,
+        callbackURL: `${window.location.origin}/login?verified=1`,
+        ...captchaFetchOptions(captchaToken),
+      }),
     );
 
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const signUp = async (email: string, password: string, fullName: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName },
-        emailRedirectTo: window.location.origin,
-      },
-    });
-    return { error: error as Error | null };
-  };
-
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error as Error | null };
-  };
+  const signIn = (
+    email: string,
+    password: string,
+    captchaToken?: string,
+  ) =>
+    safeAuthResult(
+      () =>
+        authClient.signIn.email({
+          email,
+          password,
+          ...captchaFetchOptions(captchaToken),
+        }),
+      refetch,
+    );
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      const { error } = await authClient.signOut();
+      if (error) throw new AuthOperationError(error);
+      await refetch();
+    } catch (error) {
+      if (error instanceof AuthOperationError) throw error;
+      throw new AuthOperationError();
+    }
   };
 
+  const sendPasswordReset = (email: string, captchaToken?: string) =>
+    safeAuthResult(() =>
+      authClient.requestPasswordReset({
+        email,
+        redirectTo: `${window.location.origin}/reset-password`,
+        ...captchaFetchOptions(captchaToken),
+      }),
+    );
+
+  const resetPassword = (token: string, newPassword: string) =>
+    safeAuthResult(() => authClient.resetPassword({ token, newPassword }));
+
+  const updateName = (name: string) =>
+    safeAuthResult(() => authClient.updateUser({ name }), refetch);
+
+  const changePassword = (currentPassword: string, newPassword: string) =>
+    safeAuthResult(
+      () =>
+        authClient.changePassword({
+          currentPassword,
+          newPassword,
+          revokeOtherSessions: true,
+        }),
+      refetch,
+    );
+
   return (
-    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        loading: isPending || isRefetching,
+        signUp,
+        signIn,
+        signOut,
+        sendPasswordReset,
+        resetPassword,
+        updateName,
+        changePassword,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

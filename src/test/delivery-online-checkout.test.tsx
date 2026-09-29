@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { orderClient } from "@/lib/order-client";
 import { paymentClient, savePendingCheckout } from "@/lib/payment-client";
+import { vaptApiRequest } from "@/lib/vapt-api-client";
 import PublicDelivery from "@/pages/delivery/PublicDelivery";
 
 const restaurant = {
@@ -27,23 +28,13 @@ const menuItem = {
   available: true,
 };
 
-const maybeSingle = vi.fn().mockResolvedValue({ data: restaurant, error: null });
-const menuQuery = {
-  select: vi.fn(),
-  eq: vi.fn(),
-  order: vi.fn(),
-  then: (resolve: (value: unknown) => void) => resolve({ data: [menuItem], error: null }),
-};
-menuQuery.select.mockReturnValue(menuQuery);
-menuQuery.eq.mockReturnValue(menuQuery);
-menuQuery.order.mockReturnValue(menuQuery);
-
-vi.mock("@/lib/supabase", () => ({
-  supabase: {
-    rpc: vi.fn(() => ({ maybeSingle })),
-    from: vi.fn(() => menuQuery),
-  },
-}));
+vi.mock("@/lib/vapt-api-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/vapt-api-client")>();
+  return {
+    ...actual,
+    vaptApiRequest: vi.fn(),
+  };
+});
 
 vi.mock("@/lib/order-client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/order-client")>();
@@ -111,6 +102,47 @@ describe("checkout online do delivery", () => {
       checkoutUrl: "javascript:invalid-checkout",
       expiresAt: null,
     });
+    vi.mocked(vaptApiRequest).mockResolvedValue({
+      restaurant: {
+        id: restaurant.id,
+        name: restaurant.name,
+        slug: restaurant.slug,
+        whatsapp: null,
+        address: null,
+        phone: null,
+        hours: null,
+        description: null,
+        primaryColor: restaurant.primary_color,
+        secondaryColor: restaurant.secondary_color,
+        fontFamily: restaurant.font_family,
+        logoUrl: restaurant.logo_url,
+        totalTables: 1,
+        maxTables: 1,
+        paymentMode: "open_tab",
+        maxPendingOrders: 3,
+        localEnabled: true,
+        deliveryEnabled: true,
+        updatedAt: "2026-09-25T12:00:00.000Z",
+      },
+      items: [{
+        id: menuItem.id,
+        restaurantId: restaurant.id,
+        name: menuItem.name,
+        description: menuItem.description,
+        price: "23.00",
+        category: menuItem.category,
+        imageUrl: menuItem.image_url,
+        available: true,
+        availableFrom: null,
+        availableUntil: null,
+        badge: null,
+        isChefSuggestion: false,
+        prepTimeMinutes: null,
+        createdAt: "2026-09-25T12:00:00.000Z",
+        updatedAt: "2026-09-25T12:00:00.000Z",
+        variations: [],
+      }],
+    });
   });
 
   it("cria o pedido como online e inicia o checkout hospedado", async () => {
@@ -123,6 +155,11 @@ describe("checkout online do delivery", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", { name: /adicionar/i }));
+    expect(vaptApiRequest).toHaveBeenCalledWith({
+      method: "GET",
+      route: "/public/restaurants/restaurante-teste/catalog",
+      requireAuth: false,
+    });
     fireEvent.click(screen.getByRole("button", { name: /pagar online/i }));
 
     await waitFor(() => expect(orderClient.create).toHaveBeenCalledWith(

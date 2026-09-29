@@ -1,5 +1,4 @@
 import { ENV } from "@/lib/env";
-import { supabase } from "@/lib/supabase";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
@@ -47,11 +46,6 @@ async function parseJsonSafe(response: Response): Promise<unknown> {
   }
 }
 
-async function getAccessToken(): Promise<string | null> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
-}
-
 export async function vaptApiRequest<T>({
   method = "POST",
   route,
@@ -60,16 +54,11 @@ export async function vaptApiRequest<T>({
   body,
   requireAuth = true,
 }: VaptApiRequestOptions): Promise<T> {
-  const token = requireAuth ? await getAccessToken() : null;
-  if (requireAuth && !token) {
-    throw new VaptApiClientError("unauthorized", "Sessão inválida. Faça login novamente.", 401);
-  }
-
   const response = await fetch(buildUrl(route, query), {
     method,
+    credentials: requireAuth ? "include" : "omit",
     headers: {
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),

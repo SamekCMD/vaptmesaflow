@@ -86,7 +86,7 @@ export interface MenuItemVariation {
 }
 
 export interface PublicMenuItem {
-  id: number;
+  id: string | number;
   name: string;
   description: string;
   price: number;

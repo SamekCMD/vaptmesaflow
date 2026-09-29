@@ -2,15 +2,17 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { HandHelping, Receipt, X } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
+import type { StoredOrderAccess } from "@/lib/order-client";
+import { requestTableCheck } from "@/lib/public-table-sessions";
 
 interface FloatingActionsProps {
   sessionId: string;
+  orderAccess: StoredOrderAccess | null;
   primaryColor: string;
 }
 
-const FloatingActions = ({ sessionId, primaryColor }: FloatingActionsProps) => {
+const FloatingActions = ({ sessionId, orderAccess, primaryColor }: FloatingActionsProps) => {
   const [expanded, setExpanded] = useState(false);
   const [requesting, setRequesting] = useState(false);
 
@@ -23,14 +25,10 @@ const FloatingActions = ({ sessionId, primaryColor }: FloatingActionsProps) => {
   };
 
   const handleRequestCheck = async () => {
+    if (!orderAccess) return;
     setRequesting(true);
     try {
-      const { error } = await supabase
-        .from("table_sessions")
-        .update({ status: "check_requested" })
-        .eq("id", sessionId);
-
-      if (error) throw error;
+      await requestTableCheck(sessionId, orderAccess.orderId, orderAccess.publicToken);
 
       toast({
         title: "Conta solicitada",
@@ -80,7 +78,7 @@ const FloatingActions = ({ sessionId, primaryColor }: FloatingActionsProps) => {
                 variant="secondary"
                 className="shadow-lg gap-2 text-xs"
                 onClick={handleRequestCheck}
-                disabled={requesting}
+                disabled={requesting || !orderAccess}
               >
                 <Receipt className="h-4 w-4" />
                 {requesting ? "Solicitando..." : "Pedir a Conta"}
