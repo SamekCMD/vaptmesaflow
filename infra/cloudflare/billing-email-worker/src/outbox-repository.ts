@@ -92,7 +92,8 @@ export function buildOutboxRepository(query: QueryRunner): OutboxRepository {
           LIMIT $2
         )
         UPDATE public.billing_email_outbox AS outbox
-        SET next_attempt_at = $1::timestamptz + interval '5 minutes'
+        SET delivery_status = 'pending',
+            next_attempt_at = $1::timestamptz + interval '5 minutes'
         FROM due WHERE outbox.id = due.id
         RETURNING outbox.id
       `, [now.toISOString(), limit]);
@@ -120,7 +121,8 @@ export function buildOutboxRepository(query: QueryRunner): OutboxRepository {
               processing_started_at = $2::timestamptz,
               attempt_count = attempt_count + 1
           WHERE id = $1::uuid
-            AND delivery_status IN ('pending', 'pending_retry')
+            AND delivery_status = 'pending'
+            AND next_attempt_at > $2::timestamptz
             AND attempt_count < 8
           RETURNING *
         )

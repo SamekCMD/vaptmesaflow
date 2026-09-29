@@ -28,6 +28,7 @@ test('reserves only a bounded due batch atomically for five minutes', async () =
   assert.match(calls[0]!.sql, /FOR UPDATE SKIP LOCKED/i);
   assert.match(calls[0]!.sql, /UPDATE public\.billing_email_outbox/i);
   assert.match(calls[0]!.sql, /interval '5 minutes'/i);
+  assert.match(calls[0]!.sql, /SET delivery_status\s*=\s*'pending'/i);
   assert.match(calls[0]!.sql, /RETURNING/i);
   assert.deepEqual(calls[0]!.params, [now.toISOString(), 20]);
   await assert.rejects(() => repository.reserveDispatch(now, 21));
@@ -52,7 +53,8 @@ test('claims one delivery lease and joins owner email and restaurant name', asyn
   assert.match(calls[0]!.sql, /better_auth\."user"/i);
   assert.match(calls[0]!.sql, /processing_started_at/i);
   assert.match(calls[0]!.sql, /attempt_count\s*=\s*attempt_count\s*\+\s*1/i);
-  assert.match(calls[0]!.sql, /delivery_status\s+IN\s*\('pending',\s*'pending_retry'\)/i);
+  assert.match(calls[0]!.sql, /delivery_status\s*=\s*'pending'/i);
+  assert.match(calls[0]!.sql, /next_attempt_at\s*>\s*\$2::timestamptz/i);
   assert.equal(await recorded().repository.claimDelivery(id, now), null);
 });
 
