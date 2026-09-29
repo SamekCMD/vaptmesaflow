@@ -32,7 +32,7 @@ Desktop previews were visually checked. A narrow-screen preview control was not 
 
 On 2026-09-28, Cloudflare account `3ce69408aa5112617a282957aba71932` had the existing `vapt-emails-preview` and `vapt-emails-production` Queues. The separate `vapt-emails-preview-dlq` was created. `vapt-billing-email-preview` was first bootstrapped without a route, Cron or Queue consumer, because installing Wrangler secrets deploys a Worker version. Its branch-scoped pooled Neon `DATABASE_URL` and a Resend Sending-only, `vapt.app.br`-restricted `RESEND_API_KEY` were then installed as encrypted Worker secrets. No values were written to this repository. Two interim Resend keys exposed to the private browser accessibility trace were revoked after rotation; only the final restricted billing key remains active.
 
-The final preview Worker deployment was version `21e20815-7f29-4e89-a9a2-c191c296e227`, with `* * * * *` Cron, one producer and one consumer on `vapt-emails-preview`, batch size 10, 60-second retry delay, three Queue retries and `vapt-emails-preview-dlq`. No route or workers.dev URL was enabled. The production Queue still had zero producers and consumers; no production Worker was deployed in this task.
+The preview smoke used Worker version `21e20815-7f29-4e89-a9a2-c191c296e227`, with `* * * * *` Cron, one producer and one consumer on `vapt-emails-preview`, batch size 10, 60-second retry delay, three Queue retries and `vapt-emails-preview-dlq`. No route or workers.dev URL was enabled. The production Queue still had zero producers and consumers at this preview gate. Afterward, preview was redeployed as version `1c9400e9-4e7d-4dfa-a576-78e2b64f2dbc` with `preview_urls: false`; its Cron/Queue bindings and secrets were retained.
 
 The preview Neon branch started with zero restaurants, Better Auth users and outbox rows. A disposable owner/restaurant with a unique `BillingSmoke20260928` marker and `delivered@resend.dev` address supplied four synthetic outbox intents. Cron dispatched each to the Queue; the Worker recorded each as `sent`, attempt 1, no error, with the expected published alias. Resend showed `Delivered` for exactly these four message IDs:
 
@@ -51,4 +51,40 @@ The deployed preview exercised Queue retry/DLQ behavior; Resend transient-failur
 
 ## Deployment and operations
 
-Production parity remains Task 8. No DNS, Vercel, Easypanel, Coolify API, Stripe Live or auth-template change is part of this Worker deployment.
+### Production parity
+
+On 2026-09-28, production branch `br-odd-term-b6j2n9ms` of Neon project `dawn-morning-27332079` had zero outbox rows and zero active deliveries, and none of migration 006's five columns. The exact reviewed migration file, SHA-256 `14D60EA7BDF53AEE40113FF3007DBC79380D2DA0250B524F375CFED0765D2318` after checkout line-ending normalization, was applied via a direct (non-pooled) connection. The billing-email, baseline, integrity and Stripe-billing verifiers passed. A fresh read showed five delivery columns and zero outbox/active rows on both production and preview; no synthetic preview records were copied.
+
+`vapt-emails-production-dlq` was created separately from the existing production Queue. `vapt-billing-email-production` was bootstrapped without triggers or routes, then given the production-branch pooled Neon URL and a separate Resend Sending-only key restricted to `vapt.app.br`, each as an encrypted Worker secret. The final deployment is version `ef3909ca-1af8-4160-b1df-1c66b9e4412b`: one-minute Cron, one producer and one consumer on `vapt-emails-production`, its own DLQ, and no workers.dev/custom route or preview URL. Cloudflare showed `DATABASE_URL` and `RESEND_API_KEY` as encrypted secrets and the production Queue binding. A post-deploy Queue listing showed one producer/consumer on each environment's primary Queue and none on either DLQ; the production Queue had zero ingested messages and zero realtime backlog at 21:00 BRT. No production test email or Stripe Live event was created.
+
+### Read-only monitoring
+
+Run against the intended Neon branch with read-only credentials, and keep email addresses, template variables and connection strings out of incident tickets and logs:
+
+```sql
+select delivery_status, email_kind, count(*) as rows,
+       min(created_at) as oldest_created_at, max(attempt_count) as max_attempts
+from public.billing_email_outbox
+group by delivery_status, email_kind
+order by delivery_status, email_kind;
+
+select id, email_kind, delivery_status, attempt_count, created_at,
+       next_attempt_at, processing_started_at, first_send_attempt_at,
+       sent_at, last_error, resend_email_id
+from public.billing_email_outbox
+where delivery_status in ('pending', 'pending_retry', 'processing', 'dead_letter')
+order by next_attempt_at, created_at
+limit 100;
+```
+
+Investigate a due `pending`/`pending_retry` row older than five minutes, a `processing` lease older than 15 minutes, any `dead_letter`, or growing Queue backlog/consumer lag. Compare the Worker Cron invocations and Queue `Messages Ingested`, `Acknowledged`, `Retried`, realtime backlog and DLQ backlog in the matching environment. Both DLQs currently have message retention `86400` seconds (one day); inspect a nonzero DLQ within that window. The preview DLQ contains one intentionally malformed synthetic message from validation. The outbox, not the Queue, is the longer-lived delivery record.
+
+### Manual reconciliation and rollback
+
+Do not bulk-purge a Queue, auto-replay a DLQ, or delete outbox rows. For a specific outbox UUID, first inspect its state and the corresponding Resend message ID/idempotency key `billing/<outboxId>` in the correct environment. A `sent` row needs no replay. For `dead_letter` or an uncertain send, establish whether Resend accepted it before any retry; after the 24-hour idempotency window, a blind resend risks a duplicate. Investigate malformed DLQ bodies separately; the preview test message has no valid outbox UUID and must not be replayed. If a Queue message is lost while the row remains due, the one-minute Cron republishes its ID after the dispatch reservation expires; avoid manually inserting another intent.
+
+If delivery must stop, remove the affected Worker's Cron trigger and Queue consumer in Cloudflare `Settings → Trigger events` (or deploy an explicitly reviewed no-trigger config), then verify the Queue has no active consumer. Keep the outbox, Queue and secrets intact for diagnosis. The API may continue creating intents while delivery is paused. Recheck due rows, Resend outcomes and the 24-hour uncertainty boundary before restoring exactly one Cron and one consumer; do not reset `attempt_count` or frozen recipient/template data casually. This is a Worker-delivery rollback, not a schema rollback: migration 006 is additive and should remain.
+
+### Live activation gates
+
+No DNS, Vercel, Easypanel, Coolify API, Stripe Live or auth-template change is part of this Worker deployment. Before customer billing, complete a signed webhook ingress smoke against the final API URL, confirm Stripe Live products/Prices, Portal configuration, secrets and event-selected webhook endpoint, inspect the four billing templates in a narrow email client, decide whether one-day DLQ retention and alerting are sufficient, and monitor the first controlled lifecycle. The current four real email deliveries used only Resend's test recipient; production wiring is ready but has not sent to a real customer.
