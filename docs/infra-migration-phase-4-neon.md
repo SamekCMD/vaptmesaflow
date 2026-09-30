@@ -250,3 +250,30 @@ em ambas as branches e as sete tabelas contadas de Auth, negócio e billing
 terminaram com zero linhas em cada uma. Nenhuma identidade, Customer ou evento
 sintético foi copiado. A outbox guarda intents de email; a entrega por
 Queue/Resend pertence à fase seguinte.
+
+## Role limitada da API Worker — Stage 10 preview
+
+Em 30/09/2026, somente na branch `preview` (`br-rough-dew-b6ydeygb`) do
+projeto `dawn-morning-27332079`, database `vapt`, foi criada a role de login
+`vapt_api_preview` sem `SUPERUSER`, `CREATEDB`, `CREATEROLE`, `REPLICATION`,
+`BYPASSRLS` ou membership herdado. A criação inicial pelo console do Neon
+atribuiu privilégios administrativos indevidos; essa role, ainda sem objetos
+ou grants da aplicação, foi excluída e recriada por SQL antes do uso.
+
+`infra/neon/006_worker_preview_role_grants.sql` foi aplicado apenas em
+`preview.vapt`. `infra/neon/verify-worker-preview-role.sql` passou tanto como
+`neondb_owner` quanto em conexão direta autenticada como `vapt_api_preview`.
+Nessa conexão restrita, `INSERT`, `SELECT`, `UPDATE` e `DELETE` em
+`better_auth.verification` passaram dentro de uma transação revertida; a
+ausência da linha sintética foi confirmada depois. `CREATE TABLE` no schema
+`public`, `CREATE SCHEMA` e leitura de `public.payment_provider_events` foram
+negados com SQLSTATE `42501`. A função permitida
+`public.count_pending_payment_effects()` pôde ser executada. Uma consulta
+somente leitura em `production.vapt` (`br-odd-term-b6j2n9ms`) confirmou que
+`vapt_api_preview` não existe naquela branch.
+
+A senha usada nesse ensaio foi gerada no Postgres e sua cópia em memória foi
+descartada ao final do processo de verificação. Antes de criar o Hyperdrive de
+preview, ela deverá ser rotacionada novamente e entregue diretamente ao
+provisionamento, sem URI ou senha em Git, histórico de shell ou logs. Ainda
+não há binding Hyperdrive nem tráfego da aplicação para essa role.
