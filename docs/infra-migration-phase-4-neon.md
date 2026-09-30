@@ -275,5 +275,25 @@ somente leitura em `production.vapt` (`br-odd-term-b6j2n9ms`) confirmou que
 A senha usada nesse ensaio foi gerada no Postgres e sua cópia em memória foi
 descartada ao final do processo de verificação. Antes de criar o Hyperdrive de
 preview, ela deverá ser rotacionada novamente e entregue diretamente ao
-provisionamento, sem URI ou senha em Git, histórico de shell ou logs. Ainda
-não há binding Hyperdrive nem tráfego da aplicação para essa role.
+provisionamento, sem URI ou senha em Git, histórico de shell ou logs. Nesse
+momento do ensaio, ainda não havia binding Hyperdrive nem tráfego da aplicação
+para essa role.
+
+## Aceite do Hyperdrive em preview — Stage 10
+
+Após a validação da role, o Hyperdrive `vapt-api-neon-preview`
+(`0c05fec2924b4f3b9225f3d689ba7ea9`) foi criado na conta Cloudflare
+`3ce69408aa5112617a282957aba71932`, com cache desativado e limite de cinco
+conexões de origem. A leitura posterior da configuração confirmou o endpoint
+Neon direto `ep-hidden-bird-b673zocn.c-2.sa-east-1.aws.neon.tech`, database
+`vapt` e usuário `vapt_api_preview`. A senha foi rotacionada em memória e
+enviada somente à API Cloudflare; seu valor não foi versionado nem registrado.
+
+Um Worker diagnóstico temporário executado por `wrangler dev --remote` comprovou
+consulta parametrizada, rollback, commit/leitura/limpeza, sessão Better Auth
+entre invocações, revogação, cinco chamadas seriais e três concorrentes, além
+de um único passe de reconciliação com outbox vazia. A auditoria final confirmou
+zero registros sintéticos restantes e ausência da role preview na branch
+`production`. O handoff técnico completo está no repositório da API em
+`docs/infra-migration-phase-10-hyperdrive-neon-preview.md`. Coolify permanece
+servindo a API; não houve cutover de tráfego, rota pública ou Cron nesta etapa.
