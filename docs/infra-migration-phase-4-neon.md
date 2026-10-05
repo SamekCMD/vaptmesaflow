@@ -360,3 +360,17 @@ por caminho exato; nenhum valor foi mostrado. Capturas futuras devem desativar
 `WRANGLER_WRITE_LOGS` antes do comando. Nenhuma credencial dos Workers billing
 existentes foi alterada. Handoff completo na API:
 `docs/infra-migration-phase-11-api-parallel.md`.
+
+Revisão final corrigiu somente o verificador production para detectar ownership
+em `pg_proc`, acesso por coluna e EXECUTE fora da lista exata de rotinas de
+aplicação. A extensão `pgcrypto` mantém o ACL público da baseline; nenhuma
+outra extensão é isenta. O teste de integração versionado na API,
+`scripts/verify-production-acl-regression.mjs`, reproduziu três falsos positivos
+antes e passou baseline mais três rejeições (4/4) depois. Tudo foi revertido
+por transação; nenhuma permissão persistente mudou. Verificação como login
+restrito/CRUD/cinco negações `42501` passou novamente após as correções.
+
+Verificador Preview anterior permanece sem alteração e não recebe a garantia
+de completude do gate production novo; endurecê-lo antes da próxima aceitação
+ampla Preview. API450/workerd15/scripts17/build passaram; frontend135/135
+passou com dois workers após uma falha intermitente do teste de catálogo.
