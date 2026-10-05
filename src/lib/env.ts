@@ -26,6 +26,7 @@ const readRequiredEnv = (key: string): string => {
 
 export const ENV = {
   vaptApiBaseUrl: readRequiredEnv("VITE_VAPT_API_BASE_URL"),
+  realtimeEnabled: readEnv("VITE_REALTIME_ENABLED") === "true",
   paymentEnvironment: readPaymentEnvironment(),
   vapidPublicKey: readEnv("VITE_VAPID_PUBLIC_KEY"),
   turnstileEnabled,

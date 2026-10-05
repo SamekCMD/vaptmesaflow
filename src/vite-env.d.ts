@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
+  readonly VITE_REALTIME_ENABLED?: string;
   readonly VITE_VAPT_API_BASE_URL: string;
   readonly VITE_VAPID_PUBLIC_KEY: string;
   readonly VITE_TURNSTILE_ENABLED: string;
