@@ -297,3 +297,32 @@ zero registros sintéticos restantes e ausência da role preview na branch
 `production`. O handoff técnico completo está no repositório da API em
 `docs/infra-migration-phase-10-hyperdrive-neon-preview.md`. Coolify permanece
 servindo a API; não houve cutover de tráfego, rota pública ou Cron nesta etapa.
+
+## Stage 11 — role production preparada (05/10/2026)
+
+Role `vapt_api_production` criada somente em `br-odd-term-b6j2n9ms`, database
+`vapt`, endpoint direto `ep-holy-wildflower-b6vtv1dd.c-2.sa-east-1.aws.neon.tech`.
+Os grants de `007_worker_production_role_grants.sql` espelham exatamente a
+allowlist Preview. A senha foi gerada e mantida apenas em memória/credencial
+PostgreSQL, sem arquivo, Git ou saída de logs.
+
+`verify-worker-production-role.sql` foi escrito antes da criação e falhou
+com role ausente (RED). Depois passou como owner e como login restrito (GREEN):
+sem atributos admin, memberships herdados, ownership ou CREATE; DML/funções
+allowlisted presentes; tabelas/função legada excluídas continuam negadas.
+Os cinco verificadores de schema e o ACL passaram como owner. Como role
+restrita, ACL, CRUD Better Auth e `count_pending_payment_effects()` passaram;
+as escritas foram revertidas. DDL, leitura/grant da outbox excluída, mudança
+de ownership e chamada de função não autorizada retornaram SQLSTATE `42501`.
+
+Ruling: verificadores de schema ficam no owner e testes ACL/CRUD/negação no
+login restrito. `verify-integrity.sql` usa `information_schema.columns`, que
+oculta a tabela outbox proibida desse login; não se concede SELECT para tornar
+essa verificação verde. Custo da decisão: garantia de schema via catálogo
+permanece owner-only, com acesso real da aplicação verificado separadamente.
+
+Produção permaneceu com zero usuários, restaurantes, pedidos e outboxes, sem
+role Preview. Preview permaneceu sem role production e sem resíduos da Task 6.
+Nenhuma identidade/UUID de testes foi copiada. Hyperdrive production ainda
+pertence ao gate seguinte e não foi adicionado a configuração, binding ou
+tráfego. Não houve mudança de DNS, Cron, consumer ou plano pago.
