@@ -326,3 +326,37 @@ role Preview. Preview permaneceu sem role production e sem resíduos da Task 6.
 Nenhuma identidade/UUID de testes foi copiada. Hyperdrive production ainda
 pertence ao gate seguinte e não foi adicionado a configuração, binding ou
 tráfego. Não houve mudança de DNS, Cron, consumer ou plano pago.
+
+## Stage 11 — Hyperdrive production preparado (05/10/2026)
+
+`vapt-api-neon-production` / `2885c609a66641b3b716190c2d467902` criado para
+o endpoint direto de production acima, database `vapt`, role
+`vapt_api_production`, cache desativado e limite cinco. Senha rotacionada em
+memória e enviada somente no campo write-only Cloudflare; nenhum URI/segredo
+foi versionado. TLS padrão `require`/WebPKI mantido; `verify-full` opcional
+requer CA customizada e não foi aplicado. Ver
+[documentação TLS Hyperdrive](https://developers.cloudflare.com/hyperdrive/configuration/tls-ssl-certificates-for-hyperdrive/).
+
+O ID permanece sem binding em qualquer configuração/Worker. Shell production
+`ce6f3919` continua sem bindings, URL de produção, Cron ou custom domains.
+Preview final `9d020e2c-13b8-490c-be9f-5a5223ff18305` usa apenas a role,
+Hyperdrive e R2 Preview. Probe final confirmou `vapt_api_preview`; production
+ACL/login, rollback CRUD/função e cinco negações `42501` foram repetidos após
+rotação da senha. Duas branches continuam sem fixtures/dados/outboxes e com
+roles isoladas. Nenhum plano pago, cutover ou cópia de UUID foi realizado.
+
+Preview passou auth/session/logout, ownership/CRUD, pedidos concorrentes e
+R2 assinado com restrições/expiração. Stripe Test passou checkout/replay e
+webhook de expiração assinado pelo operador com uma única redução de estado;
+sessão expirada e cliente/eventos/objetos de teste limpos, sem pagamento.
+Isso não prova entrega originada pela Stripe ou ciclo de assinatura completo.
+Paridade Coolify ficou não comprovada por indisponibilidade de transporte.
+Gates frontend/cutover permanecem nas Stages 12/13.
+
+API 450/450, workerd 15/15, build, dois dry-runs e varredura de 510 arquivos
+versionados sem correspondência aos segredos passaram. A cópia de OAuth que
+`wrangler auth token` gravou em debug log local foi identificada e removida
+por caminho exato; nenhum valor foi mostrado. Capturas futuras devem desativar
+`WRANGLER_WRITE_LOGS` antes do comando. Nenhuma credencial dos Workers billing
+existentes foi alterada. Handoff completo na API:
+`docs/infra-migration-phase-11-api-parallel.md`.
