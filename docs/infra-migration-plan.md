@@ -1432,6 +1432,8 @@ Executar API antiga e API Worker em paralelo.
 ## Etapa 12
 Migrar Supabase Realtime → Durable Objects/WebSockets.
 
+Registro de execução em 06/10/2026: Tasks 1–8 do plano específico de realtime concluídas nas branches de infraestrutura; Task 9 (smoke privado, limpeza e revisão final) em preflight. API 488/488, workerd 19/19, frontend 170/170 e regressão ACL Neon preview 4/4 passaram. Configuração SQLite isolada preparada, ainda sem publicação realtime remota. Produção, DNS e planos pagos não foram alterados. Evidências e pendências: `vapt-api/docs/infra-migration-phase-12-realtime.md` na branch API `codex/infra-foundation`. Este registro não marca cutover nem integração de navegador remoto como concluídos.
+
 ## Etapa 13
 Cutover de `api.vapt.app.br` para Workers.
 
