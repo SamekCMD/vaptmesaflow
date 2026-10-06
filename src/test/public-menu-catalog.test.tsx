@@ -75,7 +75,8 @@ describe("catálogo público do menu", () => {
     );
 
     expect(await screen.findByText("Vapt Bistrô")).toBeInTheDocument();
-    expect(screen.getByText("Prato do dia")).toBeInTheDocument();
+    // The initial category is selected by an effect after the restaurant renders.
+    expect(await screen.findByText("Prato do dia")).toBeInTheDocument();
     await waitFor(() => expect(vaptApiRequest).toHaveBeenCalledWith({
       method: "GET",
       route: "/public/restaurants/vapt-bistro/catalog",
