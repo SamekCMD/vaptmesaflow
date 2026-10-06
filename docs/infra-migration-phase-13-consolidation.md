@@ -24,6 +24,8 @@ Arquivos do usuário docs/implementation-references preservados fora do staging.
 
 ## Gate seguinte — API production
 
+Avanço em06/10/2026: CI remoto da consolidação passou — API run37541826207/headba067ce; frontend run37541828898/headb16a27b, jobs verify e billing_email. A configuração local API production foi preparada na worktree API, reutilizando o facade realtime com flags/ingress desligados e recursos próprios. API488/488, workerd19/19, verificadores locais34/34 e production dry-run4484.87KiB/gzip765.05KiB passaram. Novo guard/CI sem deploy. R2 público production permanece desativado; Worker/DO production ainda não criados, secrets não instalados, CPU Free/pareamento real não certificados. Handoff na branch API: `docs/infra-migration-phase-13-production-preparation.md`. Estes resultados não declaram a Etapa13/cutover concluída.
+
 Preparar configuração de produção com recursos próprios já existentes (Neon role/Hyperdrive/R2), secrets sem cópia de preview e namespace realtime próprio; não recriar funcionalidades. Antes de expor tráfego: definir configuração final de origens/cookies, ensaiar o pareamento real e webhook em modo de teste, verificar limites Free e recuperação HTTP, confirmar bindings/isolamento e rollback. Não ampliar Access para produção, contratar plano pago ou ativar Stripe Live por inferência.
 
 O cutover público, main/integração final e aposentadoria Coolify/Hetzner não aconteceram aqui. A Etapa13 completa exige esses gates de ativação; este documento registra somente a consolidação preparatória, sem declarar o cutover concluído.

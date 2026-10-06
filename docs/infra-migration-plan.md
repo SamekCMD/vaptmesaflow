@@ -1439,6 +1439,8 @@ Cutover de `api.vapt.app.br` para Workers.
 
 Preparação em 06/10/2026: billing PR3 incorporado integralmente à branch de infraestrutura frontend/SQL pelo merge558ae83, sem modificar realtime/grants existentes. PR4 passa a conter billing e realtime; o PR3 original permanece preservado. Frontend175/175, API488/488, billing45pass/2Postgres não executados; typecheck/build e ambos os bundles billing dry-run passaram. CI recebeu job isolado para billing, sem secrets ou deploy. Revisão focada de integração sem achados. Cutover, main, produção, DNS e planos pagos ainda não alterados. Registro e gate seguinte em `docs/infra-migration-phase-13-consolidation.md`; a nota anterior da Etapa12 sobre billing separado é histórica e foi resolvida por esta consolidação.
 
+Avanço preparatório em06/10/2026: CI remoto da consolidação passou nos dois repos. API production ganhou configuração local que reutiliza o runtime atual, Hyperdrive/R2 production existentes e binding SQLite local próprio, com realtime/ingress desativados e Stripe test. Guard7/7, verificadores locais selecionados34/34, API488/488, workerd19/19 e bundle production dry-run passaram. Sem implantação, secrets ou recursos pagos novos. R2 público ainda desativado; namespace/Worker production não criados nesta rodada. Readiness de CPU Free, cookies/pareamento e webhook continuam gates explícitos. Handoff na branch API: `docs/infra-migration-phase-13-production-preparation.md`; não marca cutover como concluído.
+
 ## Etapa 14
 Rodar período de estabilidade sem depender da VPS.
 
