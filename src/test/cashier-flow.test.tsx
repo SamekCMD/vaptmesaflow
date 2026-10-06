@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "@/hooks/use-toast";
 
 import type {
   RestaurantDto,
@@ -17,6 +18,13 @@ import {
 import CashierPage from "@/pages/dashboard/CashierPage";
 
 const { authUser } = vi.hoisted(() => ({ authUser: { id: "owner-1" } }));
+const realtime = vi.hoisted(() => ({ consumers: [] as Array<{ scope: any; signal: (value: any) => void; state: (value: any) => void }> }));
+vi.mock("@/lib/env", async original => ({ ENV: { ...(await original<typeof import("@/lib/env")>()).ENV, realtimeEnabled: true } }));
+vi.mock("@/lib/realtime/client", () => ({ subscribeRealtime: (scope, signal, state) => {
+  const consumer = { scope, signal, state }; realtime.consumers.push(consumer);
+  state("fallback"); return () => { realtime.consumers = realtime.consumers.filter(item => item !== consumer); };
+} }));
+afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: authUser }),
@@ -79,6 +87,7 @@ const detail: TableSessionDetailDto = {
 describe("cashier API cutover", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    realtime.consumers = [];
     vi.mocked(fetchOwnedRestaurant).mockResolvedValue(restaurant);
     vi.mocked(listTableSessions).mockResolvedValue([session]);
     vi.mocked(getTableSession).mockResolvedValue(detail);
@@ -93,6 +102,19 @@ describe("cashier API cutover", () => {
       tableNumber: "2",
       updatedOrderIds: [detail.orders[0]!.id],
     });
+  });
+
+  it("manual refresh joins an in-flight realtime session read without concurrent requests", async () => {
+    let finish!: (sessions: TableSessionSummaryDto[]) => void;
+    vi.mocked(listTableSessions).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const view = render(<MemoryRouter><CashierPage /></MemoryRouter>);
+    await waitFor(() => expect(listTableSessions).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+    expect(listTableSessions).toHaveBeenCalledTimes(1);
+    await act(async () => { finish([session]); });
+    expect(screen.getByText("1 pedido · R$ 9007199254740993,42")).toBeInTheDocument(); expect(listTableSessions).toHaveBeenCalledTimes(2);
+    view.unmount();
   });
 
   it("loads owner-scoped sessions with the exact API aggregate", async () => {
@@ -128,5 +150,21 @@ describe("cashier API cutover", () => {
 
     await waitFor(() => expect(transferTableSession).toHaveBeenCalledWith(session.id, "2"));
     await waitFor(() => expect(listTableSessions).toHaveBeenCalledTimes(2));
+  });
+
+  it("order and payment invalidations refresh the cashier without repeated alerts", async () => {
+    const view = render(<MemoryRouter><CashierPage /></MemoryRouter>);
+    await screen.findByText("1 pedido · R$ 9007199254740993,42");
+    await waitFor(() => expect(realtime.consumers).toHaveLength(1));
+    expect(realtime.consumers[0].scope).toEqual({ mode: "owner", userId: "owner-1", restaurantId: restaurant.id });
+    vi.useFakeTimers(); const count = vi.mocked(listTableSessions).mock.calls.length;
+    vi.mocked(listTableSessions).mockResolvedValue([{ ...session, orderCount: 2, sessionTotal: "30.00" }]);
+    const event = { version: 1, eventId: session.id, entityId: session.id, sequence: 1, topic: "orders", reason: "created" };
+    act(() => { realtime.consumers[0].signal(event); realtime.consumers[0].signal({ ...event, topic: "payments" }); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+    expect(screen.getByText("2 pedidos · R$ 30,00")).toBeInTheDocument(); expect(listTableSessions).toHaveBeenCalledTimes(count + 1);
+    act(() => realtime.consumers[0].signal(event)); await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+    expect(vi.mocked(toast).mock.calls.filter(([value]) => value.title.includes("Novo pedido")).length).toBe(1);
+    view.unmount(); expect(realtime.consumers).toHaveLength(0); expect(vi.getTimerCount()).toBe(0);
   });
 });

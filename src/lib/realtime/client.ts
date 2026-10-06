@@ -42,7 +42,7 @@ function socketUrl(restaurantId: string): string {
   if (url.protocol === "https:") url.protocol = "wss:";
   else if (url.protocol === "http:" && local) url.protocol = "ws:";
   else throw new Error("Unsafe API URL");
-  url.pathname = `${url.pathname.replace(/\/$/, "")}/realtime/restaurants/${restaurantId}`;
+  url.pathname = `${url.pathname.replace(/\/$/, "")}/realtime/restaurants/${restaurantId}/socket`;
   return url.toString();
 }
 async function connect(entry: Entry) {

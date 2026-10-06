@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from "react";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import {
   Drawer,
   DrawerClose,
@@ -12,6 +12,8 @@ import { Clock, Package, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import InlineOrderRatingCard from "@/components/menu/InlineOrderRatingCard";
 import { orderClient, readStoredOrderAccess, type PublicOrder } from "@/lib/order-client";
+import { ENV } from "@/lib/env";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 interface OrderData {
   id: string;
@@ -63,10 +65,16 @@ function mapPublicOrder(order: PublicOrder, publicToken: string): OrderData {
 const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor }: MyOrdersDrawerProps) => {
   const [orders, setOrders] = useState<OrderData[]>([]);
   const [loading, setLoading] = useState(false);
+  const currentResource = useRef({ open, restaurantId });
+  currentResource.current = { open, restaurantId };
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const accesses = readStoredOrderAccess(restaurantId).slice(0, 24);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
-    const stored = readStoredOrderAccess(restaurantId);
+    const stored = readStoredOrderAccess(restaurantId).slice(0, 24);
+    const isCurrent = () => mounted.current && currentResource.current.open && currentResource.current.restaurantId === restaurantId;
 
     try {
       const loaded = await Promise.all(
@@ -75,6 +83,7 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor }: MyOrdersD
           return order ? { order, publicToken: access.publicToken } : null;
         }),
       );
+      if (!isCurrent()) return;
       setOrders(
         loaded
           .filter((entry): entry is { order: PublicOrder; publicToken: string } => entry !== null)
@@ -83,19 +92,12 @@ const MyOrdersDrawer = ({ open, onClose, restaurantId, primaryColor }: MyOrdersD
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
       );
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [restaurantId]);
 
-  useEffect(() => {
-    if (open) void fetchOrders();
-  }, [fetchOrders, open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const interval = window.setInterval(() => void fetchOrders(), 8000);
-    return () => window.clearInterval(interval);
-  }, [fetchOrders, open]);
+  useRealtimeRefresh({ scopes: accesses.map(access => ({ mode: "order", orderId: access.orderId, token: access.publicToken })), topics: ["orders"],
+    enabled: ENV.realtimeEnabled, active: open && !!restaurantId, refresh: fetchOrders, fallbackMs: 8000 });
 
   const getElapsed = (dateStr: string) => {
     const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);

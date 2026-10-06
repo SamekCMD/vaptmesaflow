@@ -6,6 +6,9 @@ import { Clock, ArrowRight, RefreshCw, Bell, BellOff, Loader2 } from "lucide-rea
 import { toast } from "@/hooks/use-toast";
 import { KitchenSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useAuth } from "@/contexts/AuthContext";
+import { ENV } from "@/lib/env";
+import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import type { KitchenOrderDto } from "@/lib/business-api.types";
 import {
   listKitchenOrders,
@@ -120,6 +123,8 @@ const KitchenMonitor = () => {
   const ordersRef = useRef<Order[]>([]);
   const archivingOrderIdsRef = useRef<Set<string>>(new Set());
   const mountedRef = useRef(false);
+  const currentOwnerRef = useRef(user?.id); currentOwnerRef.current = user?.id;
+  const [ownedScope, setOwnedScope] = useState<{ userId: string; restaurantId: string | null } | null>(null);
 
   const toggleSound = () => {
     setSoundEnabled((prev) => {
@@ -141,7 +146,7 @@ const KitchenMonitor = () => {
     if (!user) return;
     try {
       const fetched = await listKitchenOrders();
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || currentOwnerRef.current !== user.id) return;
       if (knownOrderIdsRef.current.size > 0 && soundEnabled) {
         const newOrders = fetched.filter(
           (order) => {
@@ -164,7 +169,7 @@ const KitchenMonitor = () => {
         variant: "destructive",
       });
     } finally {
-      if (mountedRef.current) setLoading(false);
+      if (mountedRef.current && currentOwnerRef.current === user.id) setLoading(false);
     }
   }, [soundEnabled, user]);
 
@@ -213,14 +218,25 @@ const KitchenMonitor = () => {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    knownOrderIdsRef.current.clear(); ordersRef.current = []; setOrders([]);
     if (!user) {
       setLoading(false);
       return;
     }
-    void fetchOrders();
-    const interval = setInterval(() => void fetchOrders(), 5000);
-    return () => clearInterval(interval);
-  }, [fetchOrders, user]);
+    setLoading(true);
+    void fetchOwnedRestaurant().catch(() => null).then(restaurant => {
+      if (!cancelled) setOwnedScope({ userId: user.id, restaurantId: restaurant?.id ?? null });
+    });
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  const requestRefresh = useRealtimeRefresh({
+    scopes: user && ownedScope?.userId === user.id && ownedScope.restaurantId
+      ? [{ mode: "owner", userId: user.id, restaurantId: ownedScope.restaurantId }] : [],
+    topics: ["orders", "kitchen"], enabled: ENV.realtimeEnabled,
+    active: !!user && ownedScope?.userId === user.id, refresh: fetchOrders, fallbackMs: 5000,
+  });
 
   const advance = async (order: Order) => {
     const next = nextStatus[order.status];
@@ -291,7 +307,7 @@ const KitchenMonitor = () => {
           >
             {soundEnabled ? <Bell className="h-4 w-4" strokeWidth={1.5} /> : <BellOff className="h-4 w-4" strokeWidth={1.5} />}
           </Button>
-          <Button variant="outline" size="sm" onClick={fetchOrders}>
+          <Button variant="outline" size="sm" onClick={requestRefresh}>
             <RefreshCw className="h-4 w-4 mr-1" strokeWidth={1.5} />
             Atualizar
           </Button>

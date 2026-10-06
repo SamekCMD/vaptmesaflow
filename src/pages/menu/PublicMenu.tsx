@@ -19,6 +19,8 @@ import FloatingActions from "@/components/menu/FloatingActions";
 import type { PublicCatalogDto } from "@/lib/business-api.types";
 import { vaptApiRequest } from "@/lib/vapt-api-client";
 import { orderClient, readStoredOrderAccess, saveStoredOrderAccess, type StoredOrderAccess } from "@/lib/order-client";
+import { ENV } from "@/lib/env";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 function normalizeFontFamily(value: string): RestaurantConfig["fontFamily"] {
   return value === "classic" || value === "rounded" ? value : "modern";
@@ -94,6 +96,11 @@ const PublicMenu = () => {
   const prevItemsRef = useRef<Map<string | number, boolean>>(new Map());
   const itemNamesRef = useRef<Map<string | number, string>>(new Map());
   const readyNotifiedRef = useRef<Set<string>>(new Set());
+  const readyPrimedRef = useRef(false);
+  const currentRestaurantRef = useRef(restaurant?.id);
+  currentRestaurantRef.current = restaurant?.id;
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -248,29 +255,30 @@ const PublicMenu = () => {
   }, [restaurant]);
 
   useEffect(() => {
-    if (!restaurant) return;
-    let cancelled = false;
-    let primed = false;
     readyNotifiedRef.current.clear();
-
-    const getSessionOrderIds = (): string[] => {
-      try { return JSON.parse(sessionStorage.getItem("vapt_current_order_ids") || "[]"); } catch { return []; }
-    };
-
-    const checkReadyOrders = async () => {
-      const currentSessionIds = new Set(getSessionOrderIds());
-      const accesses = readStoredOrderAccess(restaurant.id)
-        .filter((access) => currentSessionIds.has(access.orderId));
+    readyPrimedRef.current = false;
+    setHasReadyOrder(false);
+  }, [restaurant?.id]);
+  const getCurrentOrderAccesses = useCallback(() => {
+    if (!restaurant) return [];
+    try {
+      const currentSessionIds = new Set<string>(JSON.parse(sessionStorage.getItem("vapt_current_order_ids") || "[]"));
+      return readStoredOrderAccess(restaurant.id).slice(0, 24).filter(access => currentSessionIds.has(access.orderId));
+    } catch { return []; }
+  }, [restaurant?.id]);
+  const checkReadyOrders = useCallback(async () => {
+      if (!restaurant) return;
+      const isCurrent = () => mountedRef.current && currentRestaurantRef.current === restaurant.id;
+      const accesses = getCurrentOrderAccesses();
       if (accesses.length === 0) {
-        if (!cancelled) setHasReadyOrder(false);
-        primed = true;
+        if (isCurrent()) { setHasReadyOrder(false); readyPrimedRef.current = true; }
         return;
       }
 
       const results = await Promise.allSettled(
         accesses.map((access) => orderClient.get(access.orderId, access.publicToken)),
       );
-      if (cancelled) return;
+      if (!isCurrent()) return;
 
       const readyOrders = results
         .filter((result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof orderClient.get>>> => result.status === "fulfilled")
@@ -279,23 +287,18 @@ const PublicMenu = () => {
 
       setHasReadyOrder(readyOrders.length > 0);
       readyOrders.forEach((order) => {
-        if (primed && !readyNotifiedRef.current.has(order.orderId)) {
+        if (readyPrimedRef.current && !readyNotifiedRef.current.has(order.orderId)) {
           setHasReadyOrder(true);
           toast({ title: "Pedido pronto", description: `Seu pedido #${order.displayId} está pronto para retirada.` });
         }
         readyNotifiedRef.current.add(order.orderId);
       });
-      primed = true;
-    };
-
-    void checkReadyOrders();
-    const interval = window.setInterval(() => void checkReadyOrders(), 5000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [restaurant]);
+      readyPrimedRef.current = true;
+  }, [restaurant?.id, getCurrentOrderAccesses]);
+  const currentOrderAccesses = getCurrentOrderAccesses();
+  useRealtimeRefresh({ scopes: currentOrderAccesses.map(access => ({ mode: "order", orderId: access.orderId, token: access.publicToken })), topics: ["orders"],
+    enabled: ENV.realtimeEnabled, active: !!restaurant && currentOrderAccesses.length > 0,
+    refresh: checkReadyOrders, fallbackMs: 5000 });
 
   const handleSessionCreated = useCallback((sessionId: string) => {
     if (!restaurant) return;

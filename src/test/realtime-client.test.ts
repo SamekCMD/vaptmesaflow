@@ -67,10 +67,16 @@ test("same scope shares one socket with refcounts; owner and guest never share a
 
 test("ticket is sent only in subprotocols and socket URL contains no credential", async () => {
   const stop = (await client()).subscribeRealtime(guest, vi.fn(), vi.fn()); await flush();
-  expect(Socket.all[0].url).toBe(`wss://api.test.example.com/realtime/restaurants/${rest}`);
+  expect(Socket.all[0].url).toBe(`wss://api.test.example.com/realtime/restaurants/${rest}/socket`);
   expect(Socket.all[0].protocols).toEqual(["vapt.realtime.v1", `vapt.ticket.${ticket}`]);
   expect(Socket.all[0].url).not.toContain(ticket); expect(Socket.all[0].url).not.toContain(guest.token);
   expect(Socket.all[0].url).not.toContain("?"); stop();
+});
+
+test("socket endpoint preserves the configured API base path", async () => {
+  vi.stubEnv("VITE_VAPT_API_BASE_URL", "http://localhost:8789/browser/v1");
+  const stop = (await client()).subscribeRealtime(owner, vi.fn(), vi.fn()); await flush();
+  expect(Socket.all[0].url).toBe(`ws://localhost:8789/browser/v1/realtime/restaurants/${rest}/socket`); stop();
 });
 
 test("lease renews five seconds early through a fresh ticket without overlapping sockets", async () => {

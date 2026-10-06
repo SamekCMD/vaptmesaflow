@@ -87,3 +87,21 @@ test("several newly connected scopes coalesce the authoritative snapshot into on
   await advance(249); expect(refresh).toHaveBeenCalledTimes(1);
   await advance(1); expect(refresh).toHaveBeenCalledTimes(2); view.unmount();
 });
+
+test("inactive resource has no admission, initial read or polling timer", async () => {
+  const useRefresh = await hook(); const refresh = vi.fn().mockResolvedValue(undefined);
+  const view = renderHook(({ active }) => useRefresh({ scopes: scope, topics: ["orders"], enabled: true, refresh, fallbackMs: 4_000, active }), { initialProps: { active: false } });
+  await advance(60_000); expect(refresh).not.toHaveBeenCalled(); expect(port.subscribe).not.toHaveBeenCalled(); expect(vi.getTimerCount()).toBe(0);
+  view.rerender({ active: true }); await advance(0); expect(refresh).toHaveBeenCalledTimes(1);
+  view.rerender({ active: false }); expect(vi.getTimerCount()).toBe(0); view.unmount();
+});
+
+test("owner scope lookup does not duplicate an already-started initial fallback read", async () => {
+  const useRefresh = await hook(); const refresh = vi.fn().mockResolvedValue(undefined);
+  const view = renderHook(({ scopes }) => useRefresh({ scopes, topics: ["orders"], enabled: true, refresh, fallbackMs: 5_000 }),
+    { initialProps: { scopes: [] as readonly typeof scope[number][] } });
+  await advance(0); expect(refresh).toHaveBeenCalledTimes(1);
+  view.rerender({ scopes: scope }); await advance(0); expect(refresh).toHaveBeenCalledTimes(1);
+  act(() => { onState("connected"); onSignal("connected"); }); await advance(250); expect(refresh).toHaveBeenCalledTimes(2);
+  view.unmount();
+});

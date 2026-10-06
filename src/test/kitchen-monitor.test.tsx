@@ -1,12 +1,20 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "@/hooks/use-toast";
 import { listKitchenOrders, updateKitchenOrderStatus } from "@/lib/kitchen";
 import KitchenMonitor from "@/pages/dashboard/KitchenMonitor";
 
 const { authUser } = vi.hoisted(() => ({ authUser: { id: "owner-1" } }));
+const realtime = vi.hoisted(() => ({ consumers: [] as Array<{ scope: any; signal: (value: any) => void; state: (value: any) => void }> }));
+vi.mock("@/lib/env", async original => ({ ENV: { ...(await original<typeof import("@/lib/env")>()).ENV, realtimeEnabled: true } }));
+vi.mock("@/lib/restaurants", () => ({ fetchOwnedRestaurant: async () => ({ id: "10000000-0000-4000-8000-000000000001" }) }));
+vi.mock("@/lib/realtime/client", () => ({ subscribeRealtime: (scope, signal, state) => {
+  const consumer = { scope, signal, state }; realtime.consumers.push(consumer);
+  state("fallback"); return () => { realtime.consumers = realtime.consumers.filter(item => item !== consumer); };
+} }));
+afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: authUser }),
@@ -42,6 +50,7 @@ const pendingOrder = {
 describe("kitchen monitor API cutover", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    realtime.consumers = [];
     localStorage.setItem("vapt_kds_sound_enabled", "false");
     vi.mocked(listKitchenOrders).mockResolvedValue([pendingOrder]);
     vi.mocked(updateKitchenOrderStatus).mockResolvedValue({
@@ -118,5 +127,40 @@ describe("kitchen monitor API cutover", () => {
     expect(clearIntervalSpy).toHaveBeenCalled();
     clearIntervalSpy.mockRestore();
     vi.useRealTimers();
+  });
+
+  it("manual refresh joins an in-flight realtime snapshot instead of starting concurrent reads", async () => {
+    let finish!: (orders: typeof pendingOrder[]) => void;
+    const view = render(<MemoryRouter><KitchenMonitor /></MemoryRouter>);
+    await screen.findByText("#42");
+    vi.useFakeTimers();
+    vi.mocked(listKitchenOrders).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    act(() => realtime.consumers[0].signal("connected"));
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+    const calls = vi.mocked(listKitchenOrders).mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+    expect(listKitchenOrders).toHaveBeenCalledTimes(calls);
+    await act(async () => { finish([pendingOrder]); });
+    expect(screen.getByText("#42")).toBeInTheDocument(); expect(listKitchenOrders).toHaveBeenCalledTimes(calls + 1);
+    view.unmount();
+  });
+
+  it("new order invalidations refresh the scoped queue without duplicate notification", async () => {
+    localStorage.setItem("vapt_kds_sound_enabled", "true");
+    const view = render(<MemoryRouter><KitchenMonitor /></MemoryRouter>);
+    await screen.findByText("#42");
+    await waitFor(() => expect(realtime.consumers).toHaveLength(1));
+    expect(realtime.consumers[0].scope).toEqual({ mode: "owner", userId: "owner-1", restaurantId: pendingOrder.restaurantId });
+    vi.useFakeTimers();
+    vi.mocked(listKitchenOrders).mockResolvedValue([pendingOrder, { ...pendingOrder, id: "30000000-0000-4000-8000-000000000002", displayId: "43" }]);
+    const initial = vi.mocked(listKitchenOrders).mock.calls.length;
+    const event = { version: 1, eventId: pendingOrder.id, entityId: pendingOrder.id, sequence: 1, topic: "orders", reason: "created" };
+    act(() => { realtime.consumers[0].signal(event); realtime.consumers[0].signal(event); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+    expect(screen.getByText("#43")).toBeInTheDocument(); expect(listKitchenOrders).toHaveBeenCalledTimes(initial + 1);
+    act(() => realtime.consumers[0].signal(event)); await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+    expect(vi.mocked(toast).mock.calls.filter(([value]) => value.title.includes("novo(s)")).length).toBe(1);
+    view.unmount(); expect(realtime.consumers).toHaveLength(0); expect(vi.getTimerCount()).toBe(0);
   });
 });

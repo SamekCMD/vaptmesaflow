@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useRef } from "react";
+import { useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, ChevronUp, Minus, Plus, RotateCcw, Store, Truck } from "lucide-react";
@@ -20,6 +20,8 @@ import {
   type PendingCheckout,
 } from "@/lib/payment-client";
 import { VaptApiClientError, vaptApiRequest } from "@/lib/vapt-api-client";
+import { ENV } from "@/lib/env";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 type DeliveryMenuItem = {
   id: string;
@@ -154,6 +156,10 @@ const PublicDelivery = () => {
     neighborhood: "",
   });
   const idempotencyKeyRef = useRef<string | null>(null);
+  const currentOrderRef = useRef({ restaurantId: restaurant?.id, orderId: lastOrderId, publicToken: lastOrderToken });
+  currentOrderRef.current = { restaurantId: restaurant?.id, orderId: lastOrderId, publicToken: lastOrderToken };
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   const pruneDeliveredOrders = (orders: SessionDeliveryOrderSnapshot[]) => {
     const now = Date.now();
@@ -245,13 +251,12 @@ const PublicDelivery = () => {
     }
   }, [restaurant?.id]);
 
-  useEffect(() => {
+  const refreshOrder = useCallback(async () => {
     if (!restaurant?.id || !lastOrderId || !lastOrderToken) return;
-
-    let active = true;
-    const poll = async () => {
       const data = await orderClient.get(lastOrderId, lastOrderToken).catch(() => null);
-      if (!active || !data?.orderId) return;
+      const current = currentOrderRef.current;
+      if (!mountedRef.current || current.restaurantId !== restaurant.id || current.orderId !== lastOrderId
+        || current.publicToken !== lastOrderToken || !data?.orderId) return;
 
       const normalized = normalizeDeliveryStatus(data.status);
       setLastOrderStatus(normalized);
@@ -287,15 +292,10 @@ const PublicDelivery = () => {
         }
         return cleaned;
       });
-    };
-
-    void poll();
-    const intervalId = window.setInterval(() => void poll(), 4000);
-    return () => {
-      active = false;
-      window.clearInterval(intervalId);
-    };
   }, [lastOrderId, lastOrderToken, pendingCheckout?.orderId, restaurant?.id]);
+  useRealtimeRefresh({ scopes: lastOrderId && lastOrderToken ? [{ mode: "order", orderId: lastOrderId, token: lastOrderToken }] : [],
+    topics: ["orders"], enabled: ENV.realtimeEnabled, active: !!restaurant && !!lastOrderId && !!lastOrderToken,
+    refresh: refreshOrder, fallbackMs: 4000 });
 
   const categories = useMemo(() => Array.from(new Set(items.map((item) => item.category))), [items]);
   const filteredItems = useMemo(() => items.filter((item) => item.category === activeCategory), [items, activeCategory]);

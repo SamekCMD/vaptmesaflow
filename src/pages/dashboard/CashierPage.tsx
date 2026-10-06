@@ -5,6 +5,8 @@ import { toast } from "@/hooks/use-toast";
 import { fetchOwnedRestaurant } from "@/lib/restaurants";
 import { listTableSessions } from "@/lib/table-sessions";
 import { useAuth } from "@/contexts/AuthContext";
+import { ENV } from "@/lib/env";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import TableCard, { type TableSession } from "@/components/cashier/TableCard";
 import TableSessionModal from "@/components/cashier/TableSessionModal";
 import FeatureGate from "@/components/FeatureGate";
@@ -52,17 +54,24 @@ const CashierPage = () => {
   const [tick, setTick] = useState(0);
   const knownCheckRequestedRef = useRef<Set<string>>(new Set());
   const knownOrderCountRef = useRef<Map<string, number>>(new Map());
+  const currentOwnerRef = useRef(user?.id); currentOwnerRef.current = user?.id;
+  const [ownedScope, setOwnedScope] = useState<{ userId: string; restaurantId: string | null } | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    knownCheckRequestedRef.current.clear(); knownOrderCountRef.current.clear(); setSessions([]);
     if (!user) return;
     const fetch = async () => {
-      const data = await fetchOwnedRestaurant();
+      const data = await fetchOwnedRestaurant().catch(() => null);
+      if (cancelled) return;
       if (data) {
         setTotalTables(data.maxTables || data.totalTables || 20);
       }
+      setOwnedScope({ userId: user.id, restaurantId: data?.id ?? null });
     };
-    fetch();
-  }, [user]);
+    void fetch();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("cashier");
@@ -78,8 +87,10 @@ const CashierPage = () => {
   }, []);
 
   const fetchSessions = useCallback(async () => {
+    if (!user) return;
     try {
       const currentSessions = await listTableSessions();
+      if (currentOwnerRef.current !== user.id) return;
       const currentCheckRequested = new Set(currentSessions.filter((s) => s.status === "check_requested").map((s) => s.id));
       if (knownCheckRequestedRef.current.size > 0) {
         for (const id of currentCheckRequested) {
@@ -109,14 +120,14 @@ const CashierPage = () => {
     } catch {
       toast({ title: "Erro", description: "Não foi possível atualizar as mesas.", variant: "destructive" });
     }
-  }, []);
+  }, [user?.id]);
 
-  useEffect(() => { if (user) void fetchSessions(); }, [user, fetchSessions]);
-  useEffect(() => {
-    if (!user) return;
-    const interval = setInterval(fetchSessions, 5000);
-    return () => clearInterval(interval);
-  }, [user, fetchSessions]);
+  const requestRefresh = useRealtimeRefresh({
+    scopes: user && ownedScope?.userId === user.id && ownedScope.restaurantId
+      ? [{ mode: "owner", userId: user.id, restaurantId: ownedScope.restaurantId }] : [],
+    topics: ["table_sessions", "payments", "orders"], enabled: ENV.realtimeEnabled,
+    active: !!user, refresh: fetchSessions, fallbackMs: 5000,
+  });
 
   const handleTableClick = (tableNum: string) => {
     const session = sessions.find((s) => s.tableNumber === tableNum) || null;
@@ -143,7 +154,7 @@ const CashierPage = () => {
             <h1 className="text-xl font-semibold tracking-tight">Caixa</h1>
             <p className="text-muted-foreground text-sm">Mapa de mesas em tempo real</p>
           </div>
-          <Button variant="outline" size="sm" onClick={fetchSessions}>
+          <Button variant="outline" size="sm" onClick={requestRefresh}>
             <RefreshCw className="h-4 w-4 mr-1" strokeWidth={1.5} />
             Atualizar
           </Button>
@@ -177,7 +188,7 @@ const CashierPage = () => {
           open={modalOpen}
           onClose={() => setModalOpen(false)}
           session={selectedSession}
-          onSessionClosed={fetchSessions}
+          onSessionClosed={requestRefresh}
         />
       </div>
     </FeatureGate>
