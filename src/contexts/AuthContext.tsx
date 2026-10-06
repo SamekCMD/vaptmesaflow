@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useLayoutEffect, type ReactNode } from "react";
 import { authClient } from "@/lib/auth-client";
+import { clearOwnerRealtimeScopes, resumeOwnerRealtimeScopes } from "@/lib/realtime/client";
 
 export type VaptUser = {
   id: string;
@@ -109,6 +110,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     : null;
 
+  // Invalidate the prior identity before pending admissions can create sockets.
+  useLayoutEffect(() => {
+    if (user?.id && session?.id) resumeOwnerRealtimeScopes(user.id);
+    return () => clearOwnerRealtimeScopes();
+  }, [user?.id, session?.id]);
+
   const signUp = (
     email: string,
     password: string,
@@ -141,6 +148,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
 
   const signOut = async () => {
+    clearOwnerRealtimeScopes();
     try {
       const { error } = await authClient.signOut();
       if (error) throw new AuthOperationError(error);
