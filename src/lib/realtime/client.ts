@@ -7,7 +7,7 @@ export type RealtimeState = "connected" | "fallback" | "unauthorized";
 type Consumer = { signal(value: "connected" | RealtimeEnvelope): void; state(value: RealtimeState): void };
 type Entry = {
   scope: RealtimeScope; consumers: Set<Consumer>; generation: number; state: RealtimeState; disposed: boolean;
-  blocked: boolean; connecting: boolean; attempts: number; socket?: WebSocket; timer?: ReturnType<typeof setTimeout>;
+  blocked: boolean; connecting: boolean; attempts: number; socket?: WebSocket; timer?: ReturnType<typeof setTimeout>; admission?: AbortController;
 };
 // No token-derived/loggable keys. Equality is checked in memory only.
 const entries = new Set<Entry>();
@@ -23,6 +23,7 @@ function signal(entry: Entry, value: "connected" | RealtimeEnvelope) {
 }
 function stopTransport(entry: Entry) {
   entry.generation++; entry.connecting = false;
+  entry.admission?.abort(); entry.admission = undefined;
   clearTimeout(entry.timer); entry.timer = undefined;
   const socket = entry.socket; entry.socket = undefined;
   if (socket) { socket.onopen = socket.onmessage = socket.onclose = socket.onerror = null; safely(() => socket.close(1000)); }
@@ -49,6 +50,7 @@ async function connect(entry: Entry) {
   if (entry.disposed || entry.blocked || entry.connecting || entry.socket || !active()) return;
   const generation = ++entry.generation;
   entry.connecting = true;
+  const admissionController = new AbortController(); entry.admission = admissionController;
   const current = () => !entry.disposed && entry.generation === generation && active();
   try {
     socketUrl(entry.scope.mode === "owner" ? entry.scope.restaurantId : "pending");
@@ -57,6 +59,7 @@ async function connect(entry: Entry) {
       method: "POST", route: "realtime/tickets", requireAuth: scope.mode === "owner",
       body: scope.mode === "owner" ? { mode: "owner", restaurantId: scope.restaurantId } : { mode: "order", orderId: scope.orderId },
       headers: scope.mode === "order" ? { "X-Vapt-Order-Token": scope.token } : {},
+      signal: admissionController.signal, timeoutMs: 10_000,
     });
     if (!current()) return;
     if (!admission || Object.keys(admission).sort().join(",") !== "expiresAt,restaurantId,ticket"
@@ -95,6 +98,8 @@ async function connect(entry: Entry) {
     };
   } catch (error) {
     if (current()) fallback(entry, error instanceof VaptApiClientError && [401, 403].includes(error.status));
+  } finally {
+    if (entry.admission === admissionController) entry.admission = undefined;
   }
 }
 function environmentChanged() {

@@ -78,11 +78,15 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
     setSplitBy(1);
     setNewTableNumber("");
     setPaymentDialogOpen(false);
+  }, [open, session?.id]);
 
+  useEffect(() => {
+    if (!open || !session) return;
+    const controller = new AbortController();
     let active = true;
     const fetchOrders = async () => {
       try {
-        const detail = await getTableSession(session.id);
+        const detail = await getTableSession(session.id, controller.signal);
         if (active) setOrders(detail.orders);
       } catch {
         if (active) {
@@ -94,7 +98,7 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
       }
     };
     void fetchOrders();
-    return () => { active = false; };
+    return () => { active = false; controller.abort(); };
   }, [open, session]);
 
   if (!session) return null;

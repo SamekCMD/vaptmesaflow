@@ -16,10 +16,11 @@ export function listTableSessions(): Promise<TableSessionSummaryDto[]> {
   });
 }
 
-export function getTableSession(sessionId: string): Promise<TableSessionDetailDto> {
+export function getTableSession(sessionId: string, signal?: AbortSignal): Promise<TableSessionDetailDto> {
   return vaptApiRequest<TableSessionDetailDto>({
     method: "GET",
     route: sessionRoute(sessionId),
+    ...(signal ? { signal } : {}),
   });
 }
 

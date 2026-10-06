@@ -133,7 +133,7 @@ describe("cashier API cutover", () => {
     fireEvent.click(await screen.findByText("Mesa 1"));
 
     expect(await screen.findByText("Pedido #9007199254740993")).toBeInTheDocument();
-    expect(getTableSession).toHaveBeenCalledWith(session.id);
+    expect(getTableSession).toHaveBeenCalledWith(session.id, expect.any(AbortSignal));
     fireEvent.click(screen.getByRole("button", { name: "Finalizar Conta" }));
 
     await waitFor(() => expect(closeTableSession).toHaveBeenCalledWith(session.id));
@@ -166,5 +166,53 @@ describe("cashier API cutover", () => {
     act(() => realtime.consumers[0].signal(event)); await act(async () => { await vi.advanceTimersByTimeAsync(250); });
     expect(vi.mocked(toast).mock.calls.filter(([value]) => value.title.includes("Novo pedido")).length).toBe(1);
     view.unmount(); expect(realtime.consumers).toHaveLength(0); expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("refreshes an open bill and payment dialog without resetting cashier input", async () => {
+    const unpaid = { ...detail.orders[0], paymentStatus: null, paymentConfirmedAt: null };
+    vi.mocked(getTableSession).mockResolvedValue({ session, orders: [unpaid] });
+    const view = render(<MemoryRouter><CashierPage /></MemoryRouter>);
+    fireEvent.click(await screen.findByText("Mesa 1"));
+    await screen.findByText("Pedido #9007199254740993");
+    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "2" } });
+    fireEvent.change(screen.getByPlaceholderText("Nº"), { target: { value: "7" } });
+    fireEvent.click(screen.getByRole("button", { name: "Finalizar Conta" }));
+    fireEvent.click(screen.getByRole("radio", { name: /Pix externo/ }));
+    vi.useFakeTimers();
+    const extra = { ...unpaid, id: "40000000-0000-4000-8000-000000000002", displayId: "2", totalPrice: "10.10" };
+    vi.mocked(listTableSessions).mockResolvedValue([{ ...session, orderCount: 2, sessionTotal: "40.00" }]);
+    vi.mocked(getTableSession).mockResolvedValue({ session, orders: [unpaid, extra] });
+    act(() => realtime.consumers[0].signal({ version: 1, eventId: session.id, entityId: session.id, sequence: 1, topic: "orders", reason: "created" }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+    expect(screen.getByText("2 pedidos")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Pix externo/ })).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Voltar" }));
+    expect(screen.getByText("Pedido #2")).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton")).toHaveValue(2);
+    expect(screen.getByPlaceholderText("Nº")).toHaveValue("7");
+    vi.mocked(getTableSession).mockResolvedValue({ session, orders: [detail.orders[0], { ...extra, paymentStatus: "paid", paymentConfirmedAt: detail.orders[0].paymentConfirmedAt }] });
+    act(() => realtime.consumers[0].signal({ version: 1, eventId: session.id, entityId: session.id, sequence: 2, topic: "payments", reason: "updated" }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+    fireEvent.click(screen.getByRole("button", { name: "Finalizar Conta" }));
+    await act(async () => {});
+    expect(closeTableSession).toHaveBeenCalledWith(session.id);
+    view.unmount();
+  });
+
+  it("updates an open transferred bill and dismisses a remotely closed session", async () => {
+    const view = render(<MemoryRouter><CashierPage /></MemoryRouter>);
+    fireEvent.click(await screen.findByText("Mesa 1"));
+    await screen.findByText("Pedido #9007199254740993");
+    vi.useFakeTimers();
+    vi.mocked(listTableSessions).mockResolvedValue([{ ...session, tableNumber: "2" }]);
+    act(() => realtime.consumers[0].signal({ version: 1, eventId: session.id, entityId: session.id, sequence: 1, topic: "table_sessions", reason: "updated" }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+    expect(screen.getByRole("heading", { name: /Mesa 2/ })).toBeInTheDocument();
+    vi.mocked(listTableSessions).mockResolvedValue([]);
+    act(() => realtime.consumers[0].signal({ version: 1, eventId: session.id, entityId: session.id, sequence: 2, topic: "table_sessions", reason: "closed" }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(closeTableSession).not.toHaveBeenCalled();
+    view.unmount();
   });
 });

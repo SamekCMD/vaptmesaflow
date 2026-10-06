@@ -73,6 +73,23 @@ test("ticket is sent only in subprotocols and socket URL contains no credential"
   expect(Socket.all[0].url).not.toContain("?"); stop();
 });
 
+test("stalled ticket admission times out and retries; discarded admission is aborted", async () => {
+  let pendingSignal!: AbortSignal;
+  fetchSpy.mockImplementationOnce((_url, options) => new Promise<Response>((_resolve, reject) => {
+    pendingSignal=options.signal;
+    options.signal?.addEventListener("abort",()=>reject(options.signal.reason),{once:true});
+  }));
+  const stop=(await client()).subscribeRealtime(owner,vi.fn(),vi.fn());
+  await vi.advanceTimersByTimeAsync(10_000); expect(pendingSignal?.aborted).toBe(true);
+  await vi.advanceTimersByTimeAsync(1000); expect(fetchSpy).toHaveBeenCalledTimes(2); expect(Socket.all).toHaveLength(1); stop();
+  fetchSpy.mockImplementation((_url, options) => new Promise<Response>((_resolve,reject)=>{
+    pendingSignal=options.signal; options.signal?.addEventListener("abort",()=>reject(options.signal.reason),{once:true});
+  }));
+  const stopPending=(await client()).subscribeRealtime(guest,vi.fn(),vi.fn()); await flush();
+  stopPending(); expect(pendingSignal?.aborted).toBe(true); await flush();
+  expect(Socket.all).toHaveLength(1); expect(vi.getTimerCount()).toBe(0);
+});
+
 test("socket endpoint preserves the configured API base path", async () => {
   vi.stubEnv("VITE_VAPT_API_BASE_URL", "http://localhost:8789/browser/v1");
   const stop = (await client()).subscribeRealtime(owner, vi.fn(), vi.fn()); await flush();

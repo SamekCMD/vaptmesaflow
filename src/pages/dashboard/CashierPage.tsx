@@ -60,6 +60,7 @@ const CashierPage = () => {
   useEffect(() => {
     let cancelled = false;
     knownCheckRequestedRef.current.clear(); knownOrderCountRef.current.clear(); setSessions([]);
+    setSelectedSession(null); setModalOpen(false);
     if (!user) return;
     const fetch = async () => {
       const data = await fetchOwnedRestaurant().catch(() => null);
@@ -117,6 +118,13 @@ const CashierPage = () => {
       }
       knownOrderCountRef.current = currentOrderCounts;
       setSessions(currentSessions);
+      setSelectedSession((selected) => {
+        if (!selected) return null;
+        const refreshed = currentSessions.find((item) => item.id === selected.id && item.status !== "closed");
+        // Every authoritative snapshot also invalidates the open bill details,
+        // including payment changes that leave the summary totals unchanged.
+        return refreshed ? { ...refreshed } : null;
+      });
     } catch {
       toast({ title: "Erro", description: "Não foi possível atualizar as mesas.", variant: "destructive" });
     }
