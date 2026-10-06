@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "vapt-billing-email-preview",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-12-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": { "ENVIRONMENT": "preview" },
+  "triggers": { "crons": ["* * * * *"] },
+  "queues": {
+    "producers": [{ "binding": "BILLING_EMAIL_QUEUE", "queue": "vapt-emails-preview" }],
+    "consumers": [{
+      "queue": "vapt-emails-preview",
+      "max_batch_size": 10,
+      "max_retries": 3,
+      "retry_delay": 60,
+      "dead_letter_queue": "vapt-emails-preview-dlq"
+    }]
+  }
+}
