@@ -40,3 +40,35 @@ jobs:
 
       - name: Validate Cloudflare package
         run: npx --no-install wrangler deploy --dry-run
+
+  billing_email:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: infra/cloudflare/billing-email-worker
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: infra/cloudflare/billing-email-worker/package-lock.json
+
+      - name: Install billing dependencies
+        run: npm ci
+
+      - name: Typecheck billing Worker
+        run: npm run typecheck
+
+      - name: Test billing Worker without remote credentials
+        run: npm test
+
+      - name: Validate preview billing bundle
+        run: npx --no-install wrangler deploy --dry-run --config wrangler.preview.jsonc
+
+      - name: Validate production billing bundle without publishing
+        run: npx --no-install wrangler deploy --dry-run --config wrangler.production.jsonc

@@ -1437,6 +1437,8 @@ Registro de execução em 06/10/2026: implementação e prova da Etapa12 validad
 ## Etapa 13
 Cutover de `api.vapt.app.br` para Workers.
 
+Preparação em 06/10/2026: billing PR3 incorporado integralmente à branch de infraestrutura frontend/SQL pelo merge558ae83, sem modificar realtime/grants existentes. PR4 passa a conter billing e realtime; o PR3 original permanece preservado. Frontend175/175, API488/488, billing45pass/2Postgres não executados; typecheck/build e ambos os bundles billing dry-run passaram. CI recebeu job isolado para billing, sem secrets ou deploy. Revisão focada de integração sem achados. Cutover, main, produção, DNS e planos pagos ainda não alterados. Registro e gate seguinte em `docs/infra-migration-phase-13-consolidation.md`; a nota anterior da Etapa12 sobre billing separado é histórica e foi resolvida por esta consolidação.
+
 ## Etapa 14
 Rodar período de estabilidade sem depender da VPS.
 
