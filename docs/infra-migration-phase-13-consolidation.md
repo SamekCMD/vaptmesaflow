@@ -31,3 +31,9 @@ CI da preparação: API run37543814966/head91c84d0 passou, incluindo guard e bun
 Preparar configuração de produção com recursos próprios já existentes (Neon role/Hyperdrive/R2), secrets sem cópia de preview e namespace realtime próprio; não recriar funcionalidades. Antes de expor tráfego: definir configuração final de origens/cookies, ensaiar o pareamento real e webhook em modo de teste, verificar limites Free e recuperação HTTP, confirmar bindings/isolamento e rollback. Não ampliar Access para produção, contratar plano pago ou ativar Stripe Live por inferência.
 
 O cutover público, main/integração final e aposentadoria Coolify/Hetzner não aconteceram aqui. A Etapa13 completa exige esses gates de ativação; este documento registra somente a consolidação preparatória, sem declarar o cutover concluído.
+
+## Continuação remota em06/10/2026
+
+A API `vapt-api-production` foi implantada reutilizando o runtime91c84d0, ainda sem workers.dev, Preview URLs, rotas, custom domains ou Cron. Namespace SQLite própriod3ad7a4008c64124b765f934986956da, Hyperdrive e R2 production confirmados por GET. Secrets independentes de assinatura, Resend auth restrito e Turnstile do widget existente instalados sem valores em Git/logs; CORS versionado aplicado no bucket production, cuja leitura pública continua desativada. Faltam credenciais R2/Stripe e testes funcionais/CPU antes do cutover; não houve main, DNS, Stripe Live, ampliação Access ou plano pago. Detalhes e rollback estão no handoff API `docs/infra-migration-phase-13-production-preparation.md`. As afirmações anteriores de recursos/secrets não alterados descrevem a consolidação local anterior, não esta continuação.
+
+CI da correção frontendd74d507 confirmado: run37544183319 aprovado (verify e billing_email). A falha175ª da execução anterior permanece registrada, sem atribuí-la a sucesso.
