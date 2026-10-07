@@ -1447,6 +1447,10 @@ Continuação em07/10/2026:13checks adicionais production privados aprovados, in
 
 Readiness CPU em07/10/2026:CI anterior dos dois handoffs passou. Painel confirmou WorkersFree atual, sem upgrade. GraphQL somente leitura mediu grupos de requisições production com CPU acima dos10ms Free (exemplo P50 11.524ms/P99 120.784ms, unidade oficial conferida);0invocationErrors na janela não garante capacidade. Gate CPU **não aprovado**, sem atribuir quantil ao login ou máximo absoluto. Próximo passo profiling por caminho/cold-warm e otimização mínima sem reduzir segurança, trocar provedor ou comprar plano por inferência. Cutover continua pendente; tabela/evidência no handoff API e consolidação.
 
+Profiling controlado seguinte:12GETs privados sem Cookie, nenhuma fixture/provedor,12grupos Analytics completos ao final. Correlação por ordem aponta auth/me como foco, não hashing nesse caminho; bundle confirmou scrypt nativo e inspeção/perfil local complementar identificou inicialização repetida Better Auth/schema por request. Não transformar controle local memoryAdapter em cache global de produção nem chamar sequências de cold/warm comprovadas. Sem runtime/deploy/ingress/planos alterados; gate Free permanece não aprovado. Próximo passo reduzir custos evitáveis request-local com testes e nova medição, sem promessa de resolver login/CPU com economias menores. Evidência detalhada: API `docs/infra-migration-phase-13-cpu-diagnosis.md` e consolidação frontend.
+
+Primeira otimização em07/10: runtime API6339066 inicializa signer R2 apenas no primeiro upload, request-local, assinatura/autorização preservadas. API491/491/workerd19/19/build/guard7/7 e revisão focada passaram; versãod4940da2 implantada somente em production privada. Mesmos recursos/secrets, ingress/realtime/R2público desligados, Stripe Test e planos/DNS/main inalterados. Doze leituras posteriores funcionaram; Analytics inicial parcial ainda contém48.423ms, portanto gate CPU Free **não aprovado** e nenhum cutover. Próximo foco continua auth/contexto/SQL, sem cache global inseguro, weakening ou upgrade.
+
 ## Etapa 14
 Rodar período de estabilidade sem depender da VPS.
 
