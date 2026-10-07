@@ -1453,6 +1453,8 @@ Primeira otimização em07/10: runtime API6339066 inicializa signer R2 apenas no
 
 Continuação operacional: rollback privado de código4a33769a e restauração d4940da2 ensaiados,100% nas duas versões, saúde/readiness/SELECT aprovados e isolamento preservado. Estado final otimizado privado; não certifica recuperação de banco/objetos/migration. Analytics posterior11/12 com48.423/11.629/10.128ms correlacionados a auth/me, sem cold/warm comprovado: gate Free retido. Handoffs detalham falha local de caminho corrigida, finally de restauração, CI e limites. Nenhum cutover/main/DNS/Paid autorizado por esse ensaio.
 
+Segunda otimização em07/10: API b12bfad rejeita header Cookie ausente antes de inicializar auth/banco, mantendo401, rate/ingress/CORS e validação completa de qualquer Cookie presente. RED/GREEN7, API498/498/workerd19/19/build/guard7/7; versão db882acc implantada só em production privada, mesmos recursos/secrets, sem main/DNS/Paid. Doze leituras e três rejeições sintéticas passaram; CPU correlacionado de auth/me sem Cookie2.865/1.396/0.908ms, contra48.423/11.629/10.128ms anteriores, sem trace/cold-warm/ganho global. Outros grupos10.156/15.748ms e controles com Cookie52.908/17.783ms ainda excedem10ms. Gate Free retido; login e contexto/SQL com Cookie continuam pendentes. Handoffs registram sobreposição de primeiro controle na janela Analytics, limites de atribuição e Minor de teste factory503 adiado; nenhuma segurança reduzida.
+
 ## Etapa 14
 Rodar período de estabilidade sem depender da VPS.
 
