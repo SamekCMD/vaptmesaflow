@@ -1,5 +1,11 @@
 # Etapa 13 — preparação e consolidação
 
+## Continuação mais recente — 07/10/2026
+
+Engine auth request-scoped API36d76df/e9aa582 revisado sem findings, teste local514/20workerd/1GC. Implantado somente no Worker production privado `799b78a0-a585-413d-9cfa-06fa4e14119d`, keep-vars e recursos/secrets/flags preservados. Pre-deploy fresco26focados/GC1/fixtureworkerd1/build/guard7+CLI/bundle aprovados. Quinze probes negativos e13checks positivos com Turnstile humano, PostgreSQL-Hyperdrive, sessão, owner/CRUD/menu/cozinha/caixa, R2 e revogação passaram. Cleanup zero resíduos em12tabelas/objetos e transporte/pool encerrados. Execução sequencial real, não prova de concorrência remota/browser/provedores/CPU.
+
+Gate Free **não aprovado**: amostras correlacionadas por ordem ainda incluem94.680ms com Cookie e15.005ms sem Cookie. Sem trace/cold-warm, ganho quantitativo ou cobertura de login/carga certificada. Não houve main/DNS/Paid/Access/grants/secrets ou ativação pública; usuário docs/implementation-references preservados. Rollback histórico não certifica novo par799b78a0→db882acc. Evidência integral e próximos gates no handoff/diagnóstico da API; seções anteriores “sem deploy” permanecem histórico da preparação local. CI anterior API72dec1d/37636586532 e F83b1b5a/37636582938 success não certifica commits novos.
+
 ## Status em 06/10/2026
 
 Consolidação do código concluída na branch `codex/infra-foundation`; cutover de `api.vapt.app.br` ainda não executado. Main, DNS, Workers implantados, secrets, planos pagos e dados remotos não foram alterados nesta preparação.
