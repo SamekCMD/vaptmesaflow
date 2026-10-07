@@ -1,5 +1,13 @@
 # Etapa 13 — preparação e consolidação
 
+## Continuação atual — SQL limitado nas duas branches, 07/10/2026
+
+Aplicadas `infra/neon/008_worker_preview_sql_deadlines.sql` e `008_worker_production_sql_deadlines.sql`, somente defaults das roles API IN DATABASE vapt: statement8s/lock2s. Guard de identidade/atributos/membership, operador recusando overrides prévios e reciclagem apenas do HD correspondente. Preview passou primeiro; production depois. Probes privados somente leitura comprovaram settings8s/2s, cancel57014, transaction25P02, ROLLBACK e reuso do mesmo cliente,8019/8455ms observados. Workers de prova removidos/404, sem apagar HD/banco nem criar fixtures.
+
+API runtime `4799a6e` promove checkout/handshake5s em todos os pools da factory, sem query_timeout novo em produção/retry/wrapper ou alteração de ownership. Implantação keep-vars apenas emproduction privada `bb585c31-851c-4cf8-a077-7914dc413388` a100%, mesmos8secrets/HD/R2/DO/flags; health/readiness/SELECT passaram. API526/526/workerd21/21/GC1/build/guard/bundles; revisão focada sem Critical/Important. Nenhuma main/DNS/Paid/entrada pública alterada. Handoff API antiabuso registra provas/limites; CI dos novos commits ainda precisa de leitura.
+
+8s é por statement, não HTTP/fatura; lock2s setting verificado, não contenção. Realtime separado/desativado não foi alterado. Rollback de código não desfaz defaults; recuperação exige RESET somente destes overrides próprios após guarda + restart do HD selecionado. Sem grants/schema/dados/secrets/owner/billing alterados. Browser/imagens, quotas/provedores, observabilidade/readiness Paid e recuperação ampla seguem pendentes na Etapa13.
+
 ## Avanço mais recente — recuperação privada e controle SQL
 
 07/10/2026: CI dos heads API434948c/frontend478d558 passou nos quatro runs push/PR. Ensaio privado ba363c7c→799b78a0→ba363c7c aprovado: versões a100%, readbacks de isolamento e health/readiness/SELECT em ambas. Restauração obrigatória finally, seguida de oito controles authbody aprovados. Estado final APIproduction ba363c7c privada, mesmos8secrets/HD/R2/DO, sem dados/fixtures/schema/grants/secret/DNS/main/Paid alterados. Não equivale a recuperação SQL/objetos ou readiness pública.

@@ -1,5 +1,9 @@
 # Vapt — Plano Completo de Transição de Infraestrutura
 
+## Registro de execução — SQL antiabuso, 07/10/2026
+
+Etapa13: defaults SQL aplicados e comprovados via Hyperdrive **em preview e production** (roles API IN DATABASE vapt):8s por statement/2s por lock, migrations `infra/neon/008_worker_preview_sql_deadlines.sql` e `008_worker_production_sql_deadlines.sql`. Preview primeiro; probes privados read-only comprovaram cancelamento do servidor, transação abortada, ROLLBACK e reuso, depois removidos/404. Somente pools HD correspondentes reciclados; sem grants/schema/dados/secrets/billing alterados. API factory também limita checkout/handshake5s; runtime4799a6e implantado somente emproduction privada `bb585c31-851c-4cf8-a077-7914dc413388`, health/readiness/SELECT e isolamento aprovados. Deadline por consulta, não teto HTTP/fatura; rollback de código não reverte defaults SQL. Evidência/recuperação em handoffs Etapa13. Main/DNS/Paid/publicação inalterados; demais gates do plano continuam, sem recriar infraestrutura ou buscar custo zero.
+
 ## Diretriz confirmada pelo usuário — 07/10/2026
 
 Workers **Paid é o destino previsto da API**, substituindo a VPS Hetzner (US$7/mês informado pelo usuário). Free é temporário durante desenvolvimento/migração, como já estabelecido nas regras11–13 e seção5. Não tornar CPU<=10ms nem custo zero um requisito permanente de produção, nem gastar rodadas indefinidas para atingir esse alvo. Otimizar trabalho evitável sem reduzir hashing, CAPTCHA, autorização ou revogação; priorizar abuso/custo previsível e seguir os demais gates da migração.
