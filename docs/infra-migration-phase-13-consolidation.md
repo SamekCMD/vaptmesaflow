@@ -1,5 +1,11 @@
 # Etapa 13 — preparação e consolidação
 
+## Avanço atual — limiter de auth Worker explícito, 07/10/2026
+
+API runtime `7076df8` habilita limiter interno em memória independente de NODE_ENV e confia apenas no CF IP, sem mudar Node/Coolify, sessão/hash/CAPTCHA/ownership ou criar quota/recurso. RED4→GREEN4, API539/workerd22/GC1/build/guard/bundles e revisão focada passaram. Production privada agora `3afed7d4-9725-4fff-b1a9-15df463936f8` a100%, keep-vars/mesmos8secrets/HD/R2/DO/flags. Sete controles remotos:400/400/400/429 no reenvio sem desafio, spoofXFF429, outro CF IP400 e ready200; strictGET pré/pós/transporte encerrado, sem fixtures/provedores. Preview compartilha código, não reimplantado.
+
+Proteção suplementar por instância, não quota global por destinatário nem teto de fatura. SQL8s/2s e checkout5s anteriores preservados. CI anterior API1bccd02/F7072d39 aprovado; novos heads exigem leitura. Main/DNS/Paid/API/R2 públicos inalterados. Gates browser/imagens/provedores/quotas/observabilidade/recuperação permanecem; seções seguintes guardam histórico, não o estado atual. Handoff detalhado no repositório API, `docs/infra-migration-phase-13-abuse-cost-readiness.md`.
+
 ## Avanço atual — Turnstile no reenvio de verificação, 07/10/2026
 
 API runtime7498574 fecha a omissão de /send-verification-email na lista CAPTCHA existente. Testes RED→GREEN, API536/workerd21/GC1/build/guard/bundles e revisão sem findings; templates/background/respostas anônimas/session/hash preservados. Frontend atual sem caller deste endpoint, portanto nenhum novo botão/contrato UI; futuro reenvio requer desafio fresco.

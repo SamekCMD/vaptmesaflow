@@ -1,5 +1,9 @@
 # Vapt — Plano Completo de Transição de Infraestrutura
 
+## Registro de execução — limiter interno Worker, 07/10/2026
+
+Etapa13: API runtime `7076df8` torna rate limit interno Better Auth explícito, memória por instância e somente CF IP, independente de NODE_ENV. Node/Coolify, CAPTCHA/hash/sessões/ownership e native rate preservados; sem novo recurso ou quota distribuída. Implantado apenas emproduction privada `3afed7d4-9725-4fff-b1a9-15df463936f8` a100%, mesmos recursos/secrets/flags. RED4→GREEN4, API539/workerd22/GC1/build/guard/bundles/revisão e sete controles privados passaram: quarto reenvio429, XFF não burla, IP independente e banco pronto, sem fixtures/emails/eventos de provedor. Preview compartilha código, não reimplantado. Proteção adicional por instância, não teto financeiro/global; demais gates continuam. Main/DNS/Paid/publicação inalterados. Evidência e limites no handoff antiabuso API; registros seguintes preservam histórico.
+
 ## Registro de execução — reenvio de email antiabuso, 07/10/2026
 
 Etapa13: endpoint existente /api/auth/send-verification-email agora exige Turnstile como cadastro/login/reset; templates/background/anti-enumeração preservados, sem novo subsystem/quota. Runtime7498574 implantado somente na API production privada92f46a03-5f05-47d4-990c-810c75c01c0a, mesmos recursos/secrets/flags. Dez consumer tests novos, API536/workerd21/GC1/build/guard/bundles/revisão e sete controles remotos de desafio ausente/readiness aprovados, sem fixtures/emails reais. Código compartilhado preview/production, não novo deploy preview. CAPTCHA não é limite de gasto/identidade; demais gates e defaults SQL anteriores preservados. Evidência no handoff antiabuso; sem main/DNS/Paid/entrada pública.
