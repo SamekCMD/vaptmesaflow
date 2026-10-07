@@ -1,5 +1,11 @@
 # Etapa 13 — preparação e consolidação
 
+## Avanço mais recente — recuperação privada e controle SQL
+
+07/10/2026: CI dos heads API434948c/frontend478d558 passou nos quatro runs push/PR. Ensaio privado ba363c7c→799b78a0→ba363c7c aprovado: versões a100%, readbacks de isolamento e health/readiness/SELECT em ambas. Restauração obrigatória finally, seguida de oito controles authbody aprovados. Estado final APIproduction ba363c7c privada, mesmos8secrets/HD/R2/DO, sem dados/fixtures/schema/grants/secret/DNS/main/Paid alterados. Não equivale a recuperação SQL/objetos ou readiness pública.
+
+Avanço antiabuso: leitura READ ONLY dos defaults da role/banco production no Neon não encontrou overrides dos quatro deadlines selecionados; não prova defaults globais nem settings efetivos Hyperdrive. Código mantém prazos menores apenas diagnostic:true; query_timeout do driver não deve ser tratado como cancelamento garantido de SQL ativo. Próximo controle: deadlines com cleanup/reuso/rollback reais, mantendo pg/Hyperdrive e recursos existentes. Handoff API `docs/infra-migration-phase-13-abuse-cost-readiness.md` registra evidência, referências e limites. Browser/CORS/cookies, provedores/imagens, controles de custo e recuperação ampla seguem antes do cutover; Etapa13 incompleta.
+
 ## Diretriz de custo corrigida — 07/10/2026
 
 Usuário confirmou Workers Paid futuro para substituir Hetzner, não objetivo permanente de Free/custo zero. Plano canônico já permite Paid quando os limites atrapalham testes/antes do cutover. Excesso10ms passa a ser evidência de consumo, não bloqueio absoluto do destino Paid; segurança/readiness do plano escolhido ainda obrigatórias. MínimoUS$5 por conta não é teto mensal. Nenhuma assinatura ou entrada pública ativada. Handoff API `docs/infra-migration-phase-13-abuse-cost-readiness.md` registra controles e lacunas, incluindo rateIP local/eventualmente consistente e timeouts SQL diagnostic-only (não prova production).
