@@ -1443,6 +1443,8 @@ Avanço preparatório em06/10/2026: CI remoto da consolidação passou nos dois 
 
 Avanço remoto em07/10/2026: API production implantada sem entradas públicas, com8secrets próprios e recursos production, reutilizando o runtime atual. ACL SQL e11checks privados aprovados: catálogo/pedidos/idempotência/isolamento público/solicitação de conta,401 sem sessão e400 sem CAPTCHA. Duas fixtures sintéticas removidas e zero resíduos em12tabelas confirmado. Não equivale a login positivo, CRUD autenticado, pareamento browser, R2, entrega Stripe, CPU Free ou rollback concluídos; esses gates precedem cutover. Ingress/realtime/Stripe Live não ativados; planos/DNS/main não alterados nesta rodada. Detalhes em `docs/infra-migration-phase-13-consolidation.md` e no handoff API. A evidência preparatória anterior de Worker production ainda inexistente é histórica, superada pela implantação registrada nos handoffs. Não recriar infraestrutura nem refazer funcionalidades.
 
+Continuação em07/10/2026:13checks adicionais production privados aprovados, incluindo login com Turnstile humano real, sessão/cookie seguro, owner/CRUD/cardápio/cozinha/caixa, R2 upload assinado/leitura privada/delete/rejeição de adulterações/expiração, logout e revogação. Cleanup verificado: zero resíduos em12tabelas e zero objetos sintéticos. Sem alterar runtime, secrets, ingress, main, DNS ou planos. Auth/CRUD/R2 privados deixam de ser pendências deste gate; pareamento browser/CORS/cookies reais, exposição deliberada de imagens, entrega/ciclo Stripe Test/Resend, CPU Free e recuperação/rollback permanecem antes do cutover. Handoffs registram evidência e limites; Etapa13 não concluída.
+
 ## Etapa 14
 Rodar período de estabilidade sem depender da VPS.
 
