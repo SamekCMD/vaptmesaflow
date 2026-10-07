@@ -1441,6 +1441,8 @@ Preparação em 06/10/2026: billing PR3 incorporado integralmente à branch de i
 
 Avanço preparatório em06/10/2026: CI remoto da consolidação passou nos dois repos. API production ganhou configuração local que reutiliza o runtime atual, Hyperdrive/R2 production existentes e binding SQLite local próprio, com realtime/ingress desativados e Stripe test. Guard7/7, verificadores locais selecionados34/34, API488/488, workerd19/19 e bundle production dry-run passaram. Sem implantação, secrets ou recursos pagos novos. R2 público ainda desativado; namespace/Worker production não criados nesta rodada. Readiness de CPU Free, cookies/pareamento e webhook continuam gates explícitos. Handoff na branch API: `docs/infra-migration-phase-13-production-preparation.md`; não marca cutover como concluído.
 
+Avanço remoto em07/10/2026: API production implantada sem entradas públicas, com8secrets próprios e recursos production, reutilizando o runtime atual. ACL SQL e11checks privados aprovados: catálogo/pedidos/idempotência/isolamento público/solicitação de conta,401 sem sessão e400 sem CAPTCHA. Duas fixtures sintéticas removidas e zero resíduos em12tabelas confirmado. Não equivale a login positivo, CRUD autenticado, pareamento browser, R2, entrega Stripe, CPU Free ou rollback concluídos; esses gates precedem cutover. Ingress/realtime/Stripe Live não ativados; planos/DNS/main não alterados nesta rodada. Detalhes em `docs/infra-migration-phase-13-consolidation.md` e no handoff API. A evidência preparatória anterior de Worker production ainda inexistente é histórica, superada pela implantação registrada nos handoffs. Não recriar infraestrutura nem refazer funcionalidades.
+
 ## Etapa 14
 Rodar período de estabilidade sem depender da VPS.
 
