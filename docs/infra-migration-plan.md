@@ -1445,6 +1445,8 @@ Avanço remoto em07/10/2026: API production implantada sem entradas públicas, c
 
 Continuação em07/10/2026:13checks adicionais production privados aprovados, incluindo login com Turnstile humano real, sessão/cookie seguro, owner/CRUD/cardápio/cozinha/caixa, R2 upload assinado/leitura privada/delete/rejeição de adulterações/expiração, logout e revogação. Cleanup verificado: zero resíduos em12tabelas e zero objetos sintéticos. Sem alterar runtime, secrets, ingress, main, DNS ou planos. Auth/CRUD/R2 privados deixam de ser pendências deste gate; pareamento browser/CORS/cookies reais, exposição deliberada de imagens, entrega/ciclo Stripe Test/Resend, CPU Free e recuperação/rollback permanecem antes do cutover. Handoffs registram evidência e limites; Etapa13 não concluída.
 
+Readiness CPU em07/10/2026:CI anterior dos dois handoffs passou. Painel confirmou WorkersFree atual, sem upgrade. GraphQL somente leitura mediu grupos de requisições production com CPU acima dos10ms Free (exemplo P50 11.524ms/P99 120.784ms, unidade oficial conferida);0invocationErrors na janela não garante capacidade. Gate CPU **não aprovado**, sem atribuir quantil ao login ou máximo absoluto. Próximo passo profiling por caminho/cold-warm e otimização mínima sem reduzir segurança, trocar provedor ou comprar plano por inferência. Cutover continua pendente; tabela/evidência no handoff API e consolidação.
+
 ## Etapa 14
 Rodar período de estabilidade sem depender da VPS.
 
