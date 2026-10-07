@@ -1,5 +1,13 @@
 # Etapa 13 — preparação e consolidação
 
+## Diretriz de custo corrigida — 07/10/2026
+
+Usuário confirmou Workers Paid futuro para substituir Hetzner, não objetivo permanente de Free/custo zero. Plano canônico já permite Paid quando os limites atrapalham testes/antes do cutover. Excesso10ms passa a ser evidência de consumo, não bloqueio absoluto do destino Paid; segurança/readiness do plano escolhido ainda obrigatórias. MínimoUS$5 por conta não é teto mensal. Nenhuma assinatura ou entrada pública ativada. Handoff API `docs/infra-migration-phase-13-abuse-cost-readiness.md` registra controles e lacunas, incluindo rateIP local/eventualmente consistente e timeouts SQL diagnostic-only (não prova production).
+
+Primeiro ajuste bounded antiabuso em andamento: limitar POST `/api/auth/*` a1MiB medidos em bytes antes de criar serviços, inclusive sem Content-Length ou com tamanho declarado falso;413safeerror/cancelamento do stream. GET, body válido/headers/Cookies, rate/CORS/CAPTCHA/hash/sessões permanecem preservados. Evidência final e implantação devem ser conferidas no handoff API; não atribuir a mudança ao Worker atualmente implantado799b78a0 antes de deploy explícito.
+
+Encerramento deste ajuste: runtime API2f76670/96bda74 implantado keep-vars emproduction **privada** `ba363c7c-3355-4849-b71f-c615bc3344db`, mesmos bindings/8secrets/flags. API524/524/workerd21/21/build/guard/bundle; revisão1Important(Content-Type/logout) corrigido comRED→GREEN e sessão/revogação real local. Oito controles remotos passaram: health, três413, CAPTCHA400, GETsession200/null, ausência media-type415, logoutJSON200/3Set-Cookie; semfixtures/emails/pagamentos. Primeira falha do operador POSTvazio foi diagnosticada como representação stream no transporte e política de media type, sem afrouxar parser. Nenhum budget/CPU/Paid/pareamentobrowser/concorrência/recuperação completo certificado. Sem DNS/main/Paid/publicação. Evidência integral no handoff antiabusoAPI; nota anterior “em andamento” é histórica.
+
 ## Continuação mais recente — 07/10/2026
 
 Engine auth request-scoped API36d76df/e9aa582 revisado sem findings, teste local514/20workerd/1GC. Implantado somente no Worker production privado `799b78a0-a585-413d-9cfa-06fa4e14119d`, keep-vars e recursos/secrets/flags preservados. Pre-deploy fresco26focados/GC1/fixtureworkerd1/build/guard7+CLI/bundle aprovados. Quinze probes negativos e13checks positivos com Turnstile humano, PostgreSQL-Hyperdrive, sessão, owner/CRUD/menu/cozinha/caixa, R2 e revogação passaram. Cleanup zero resíduos em12tabelas/objetos e transporte/pool encerrados. Execução sequencial real, não prova de concorrência remota/browser/provedores/CPU.

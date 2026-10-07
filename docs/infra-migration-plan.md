@@ -1,5 +1,13 @@
 # Vapt — Plano Completo de Transição de Infraestrutura
 
+## Diretriz confirmada pelo usuário — 07/10/2026
+
+Workers **Paid é o destino previsto da API**, substituindo a VPS Hetzner (US$7/mês informado pelo usuário). Free é temporário durante desenvolvimento/migração, como já estabelecido nas regras11–13 e seção5. Não tornar CPU<=10ms nem custo zero um requisito permanente de produção, nem gastar rodadas indefinidas para atingir esse alvo. Otimizar trabalho evitável sem reduzir hashing, CAPTCHA, autorização ou revogação; priorizar abuso/custo previsível e seguir os demais gates da migração.
+
+Workers Paid tem mínimo deUS$5/mês **por conta**, não teto de fatura: uso excedente e outros serviços podem adicionar custos. Ativação é uma etapa financeira própria, não executada por este adendo. Antes da exposição: limites por invocação dimensionados com login real, proteção antecipada de entradas, rate/quotas para auth/email/checkout/upload, consultas e retries limitados, observabilidade/alertas com proteção de dados e resposta a abuso. Rate limiting dentro do Worker não garante contabilização global nem impede a cobrança de toda requisição rejeitada. [Pricing oficial](https://developers.cloudflare.com/workers/platform/pricing/), [limites CPU](https://developers.cloudflare.com/workers/platform/limits/), [localidade/consistência do rate limiter](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/).
+
+As anotações posteriores “gate Free não aprovado” permanecem evidência histórica, **não bloqueio permanente para production Paid**. Ainda falta aprovar readiness do plano escolhido, proteção contra abuso, pareamento browser/provedores/recuperação e cutover. API segue privada; este adendo não ativa Paid, DNS, main ou endpoints públicos. Handoff dedicado de riscos/controles na branch API: `docs/infra-migration-phase-13-abuse-cost-readiness.md`.
+
 > Documento de implementação para o Codex.
 >
 > Objetivo: migrar o Vapt de uma infraestrutura concentrada em VPS (Hetzner + Supabase self-hosted + MinIO + API Docker + Vercel) para uma arquitetura majoritariamente serverless/managed, com Cloudflare como plataforma principal, Neon como PostgreSQL gerenciado, Better Auth dentro da API, Stripe dentro da API e Resend usando **os templates customizados já existentes**.
@@ -1436,6 +1444,8 @@ Registro de execução em 06/10/2026: implementação e prova da Etapa12 validad
 
 ## Etapa 13
 Cutover de `api.vapt.app.br` para Workers.
+
+Diretriz mais recente07/10: production futura emWorkersPaid, conforme regras11–13/seção5 e confirmação do usuário; Free10ms não é requisito permanente. Proteção contra abuso passa a ser gate de custo, sem prometergasto máximo ou ativarPaidagora. Runtime API authbody2f76670/96bda74, versão privada ba363c7c-3355-4849-b71f-c615bc3344db: capPOST1MiB antes de inicialização,524API/21workerd e oito controles negativos/compatibilidade remotos passaram; nenhuma fixture/provedor/Paid/main/DNS/pública ativada. Revisão achouregressão logout/Content-Type, corrigida com teste real e suíte; demais quotasglobais/deadlines/borda/alerts/cookies/provedores/recuperação seguem gates, sem refazer funcionalidades ou perseguirzerocusto. Handoff API `docs/infra-migration-phase-13-abuse-cost-readiness.md` e consolidação preservam histórico/evidência.
 
 Preparação em 06/10/2026: billing PR3 incorporado integralmente à branch de infraestrutura frontend/SQL pelo merge558ae83, sem modificar realtime/grants existentes. PR4 passa a conter billing e realtime; o PR3 original permanece preservado. Frontend175/175, API488/488, billing45pass/2Postgres não executados; typecheck/build e ambos os bundles billing dry-run passaram. CI recebeu job isolado para billing, sem secrets ou deploy. Revisão focada de integração sem achados. Cutover, main, produção, DNS e planos pagos ainda não alterados. Registro e gate seguinte em `docs/infra-migration-phase-13-consolidation.md`; a nota anterior da Etapa12 sobre billing separado é histórica e foi resolvida por esta consolidação.
 
