@@ -1,5 +1,11 @@
 # Etapa 13 — preparação e consolidação
 
+## Avanço atual — Turnstile no reenvio de verificação, 07/10/2026
+
+API runtime7498574 fecha a omissão de /send-verification-email na lista CAPTCHA existente. Testes RED→GREEN, API536/workerd21/GC1/build/guard/bundles e revisão sem findings; templates/background/respostas anônimas/session/hash preservados. Frontend atual sem caller deste endpoint, portanto nenhum novo botão/contrato UI; futuro reenvio requer desafio fresco.
+
+Implantado somente emproduction privada92f46a03-5f05-47d4-990c-810c75c01c0a a100%, keep-vars/mesmos8secrets/HD/R2/DO/flags. Sete controles negativos/readiness remotos aprovados e transporte encerrado, sem fixtures/provedores; preview compartilha código mas não foi reimplantado. CI anterior APIf377fd6/Ffa44b5e passou; novo CI ainda requer leitura. CAPTCHA não certifica quota por identidade, entrega real ou teto financeiro. SQL8s/2s e conexão5s preservados; main/DNS/Paid/API/R2 públicos inalterados. Gates browser/imagens/provedores/quotas/observabilidade/recuperação seguem.
+
 ## Continuação atual — SQL limitado nas duas branches, 07/10/2026
 
 Aplicadas `infra/neon/008_worker_preview_sql_deadlines.sql` e `008_worker_production_sql_deadlines.sql`, somente defaults das roles API IN DATABASE vapt: statement8s/lock2s. Guard de identidade/atributos/membership, operador recusando overrides prévios e reciclagem apenas do HD correspondente. Preview passou primeiro; production depois. Probes privados somente leitura comprovaram settings8s/2s, cancel57014, transaction25P02, ROLLBACK e reuso do mesmo cliente,8019/8455ms observados. Workers de prova removidos/404, sem apagar HD/banco nem criar fixtures.

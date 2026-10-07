@@ -1,5 +1,9 @@
 # Vapt — Plano Completo de Transição de Infraestrutura
 
+## Registro de execução — reenvio de email antiabuso, 07/10/2026
+
+Etapa13: endpoint existente /api/auth/send-verification-email agora exige Turnstile como cadastro/login/reset; templates/background/anti-enumeração preservados, sem novo subsystem/quota. Runtime7498574 implantado somente na API production privada92f46a03-5f05-47d4-990c-810c75c01c0a, mesmos recursos/secrets/flags. Dez consumer tests novos, API536/workerd21/GC1/build/guard/bundles/revisão e sete controles remotos de desafio ausente/readiness aprovados, sem fixtures/emails reais. Código compartilhado preview/production, não novo deploy preview. CAPTCHA não é limite de gasto/identidade; demais gates e defaults SQL anteriores preservados. Evidência no handoff antiabuso; sem main/DNS/Paid/entrada pública.
+
 ## Registro de execução — SQL antiabuso, 07/10/2026
 
 Etapa13: defaults SQL aplicados e comprovados via Hyperdrive **em preview e production** (roles API IN DATABASE vapt):8s por statement/2s por lock, migrations `infra/neon/008_worker_preview_sql_deadlines.sql` e `008_worker_production_sql_deadlines.sql`. Preview primeiro; probes privados read-only comprovaram cancelamento do servidor, transação abortada, ROLLBACK e reuso, depois removidos/404. Somente pools HD correspondentes reciclados; sem grants/schema/dados/secrets/billing alterados. API factory também limita checkout/handshake5s; runtime4799a6e implantado somente emproduction privada `bb585c31-851c-4cf8-a077-7914dc413388`, health/readiness/SELECT e isolamento aprovados. Deadline por consulta, não teto HTTP/fatura; rollback de código não reverte defaults SQL. Evidência/recuperação em handoffs Etapa13. Main/DNS/Paid/publicação inalterados; demais gates do plano continuam, sem recriar infraestrutura ou buscar custo zero.
