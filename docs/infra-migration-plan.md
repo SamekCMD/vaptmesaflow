@@ -1451,6 +1451,8 @@ Profiling controlado seguinte:12GETs privados sem Cookie, nenhuma fixture/proved
 
 Primeira otimização em07/10: runtime API6339066 inicializa signer R2 apenas no primeiro upload, request-local, assinatura/autorização preservadas. API491/491/workerd19/19/build/guard7/7 e revisão focada passaram; versãod4940da2 implantada somente em production privada. Mesmos recursos/secrets, ingress/realtime/R2público desligados, Stripe Test e planos/DNS/main inalterados. Doze leituras posteriores funcionaram; Analytics inicial parcial ainda contém48.423ms, portanto gate CPU Free **não aprovado** e nenhum cutover. Próximo foco continua auth/contexto/SQL, sem cache global inseguro, weakening ou upgrade.
 
+Continuação operacional: rollback privado de código4a33769a e restauração d4940da2 ensaiados,100% nas duas versões, saúde/readiness/SELECT aprovados e isolamento preservado. Estado final otimizado privado; não certifica recuperação de banco/objetos/migration. Analytics posterior11/12 com48.423/11.629/10.128ms correlacionados a auth/me, sem cold/warm comprovado: gate Free retido. Handoffs detalham falha local de caminho corrigida, finally de restauração, CI e limites. Nenhum cutover/main/DNS/Paid autorizado por esse ensaio.
+
 ## Etapa 14
 Rodar período de estabilidade sem depender da VPS.
 
