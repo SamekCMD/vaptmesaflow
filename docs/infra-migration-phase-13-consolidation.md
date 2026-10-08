@@ -1,5 +1,9 @@
 # Etapa 13 — preparação e consolidação
 
+## Avanço atual — provedores de autenticação e Stripe Test, 08/10/2026
+
+Confirmação e recuperação reais no par production existente validadas com destinatário sintético Resend, callback/verified e consumo do reset, entrada da nova senha pelo usuário; cleanup próprio verificado, sem novo login pós-reset/caixa real certificados. Em seguida, Stripe Test enviou três eventos assinados ao Worker: invoice de trial zero→Pro/trialing/activation intent único; subscription.updated→cancelamento agendado; subscription.deleted→cancelled/cancellation intent único. Endpoint Test existente habilitado somente durante o ensaio e restaurado disabled; Customer excluído/Subscription cancelada, zero resíduos próprios em seis tabelas/pool fechado. Readbacks preservaram API94fffd63/frontend916951fb/CPU1000/recursos/secrets/domínios/flags. Nenhum deploy/main/Live/plano novo. Evidências e limites: `docs/infra-migration-phase-13-auth-email-provider.md` e `docs/infra-migration-phase-13-stripe-provider.md`. Checkout/Portal/pagamento completos no destino e demais gates seguem abertos; não confundir persistência dos intents com entrega de email de billing.
+
 ## Avanço atual — deploy público protegido, 08/10/2026
 
 Gate local e remoto concluídos: configs públicos/comandos guardados/keep-vars, build frontend isolado/sete chaves públicas/NODE_ENV fixado, CI dry-run. API94fffd63/frontend916951fb publicados a100% nos mesmos vínculos; CPU1000/mesmos oito secrets/HD/R2/DO/auth/flags confirmados. Revisão corrigiu override de desenvolvimento RED→GREEN; gates10+13/suítes175/539/workerd22/TypeScript/build/dry-runs e oito controles públicos/index exato aprovados. Runbook `docs/infra-migration-phase-13-public-deploy.md`. Sem novo ingresso/recurso/assinatura/main/desligamentoVPS; demais gates/cutover pendentes. Browser anterior não refeito.
