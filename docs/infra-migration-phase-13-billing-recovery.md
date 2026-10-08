@@ -1,5 +1,7 @@
 # Etapa 13 — recuperação do protocolo SQL da outbox production
 
+Continuação posterior08/10: encaminhamento real de uma mensagem inválida própria Queue→DLQ validado e mensagem removida individualmente, sem repetição deste ensaio SQL. Evidência/limites em `docs/infra-migration-phase-13-billing-queue-dlq.md`; não equivale a replay financeiro/retry de envio/recuperação de indisponibilidade de provedor.
+
 ## Resultado observado — 08/10/2026
 
 Quatro cenários aprovados no PostgreSQL de production, usando `buildOutboxRepository` e `dispatchDue` do pacote atual, sem modificar suas consultas ou o runtime. Este ensaio não enviou mensagens Cloudflare, emails Resend ou eventos Stripe. Complementa o gate anterior de quatro emails Delivered; não o repete nem certifica replay dos transportes externos.
