@@ -1,5 +1,9 @@
 # Vapt — Plano Completo de Transição de Infraestrutura
 
+## Registro de execução — recuperação SQL isolada, 07/10/2026
+
+Etapa13: recuperação de duas linhas sintéticas e estrutura selecionada após perda real em cópia Neon descartável, via restauração do HEAD intacto do parent. Production somente READ ONLY antes/depois e sem diferenças; duas cópias removidas, apenas production/preview originais restantes. Não houve restore de production, PITR histórico, backup exportado, recuperação R2/DO ou reversão de efeitos externos. Sem runtime/DNS/main/Paid/ingress/secrets alterados. Detalhes em `docs/infra-migration-phase-13-recovery.md`. CIs APIc642400/F13b00ff aprovados. Próxima fase de navegador/provedores necessita publicação controlada e readiness do destino Paid, mantendo Stripe Test e sem Zero Trust de produção por inferência.
+
 ## Registro de execução — limiter interno Worker, 07/10/2026
 
 Etapa13: API runtime `7076df8` torna rate limit interno Better Auth explícito, memória por instância e somente CF IP, independente de NODE_ENV. Node/Coolify, CAPTCHA/hash/sessões/ownership e native rate preservados; sem novo recurso ou quota distribuída. Implantado apenas emproduction privada `3afed7d4-9725-4fff-b1a9-15df463936f8` a100%, mesmos recursos/secrets/flags. RED4→GREEN4, API539/workerd22/GC1/build/guard/bundles/revisão e sete controles privados passaram: quarto reenvio429, XFF não burla, IP independente e banco pronto, sem fixtures/emails/eventos de provedor. Preview compartilha código, não reimplantado. Proteção adicional por instância, não teto financeiro/global; demais gates continuam. Main/DNS/Paid/publicação inalterados. Evidência e limites no handoff antiabuso API; registros seguintes preservam histórico.
