@@ -1,5 +1,9 @@
 # Vapt — Plano Completo de Transição de Infraestrutura
 
+## Registro atual — deploy público protegido, 08/10/2026
+
+Configs públicos explícitos para os dois domínios existentes e comandos guardados implementados sem modificar preview/preparação privada. Frontend: sete chaves públicas, NODE_ENV fixado, artefato separado; API: guard privado reutilizado, CPU1000/recursos production/auth/flags preservados. Revisão encontrou override de desenvolvimento, corrigido RED→GREEN. Gates10+13, suítes175/539/workerd22, TypeScript/build/dry-runs passaram. Evidência e limites em `docs/infra-migration-phase-13-public-deploy.md`. Qualificação remota dos novos comandos ainda pendente; não é main/cutover final. Sem nova assinatura/credencial/ingresso ou desligamentoVPS; histórico abaixo preservado.
+
 ## Registro atual — sessão no browser comprovada, 08/10/2026
 
 Nos mesmos domínios e versões já publicados, Brave real confirmou login normal com Turnstile automático, reload autenticado, Sair e bloqueio da nova abertura do dashboard. Banco: uma sessão válida após reload, zero após saída antes de cleanup. Fixture exata removida/zero resíduos nas cinco tabelas/pool fechado; sem email/pagamento/upload/pedido. Runbook `docs/infra-migration-phase-13-browser-pairing.md`. Próximo gate: deploy público reproduzível sem perder domínios nem herdar VITE legado; demais provedores/imagens/realtime/observabilidade/volume/cutover permanecem abertos. Sem novo deploy/main/assinatura/desligamentoVPS. Pendência anterior de reload/logout abaixo é histórica.

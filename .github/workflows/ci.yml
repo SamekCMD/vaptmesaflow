@@ -41,6 +41,15 @@ jobs:
       - name: Validate Cloudflare package
         run: npx --no-install wrangler deploy --dry-run
 
+      - name: Test public production deployment guards
+        run: npm run test:production-deploy
+
+      - name: Build isolated public production artifact
+        run: npm run build:production
+
+      - name: Validate public production package without publishing
+        run: npx --no-install wrangler deploy --dry-run --config wrangler.production.jsonc
+
   billing_email:
     runs-on: ubuntu-latest
     timeout-minutes: 10

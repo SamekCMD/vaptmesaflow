@@ -1,5 +1,9 @@
 # Etapa 13 — preparação e consolidação
 
+## Avanço atual — deploy público protegido, 08/10/2026
+
+Gate local concluído: configs públicos dos domínios existentes, comandos guardados/keep-vars, build frontend isolado com sete chaves públicas e NODE_ENV fixado, CI dry-run. API conserva guard/CPU1000/recursos/auth/flags e config privada separada. Revisão corrigiu override de desenvolvimento com RED→GREEN; gates10+13/suítes175/539/workerd22/TypeScript/build/dry-runs aprovados. Runbook `docs/infra-migration-phase-13-public-deploy.md`. Qualificação por redeploy/readback ainda pendente; nenhum novo ingresso/recurso/assinatura/main/cutover/desligamentoVPS. Gate browser anterior não refeito.
+
 ## Avanço atual — sessão no browser comprovada, 08/10/2026
 
 Mesmos Workers/domínios/versões e API CPU1000, sem novo deploy. Brave real aprovou login com Turnstile automático, reload autenticado, Sair e nova navegação ao dashboard redirecionada para login. Banco confirmou uma sessão válida após reload e zero após Sair, antes de cleanup. Fixture exata removida/zero resíduos nas cinco tabelas/pool fechado; sem pedidos/emails/uploads/pagamentos. Evidência e limites em `docs/infra-migration-phase-13-browser-pairing.md`. Próximo gate: deploy público reproduzível que preserve os dois vínculos e não herde VITE legado; demais gates e Etapa13 continuam abertos. Bloqueio anterior de extensão abaixo é histórico.
