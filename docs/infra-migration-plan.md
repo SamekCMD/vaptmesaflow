@@ -1,5 +1,9 @@
 # Vapt — Plano Completo de Transição de Infraestrutura
 
+## Registro de execução — Workers Paid e CPU limitada, 07/10/2026
+
+Etapa13: Workers Paid ativado com autorização financeira/contratual explícita, US$5/mês por conta+excedentes (não teto). API production privada agora `eeb0d212-ad66-4c0a-90ec-7117b89a4266`, config d9fead0 e limite1000ms confirmado remotamente, mesmos recursos/8secrets/flags. Guard8/API539/build/bundle/revisão focada passaram; health/readiness/catalog e13checks com Turnstile real/CRUD/isolamento/R2/logout aprovados, zero resíduos12tabelas/objetos. Analytics24invocações/0erros, maiorP99degrupo270.107ms, sem prova de carga/trace/máximo. Nenhum deploy preview/billing/frontend, DNS/main/ingress/ZeroTrustproduction/NeonPaid/StripeLive alterado; produção não será recriada. Handoff detalhado no repositório API `docs/infra-migration-phase-13-workers-paid.md`; browser/provedores/imagens/observabilidade/cutover continuam gates, Etapa13 aberta. Registros seguintes são histórico.
+
 ## Registro de execução — recuperação SQL isolada, 07/10/2026
 
 Etapa13: recuperação de duas linhas sintéticas e estrutura selecionada após perda real em cópia Neon descartável, via restauração do HEAD intacto do parent. Production somente READ ONLY antes/depois e sem diferenças; duas cópias removidas, apenas production/preview originais restantes. Não houve restore de production, PITR histórico, backup exportado, recuperação R2/DO ou reversão de efeitos externos. Sem runtime/DNS/main/Paid/ingress/secrets alterados. Detalhes em `docs/infra-migration-phase-13-recovery.md`. CIs APIc642400/F13b00ff aprovados. Próxima fase de navegador/provedores necessita publicação controlada e readiness do destino Paid, mantendo Stripe Test e sem Zero Trust de produção por inferência.
