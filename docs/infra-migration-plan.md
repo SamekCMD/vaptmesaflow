@@ -1,5 +1,9 @@
 # Vapt — Plano Completo de Transição de Infraestrutura
 
+## Registro atual — publicação controlada e navegador, 07/10/2026
+
+Domínios vapt.app.br/api.vapt.app.br liberados explicitamente e vinculados aos Workers existentes; DNS7→9 com dois Worker e sete registros preservados. Frontenddeb94199/API correta/Turnstile ativo; APIeeb0d212 agora pública apenas pelo custom domain, CPU1000/mesmos recursos/secrets/StripeTest/realtimefalse, workers.dev/VersionURLs off. HTTPS/SQL/CORS/preflight passaram; login real Brave abriu dashboard sintético. Extensão bloqueou reload/logout, ainda pendentes; cleanup de teste confirmado. Sem main/StripeLive/ZeroTrustproduction/contratação/desligamento VPS. Handoff/rollback: `docs/infra-migration-phase-13-browser-pairing.md`; não redeployar cegamente config privada/env local. Etapa13/cutover final não certificados; histórico preservado.
+
 ## Registro de execução — Workers Paid e CPU limitada, 07/10/2026
 
 Etapa13: Workers Paid ativado com autorização financeira/contratual explícita, US$5/mês por conta+excedentes (não teto). API production privada agora `eeb0d212-ad66-4c0a-90ec-7117b89a4266`, config d9fead0 e limite1000ms confirmado remotamente, mesmos recursos/8secrets/flags. Guard8/API539/build/bundle/revisão focada passaram; health/readiness/catalog e13checks com Turnstile real/CRUD/isolamento/R2/logout aprovados, zero resíduos12tabelas/objetos. Analytics24invocações/0erros, maiorP99degrupo270.107ms, sem prova de carga/trace/máximo. Nenhum deploy preview/billing/frontend, DNS/main/ingress/ZeroTrustproduction/NeonPaid/StripeLive alterado; produção não será recriada. Handoff detalhado no repositório API `docs/infra-migration-phase-13-workers-paid.md`; browser/provedores/imagens/observabilidade/cutover continuam gates, Etapa13 aberta. Registros seguintes são histórico.

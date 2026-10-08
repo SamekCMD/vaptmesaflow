@@ -1,5 +1,9 @@
 # Etapa 13 — preparação e consolidação
 
+## Avanço atual — domínios públicos e navegador, 07/10/2026
+
+Publicação explicitamente autorizada: vapt.app.br→vapt-web/deb94199 e api.vapt.app.br→vapt-api-production/eeb0d212. DNS7→9 apenas por dois vínculos Worker, sete anteriores preservados. CPU1000/secrets/HD/R2/DO/StripeTest/realtimefalse confirmados; workers.dev/VersionURLs API off, mas API **agora pública pelo custom domain**. Frontend com API correta/Turnstile ativo/index exato e oito controles HTTPS/CORS passaram. Login real Brave abriu dashboard sintético e sessão válida; extensão bloqueou reload/logout, ainda pendentes. Fixture removida por identidade própria, zero resíduos/pool fechado; sem email/pagamento/upload/main/novo plano. Runbook/rollback em `docs/infra-migration-phase-13-browser-pairing.md`. Não redeployar configuração privada/env local cegamente: deploy público reproduzível é próximo gate. Etapa13 aberta; registros “sem ingress” seguintes são históricos.
+
 ## Avanço atual — Workers Paid ativo e CPU limitada, 07/10/2026
 
 Destino Paid autorizado/ativado (US$5/mês por conta+excedentes), sem contratação Zero Trust production/NeonPaid/StripeLive. Config API d9fead0 agora exige1000ms; versão production privada `eeb0d212-ad66-4c0a-90ec-7117b89a4266` a100%, mesmo runtime/recursos/secrets/flags e readbackCPU1000. Guard8/API539/build/bundle/revisão e13checks sintéticos com Turnstile real passaram, zero resíduos12tabelas/objetos e operadores encerrados. Analytics24invocações/0erros, maiorP99degrupo270.107ms; smoke sequencial, não máximo/trace/carga nem teto de fatura. Nenhum deploy preview/billing/frontend ou DNS/main/ingress. Evidência no handoff API `docs/infra-migration-phase-13-workers-paid.md`. Etapa13 aberta: browser/CORS/cookies, imagens públicas deliberadas, provedores, observabilidade/volume e cutover continuam; histórico abaixo preservado.
