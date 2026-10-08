@@ -1,5 +1,7 @@
 # Etapa 13 — entrega Stripe Test no Worker
 
+Continuação concluída do Checkout autenticado, pagamento Test de valor positivo e abertura do Portal no mesmo destino: `docs/infra-migration-phase-13-stripe-checkout.md`. O gate de trial abaixo mantém seu escopo/limites próprios e não deve ser repetido por causa dessa continuação.
+
 ## Escopo e resultado — 08/10/2026
 
 Ensaio real do provedor no sandbox existente `acct_1UKK2EQYNWCekS7F`, usando a API production já publicada em `api.vapt.app.br`. Não houve mudança de runtime, secret, schema, recurso Cloudflare, DNS, main, plano pago ou Stripe Live.
