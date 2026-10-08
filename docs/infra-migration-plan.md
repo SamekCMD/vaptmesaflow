@@ -1,5 +1,9 @@
 # Vapt — Plano Completo de Transição de Infraestrutura
 
+## Registro atual — sessão no browser comprovada, 08/10/2026
+
+Nos mesmos domínios e versões já publicados, Brave real confirmou login normal com Turnstile automático, reload autenticado, Sair e bloqueio da nova abertura do dashboard. Banco: uma sessão válida após reload, zero após saída antes de cleanup. Fixture exata removida/zero resíduos nas cinco tabelas/pool fechado; sem email/pagamento/upload/pedido. Runbook `docs/infra-migration-phase-13-browser-pairing.md`. Próximo gate: deploy público reproduzível sem perder domínios nem herdar VITE legado; demais provedores/imagens/realtime/observabilidade/volume/cutover permanecem abertos. Sem novo deploy/main/assinatura/desligamentoVPS. Pendência anterior de reload/logout abaixo é histórica.
+
 ## Registro atual — publicação controlada e navegador, 07/10/2026
 
 Domínios vapt.app.br/api.vapt.app.br liberados explicitamente e vinculados aos Workers existentes; DNS7→9 com dois Worker e sete registros preservados. Frontenddeb94199/API correta/Turnstile ativo; APIeeb0d212 agora pública apenas pelo custom domain, CPU1000/mesmos recursos/secrets/StripeTest/realtimefalse, workers.dev/VersionURLs off. HTTPS/SQL/CORS/preflight passaram; login real Brave abriu dashboard sintético. Extensão bloqueou reload/logout, ainda pendentes; cleanup de teste confirmado. Sem main/StripeLive/ZeroTrustproduction/contratação/desligamento VPS. Handoff/rollback: `docs/infra-migration-phase-13-browser-pairing.md`; não redeployar cegamente config privada/env local. Etapa13/cutover final não certificados; histórico preservado.

@@ -1,5 +1,9 @@
 # Etapa 13 — preparação e consolidação
 
+## Avanço atual — sessão no browser comprovada, 08/10/2026
+
+Mesmos Workers/domínios/versões e API CPU1000, sem novo deploy. Brave real aprovou login com Turnstile automático, reload autenticado, Sair e nova navegação ao dashboard redirecionada para login. Banco confirmou uma sessão válida após reload e zero após Sair, antes de cleanup. Fixture exata removida/zero resíduos nas cinco tabelas/pool fechado; sem pedidos/emails/uploads/pagamentos. Evidência e limites em `docs/infra-migration-phase-13-browser-pairing.md`. Próximo gate: deploy público reproduzível que preserve os dois vínculos e não herde VITE legado; demais gates e Etapa13 continuam abertos. Bloqueio anterior de extensão abaixo é histórico.
+
 ## Avanço atual — domínios públicos e navegador, 07/10/2026
 
 Publicação explicitamente autorizada: vapt.app.br→vapt-web/deb94199 e api.vapt.app.br→vapt-api-production/eeb0d212. DNS7→9 apenas por dois vínculos Worker, sete anteriores preservados. CPU1000/secrets/HD/R2/DO/StripeTest/realtimefalse confirmados; workers.dev/VersionURLs API off, mas API **agora pública pelo custom domain**. Frontend com API correta/Turnstile ativo/index exato e oito controles HTTPS/CORS passaram. Login real Brave abriu dashboard sintético e sessão válida; extensão bloqueou reload/logout, ainda pendentes. Fixture removida por identidade própria, zero resíduos/pool fechado; sem email/pagamento/upload/main/novo plano. Runbook/rollback em `docs/infra-migration-phase-13-browser-pairing.md`. Não redeployar configuração privada/env local cegamente: deploy público reproduzível é próximo gate. Etapa13 aberta; registros “sem ingress” seguintes são históricos.
