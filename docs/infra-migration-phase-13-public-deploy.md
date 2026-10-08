@@ -1,5 +1,15 @@
 # Etapa 13 — deploy público reproduzível
 
+## Qualificação remota aprovada — 08/10/2026
+
+Preflight estrito aprovou o par anterior/CPU1000/recursos/secrets/vínculos. API publicada pelo comando guardado a partir de `685643229c136004cfc84808028b32b7886bd221`, versão `94fffd63-f759-43c3-9f6a-0387e14e8c73`; readback intermediário aprovado. Frontend publicado pelo comando guardado a partir de `da116d211a32876820a21e87d19efb7960d382db`, versão `916951fb-b0a8-43a2-ab7a-ba4923064425`. Ambos a100%, mesmos dois IDs de vínculo e todos os controles anteriores. Nenhum novo DNS/ingresso/recurso/secret/assinatura/fixture/main foi criado; sete registros DNS preexistentes não foram alvo.
+
+Oito controles públicos aprovados após publicação: frontend200/index byte a byte igual a dist-production, health200, SQLready200, sessão200/null, sem cookie401, catálogo ausente404, preflight204 e origem não confiada500 sem CORS. SHA256 do index publicado `abdac781e95232995053fb69329ff2089c47a8cd298161b5fb9e197779a21a7a`. Primeira leitura expirou por timeout de conexão local, sem resposta HTTP; repetição pós-deploy passou. Upload frontend teve retries automáticos de transporte, final exit0; isto não certifica estabilidade sob carga.
+
+Readback final estrito: API CPU1000, oito nomes de secrets preservados, mesmos HD/R2/DO, R2 privado, StripeTest/realtimefalse/Cron0, workers.dev/VersionURLs API off e domínios existentes. Browser login/reload/logout anterior não foi reexecutado: não houve mudança de código de produto/auth neste delta. Gates de provedores/imagens/realtime/observabilidade/volume/backup/cutover continuam.
+
+CI dos commits funcionais acima: push+pull completed/success nos dois repositórios, confirmado por leitura dos heads exatos. Commits documentais posteriores exigem checks próprios. Não é aprovação para merge/main.
+
 ## Gate local aprovado — 08/10/2026
 
 Configurações explícitas preservam somente os dois domínios já autorizados nos Workers existentes. Não criam ambiente, recurso, credencial ou assinatura. Preparação privada e preview continuam separados. Etapa13 e cutover final permanecem abertos.
@@ -33,6 +43,6 @@ Antes dos comandos protegidos, confirmar versões a100%, conta, IDs dos dois ví
 
 Depois, confirmar novas versões a100% e os mesmos controles/IDs; comparar index servido com dist-production/index.html, health/readiness SQL, sessão anônima, ausência de acesso sem cookie, catálogo ausente e CORS/preflight. Isto não substitui gate browser já comprovado nem certifica carga/provedores. Se falhar, restaurar somente versões anteriores compatíveis mantendo vínculos existentes e repetir readback; rollback de código não reverte dados/recursos.
 
-Estado remoto anterior: frontend `deb94199-9d96-4db5-bcc5-e4d7f027298c`, API `eeb0d212-ad66-4c0a-90ec-7117b89a4266`. IDs/rollback anteriores em infra-migration-phase-13-browser-pairing.md. Qualificação dos novos comandos por publicação/readback ainda pendente neste registro local; artefato validado não é artefato publicado.
+Par anterior compatível para recuperação de código: frontend `deb94199-9d96-4db5-bcc5-e4d7f027298c`, API `eeb0d212-ad66-4c0a-90ec-7117b89a4266`. IDs/rollback de ingresso em infra-migration-phase-13-browser-pairing.md. Qualificação dos novos comandos concluída conforme registro remoto acima; rollback deste novo par não foi ensaiado e não reverte SQL/R2/DO/efeitos externos.
 
 Fora desta mudança: main/merge, StripeLive, ZeroTrust production, novos planos, exposição de imagens, ativação realtime, capacidade/observabilidade, backup amplo e desligamentoVPS.

@@ -2,7 +2,7 @@
 
 ## Avanço atual — deploy público protegido, 08/10/2026
 
-Gate local concluído: configs públicos dos domínios existentes, comandos guardados/keep-vars, build frontend isolado com sete chaves públicas e NODE_ENV fixado, CI dry-run. API conserva guard/CPU1000/recursos/auth/flags e config privada separada. Revisão corrigiu override de desenvolvimento com RED→GREEN; gates10+13/suítes175/539/workerd22/TypeScript/build/dry-runs aprovados. Runbook `docs/infra-migration-phase-13-public-deploy.md`. Qualificação por redeploy/readback ainda pendente; nenhum novo ingresso/recurso/assinatura/main/cutover/desligamentoVPS. Gate browser anterior não refeito.
+Gate local e remoto concluídos: configs públicos/comandos guardados/keep-vars, build frontend isolado/sete chaves públicas/NODE_ENV fixado, CI dry-run. API94fffd63/frontend916951fb publicados a100% nos mesmos vínculos; CPU1000/mesmos oito secrets/HD/R2/DO/auth/flags confirmados. Revisão corrigiu override de desenvolvimento RED→GREEN; gates10+13/suítes175/539/workerd22/TypeScript/build/dry-runs e oito controles públicos/index exato aprovados. Runbook `docs/infra-migration-phase-13-public-deploy.md`. Sem novo ingresso/recurso/assinatura/main/desligamentoVPS; demais gates/cutover pendentes. Browser anterior não refeito.
 
 ## Avanço atual — sessão no browser comprovada, 08/10/2026
 

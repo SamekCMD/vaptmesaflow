@@ -6,12 +6,12 @@ Usuário autorizou explicitamente publicar `vapt.app.br` e `api.vapt.app.br` nos
 
 | Domínio | Worker | Versão a100% | ID do vínculo |
 | --- | --- | --- | --- |
-| `vapt.app.br` | `vapt-web` | `deb94199-9d96-4db5-bcc5-e4d7f027298c` | `42d2afe630dc5122d027cf55cb13607c7e0d6bd3` |
-| `api.vapt.app.br` | `vapt-api-production` | `eeb0d212-ad66-4c0a-90ec-7117b89a4266` | `f7344b662aa02bcfa576e9cb5b0108d6d59b667f` |
+| `vapt.app.br` | `vapt-web` | `916951fb-b0a8-43a2-ab7a-ba4923064425` | `42d2afe630dc5122d027cf55cb13607c7e0d6bd3` |
+| `api.vapt.app.br` | `vapt-api-production` | `94fffd63-f759-43c3-9f6a-0387e14e8c73` | `f7344b662aa02bcfa576e9cb5b0108d6d59b667f` |
 
-A API agora tem ingresso público pelo custom domain autorizado. `workers.dev` e Version/Preview URLs continuam desativados na API; registros anteriores “production privada” são históricos. Readback confirmou CPU1000ms, oito nomes de secrets (sem valores), mesmos Hyperdrive/R2/DO, realtimefalse, StripeTest, Cron0 e R2 privado. Não houve redeploy da API.
+A API tem ingresso público pelo custom domain autorizado. workers.dev/VersionURLs continuam desativados; registros “production privada” são históricos. Redeploy protegido em08/10 qualificou configs/comandos públicos; readback confirmou CPU1000ms, oito nomes de secrets, mesmos HD/R2/DO/vínculos, realtimefalse/StripeTest/Cron0/R2privado. Oito controles públicos e index exato aprovados. Detalhes em `infra-migration-phase-13-public-deploy.md`. Evidências browser anteriores abaixo pertencem ao par deb94199/eeb0d212, não foram repetidas.
 
-## DNS e artefato
+## DNS e artefato da publicação inicial
 
 Painel confirmou sete registros e nenhum A/AAAA/CNAME no apex/API antes; depois, nove registros: os sete originais preservados e dois Worker. MX/SPF/DMARC/DKIM, `coolify`, `send` e `rsend` intactos; nenhum `www` criado. [Custom Domains criam DNS e certificado](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/); nenhuma assinatura separada de Advanced Certificate Manager foi necessária.
 
@@ -19,12 +19,12 @@ Frontend baseado em `9abbe348ea449448c79ae28693d16f555d028a57`: build com API co
 
 Build exit0/77JSfiles/cinco assertions aprovadas (origem API/sitekey/ausência URL legada/ausência preview inválido/valores removidos ausentes). SHA256 index+bundles: `1e7d65bab4e587593ea75802e06cc17b4a2de8b95441f9d105ed2074824f3d31`; index publicado byte a byte igual ao local, SHA256 `09c9f2ac2584a3792fa145460ac1e2947f87372089cb0cfccf24b86dc1f569d4`.
 
-**Deploy protegido implementado em08/10:** `npm run deploy:production` agora seleciona config público/build isolado com allowlist e semântica production. API tem deploy:worker-production-public, preservando domínio e guard de recursos. Detalhes/testes/limites em `infra-migration-phase-13-public-deploy.md`; qualificação remota dos comandos novos ainda pendente. Config API `wrangler.worker-production.jsonc` continua privada/routes[]: não usar para redeploy público. Alerta do comando genérico antigo é histórico.
+**Deploy protegido qualificado em08/10:** `npm run deploy:production` seleciona config público/build isolado com allowlist e semântica production. API tem deploy:worker-production-public, preservando domínio e guard de recursos. Comandos publicados/readback aprovados conforme `infra-migration-phase-13-public-deploy.md`. Config API `wrangler.worker-production.jsonc` continua privada/routes[]: não usar para redeploy público. Alerta do comando genérico antigo é histórico.
 
 ## Evidências e limites
 
 - Continuação08/10: CI dos heads API6181175/F8a50796 confirmado completed/success tanto em pull_request quanto push. São os commits documentais anteriores a este registro, não cobertura de qualquer head posterior.
-- Readback final pós-cleanup aprovou novamente as duas versões/domínios da tabela, API1000ms/mesmos oito nomes de secrets/HD/R2/DO, Cron0, realtimefalse, StripeTest, R2privado e ingress alternativo da API desligado. Nenhuma mutação no control plane nesta continuação.
+- Readback pós-cleanup do gate browser aprovou o par anterior deb94199/eeb0d212 nos mesmos domínios, API1000ms/mesmos oito nomes de secrets/HD/R2/DO, Cron0, realtimefalse, StripeTest, R2privado e ingresso alternativo API desligado. Nenhuma mutação no control plane naquele gate; tabela atual reflete o redeploy qualificado subsequente.
 - CI dos heads API3eca4b6/F9abbe348: pull_request e push completed/success nos dois repositórios.
 - Oito controles públicos passaram: frontend200/index exato, health200, SQLready200, sessão anônima200/null, auth sem Cookie401, catálogo ausente404, preflight204 e origem não confiada rejeitada.
 - CORS permitido usa origem exata e credentials:true; preflight permite Content-Type/X-Captcha-Response. Origem não confiada retorna500 sem concessão CORS, conforme contrato atual, não403. Nenhuma proteção foi relaxada.
@@ -41,6 +41,6 @@ Antes de retirar ingresso, conferir por GET conta/hostname/service/IDs da tabela
 
 Frontend anterior `a489f0c5-c9b2-434a-8008-6aba502ed038`: fechar ingresso antes de eventual restauração, pois esse artefato não foi certificado com as origens/auth atuais. Rollback de ingresso/código não reverte recursos ou dados. Certificados podem permanecer após remover o vínculo; identificar somente os próprios antes de limpeza, sem apagar preexistentes.
 
-Pendências: provedores Test/Resend, imagens públicas deliberadas, realtime production, observabilidade/volume, deploy público reproduzível e aceitação final de cutover/estabilidade/backup/desligamento VPS. Login/reload/logout do browser concluídos neste escopo; isso não certifica todos os fluxos ou capacidade. Não recriar infraestrutura nem repetir gates privados concluídos.
+Pendências: provedores Test/Resend, imagens públicas deliberadas, realtime production, observabilidade/volume e aceitação final de cutover/estabilidade/backup/desligamentoVPS. Deploy público reproduzível e login/reload/logout do browser concluídos nos escopos registrados; não certificam todos os fluxos/capacidade. Não recriar infraestrutura nem repetir gates privados concluídos.
 
-Delta local concluído em08/10: configs públicos explícitos/guards/build isolado e CI dry-run, sem alterar configs privados/preview. Próximo controle é publicação/readback pelos comandos novos, preservando vínculos/secrets/recursos antes/depois. Não ligar imagens/realtime/StripeLive nem recriar infraestrutura por este delta. Gate local não prova publicação remota.
+Delta concluído em08/10: configs públicos explícitos/guards/build isolado/CI dry-run e publicação/readback pelos comandos novos, sem alterar configs privados/preview. Vínculos/secrets/recursos preservados antes/depois. Não foram ligados imagens/realtime/StripeLive ou recriada infraestrutura. Qualificação remota não é cutover final.

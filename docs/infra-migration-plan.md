@@ -2,7 +2,7 @@
 
 ## Registro atual — deploy público protegido, 08/10/2026
 
-Configs públicos explícitos para os dois domínios existentes e comandos guardados implementados sem modificar preview/preparação privada. Frontend: sete chaves públicas, NODE_ENV fixado, artefato separado; API: guard privado reutilizado, CPU1000/recursos production/auth/flags preservados. Revisão encontrou override de desenvolvimento, corrigido RED→GREEN. Gates10+13, suítes175/539/workerd22, TypeScript/build/dry-runs passaram. Evidência e limites em `docs/infra-migration-phase-13-public-deploy.md`. Qualificação remota dos novos comandos ainda pendente; não é main/cutover final. Sem nova assinatura/credencial/ingresso ou desligamentoVPS; histórico abaixo preservado.
+Configs públicos explícitos e comandos guardados qualificados por publicação/readback nos dois Workers/domínios existentes, sem modificar preview/preparação privada. Frontend916951fb: sete chaves públicas/NODE_ENV fixado/artefato separado; API94fffd63: guard privado reutilizado/CPU1000/mesmos recursos/secrets/auth/flags. Revisão corrigiu override de desenvolvimento RED→GREEN. Gates10+13/suítes175/539/workerd22/TypeScript/build/dry-runs e oito controles públicos/index exato passaram. Evidência em `docs/infra-migration-phase-13-public-deploy.md`. Sem novo DNS/recurso/credencial/assinatura/main/desligamentoVPS; provedores/imagens/realtime/observabilidade/capacidade/backup/cutover ainda pendentes. Histórico abaixo preservado.
 
 ## Registro atual — sessão no browser comprovada, 08/10/2026
 
