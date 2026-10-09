@@ -8,6 +8,11 @@ const isTest = import.meta.env.MODE === "test";
 const readPaymentEnvironment = (): "sandbox" | "production" =>
   readEnv("VITE_PAYMENT_ENVIRONMENT") === "sandbox" ? "sandbox" : "production";
 
+const turnstileEnabled = readEnv("VITE_TURNSTILE_ENABLED") === "true";
+
+const readMenuImageStorageMode = (): "disabled" | "r2" =>
+  readEnv("VITE_MENU_IMAGE_STORAGE_MODE") === "r2" ? "r2" : "disabled";
+
 const readRequiredEnv = (key: string): string => {
   const value = readEnv(key);
   if (value) return value;
@@ -20,16 +25,13 @@ const readRequiredEnv = (key: string): string => {
 };
 
 export const ENV = {
-  supabaseUrl: readRequiredEnv("VITE_SUPABASE_URL"),
-  supabaseAnonKey: readRequiredEnv("VITE_SUPABASE_ANON_KEY"),
-  stripePublishableKey: readRequiredEnv("VITE_STRIPE_PUBLISHABLE_KEY"),
-  stripePriceStarter: readRequiredEnv("VITE_STRIPE_PRICE_STARTER"),
-  stripePricePro: readRequiredEnv("VITE_STRIPE_PRICE_PRO"),
-  stripePriceBusiness: readRequiredEnv("VITE_STRIPE_PRICE_BUSINESS"),
   vaptApiBaseUrl: readRequiredEnv("VITE_VAPT_API_BASE_URL"),
+  realtimeEnabled: readEnv("VITE_REALTIME_ENABLED") === "true",
   paymentEnvironment: readPaymentEnvironment(),
   vapidPublicKey: readEnv("VITE_VAPID_PUBLIC_KEY"),
+  turnstileEnabled,
+  menuImageStorageMode: readMenuImageStorageMode(),
+  turnstileSiteKey: turnstileEnabled
+    ? readRequiredEnv("VITE_TURNSTILE_SITE_KEY")
+    : readEnv("VITE_TURNSTILE_SITE_KEY"),
 } as const;
-
-export const buildSupabaseStoragePublicUrl = (bucket: string, path: string): string =>
-  `${ENV.supabaseUrl}/storage/v1/object/public/${bucket}/${path}`;

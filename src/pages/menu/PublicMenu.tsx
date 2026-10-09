@@ -7,7 +7,6 @@ import {
   hexToHsl,
   type RestaurantConfig,
   type PublicMenuItem,
-  type MenuItemVariation,
 } from "@/lib/restaurant-config";
 import { ShoppingBag, ClipboardList, Clock, QrCode, UtensilsCrossed, Plus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
@@ -17,45 +16,33 @@ import ProductDrawer from "@/components/menu/ProductDrawer";
 import OrderSummaryDrawer from "@/components/menu/OrderSummaryDrawer";
 import MyOrdersDrawer from "@/components/menu/MyOrdersDrawer";
 import FloatingActions from "@/components/menu/FloatingActions";
-import { supabase } from "@/lib/supabase";
+import type { PublicCatalogDto } from "@/lib/business-api.types";
+import { vaptApiRequest } from "@/lib/vapt-api-client";
 import { orderClient, readStoredOrderAccess, saveStoredOrderAccess, type StoredOrderAccess } from "@/lib/order-client";
+import { ENV } from "@/lib/env";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
-type RestaurantPublicRow = {
-  id: string;
-  name: string;
-  slug: string;
-  logo_url: string | null;
-  primary_color: string | null;
-  secondary_color: string | null;
-  font_family: RestaurantConfig["fontFamily"] | null;
-  payment_mode: "open_tab" | "prepaid" | null;
-  max_pending_orders: number | null;
-  local_enabled: boolean;
-  delivery_enabled: boolean;
-};
+function normalizeFontFamily(value: string): RestaurantConfig["fontFamily"] {
+  return value === "classic" || value === "rounded" ? value : "modern";
+}
 
-type MenuItemRow = {
-  id: string;
-  name: string;
-  description: string | null;
-  price: number | string;
-  category: string | null;
-  image_url: string | null;
-  available: boolean;
-  available_from: string | null;
-  available_until: string | null;
-  badge: string | null;
-  is_chef_suggestion: boolean | null;
-  prep_time_minutes: number | null;
-};
-
-type MenuVariationRow = {
-  id: string;
-  menu_item_id: string;
-  name: string;
-  options: unknown;
-  required: boolean;
-};
+function mapCatalogItems(items: PublicCatalogDto["items"]): PublicMenuItem[] {
+  return items.map((item) => ({
+    id: item.id,
+    name: item.name,
+    description: item.description || "",
+    price: Number(item.price),
+    category: item.category || "Geral",
+    imageUrl: item.imageUrl || undefined,
+    available: item.available,
+    availableFrom: item.availableFrom,
+    availableUntil: item.availableUntil,
+    badge: item.badge,
+    isChefSuggestion: item.isChefSuggestion,
+    prepTimeMinutes: item.prepTimeMinutes,
+    variations: item.variations,
+  }));
+}
 
 function isWithinTimeRange(from: string | null | undefined, until: string | null | undefined): boolean {
   if (!from && !until) return true;
@@ -102,12 +89,18 @@ const PublicMenu = () => {
   const [activeTab, setActiveTab] = useState<"menu" | "orders">("menu");
   const [hasReadyOrder, setHasReadyOrder] = useState(false);
   const [tableSessionId, setTableSessionId] = useState<string | null>(null);
+  const [tableSessionOrderAccess, setTableSessionOrderAccess] = useState<StoredOrderAccess | null>(null);
   const [hasPlacedOrder, setHasPlacedOrder] = useState(false);
-  const [restaurantIdState, setRestaurantIdState] = useState<string | null>(null);
 
   const cart = useCart();
   const prevItemsRef = useRef<Map<string | number, boolean>>(new Map());
+  const itemNamesRef = useRef<Map<string | number, string>>(new Map());
   const readyNotifiedRef = useRef<Set<string>>(new Set());
+  const readyPrimedRef = useRef(false);
+  const currentRestaurantRef = useRef(restaurant?.id);
+  currentRestaurantRef.current = restaurant?.id;
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -118,103 +111,68 @@ const PublicMenu = () => {
       }
 
       try {
-        const { data: restData, error: restError } = await supabase
-          .rpc("get_public_restaurant_by_slug", { p_slug: slug })
-          .maybeSingle();
+        const catalog = await vaptApiRequest<PublicCatalogDto>({
+          method: "GET",
+          route: `/public/restaurants/${encodeURIComponent(slug)}/catalog`,
+          requireAuth: false,
+        });
 
-        if (restError || !restData || !restData.local_enabled) {
+        if (!catalog.restaurant.localEnabled) {
           setError("Restaurante não encontrado");
           setLoading(false);
           return;
         }
 
-        const restaurantRow = restData as RestaurantPublicRow;
+        const restaurantRow = catalog.restaurant;
         const config: RestaurantConfig = {
           id: restaurantRow.id,
           name: restaurantRow.name,
           slug: restaurantRow.slug,
-          logoUrl: restaurantRow.logo_url || "",
-          primaryColor: restaurantRow.primary_color || "#0ea573",
-          secondaryColor: restaurantRow.secondary_color || "#1e293b",
-          fontFamily: restaurantRow.font_family || "modern",
+          logoUrl: restaurantRow.logoUrl || "",
+          primaryColor: restaurantRow.primaryColor || "#0ea573",
+          secondaryColor: restaurantRow.secondaryColor || "#1e293b",
+          fontFamily: normalizeFontFamily(restaurantRow.fontFamily),
           activeModules: { menu: true, kds: true, metrics: true },
         };
 
         setRestaurant(config);
-        setRestaurantIdState(restaurantRow.id);
-        setPaymentMode(restaurantRow.payment_mode || "open_tab");
-        setMaxPendingOrders(restaurantRow.max_pending_orders || 3);
+        setPaymentMode(restaurantRow.paymentMode || "open_tab");
+        setMaxPendingOrders(restaurantRow.maxPendingOrders || 3);
 
-        const mode = restaurantRow.payment_mode || "open_tab";
+        const mode = restaurantRow.paymentMode || "open_tab";
         if (mode === "open_tab" && tableNumber) {
           const storedSessionId = localStorage.getItem(`table_session_${restaurantRow.id}_${tableNumber}`);
           if (storedSessionId) {
-            const { data: existingSession } = await supabase
-              .from("table_sessions")
-              .select("id, status")
-              .eq("id", storedSessionId)
-              .in("status", ["open", "check_requested"])
-              .single();
-            if (existingSession) {
-              setTableSessionId(existingSession.id);
-              setHasPlacedOrder(true);
-            } else {
-              localStorage.removeItem(`table_session_${restaurantRow.id}_${tableNumber}`);
-            }
+            setTableSessionId(storedSessionId);
+            setHasPlacedOrder(true);
+            const storedAccesses = readStoredOrderAccess(restaurantRow.id);
+            const linkedAccesses = await Promise.all(
+              storedAccesses.map(async (access) => {
+                const order = await orderClient.get(access.orderId, access.publicToken).catch(() => null);
+                return order?.tableSessionId === storedSessionId ? access : null;
+              }),
+            );
+            setTableSessionOrderAccess(
+              linkedAccesses.find((access): access is StoredOrderAccess => access !== null) ?? null,
+            );
+          } else {
+            setTableSessionId(null);
+            setTableSessionOrderAccess(null);
+            setHasPlacedOrder(false);
           }
-
-          if (!storedSessionId) {
-            const { data: dbSession } = await supabase
-              .from("table_sessions")
-              .select("id")
-              .eq("restaurant_id", restaurantRow.id)
-              .eq("table_number", tableNumber)
-              .in("status", ["open", "check_requested"])
-              .single();
-            if (dbSession) {
-              setTableSessionId(dbSession.id);
-              setHasPlacedOrder(true);
-              localStorage.setItem(`table_session_${restaurantRow.id}_${tableNumber}`, dbSession.id);
-            }
-          }
+        } else {
+          setTableSessionId(null);
+          setTableSessionOrderAccess(null);
+          setHasPlacedOrder(false);
         }
 
-        const { data: menuData } = await supabase.from("menu_items").select("*").eq("restaurant_id", restaurantRow.id);
-        const menuItems: PublicMenuItem[] = ((menuData || []) as MenuItemRow[]).map((m) => ({
-          id: m.id,
-          name: m.name,
-          description: m.description || "",
-          price: Number(m.price),
-          category: m.category || "Geral",
-          imageUrl: m.image_url || undefined,
-          available: m.available,
-          availableFrom: m.available_from || null,
-          availableUntil: m.available_until || null,
-          badge: m.badge || null,
-          isChefSuggestion: m.is_chef_suggestion || false,
-          prepTimeMinutes: m.prep_time_minutes || null,
-        }));
-
-        const itemIds = menuItems.map((item) => String(item.id));
-        if (itemIds.length > 0) {
-          const { data: varData } = await supabase.from("menu_item_variations").select("*").in("menu_item_id", itemIds);
-          if (varData) {
-            const varMap: Record<string, MenuItemVariation[]> = {};
-            for (const v of varData as MenuVariationRow[]) {
-              if (!varMap[v.menu_item_id]) varMap[v.menu_item_id] = [];
-              varMap[v.menu_item_id].push({
-                id: v.id,
-                name: v.name,
-                options: Array.isArray(v.options) ? v.options : [],
-                required: v.required,
-              });
-            }
-            for (const item of menuItems) item.variations = varMap[item.id] || [];
-          }
-        }
+        const menuItems = mapCatalogItems(catalog.items);
 
         const map = new Map<string | number, boolean>();
-        menuItems.forEach((item) => map.set(item.id, item.available));
+        menuItems.forEach((item) => {
+          map.set(item.id, item.available);
+          itemNamesRef.current.set(item.id, item.name);
+        });
         prevItemsRef.current = map;
         setItems(menuItems);
       } catch {
@@ -228,58 +186,35 @@ const PublicMenu = () => {
   }, [slug, tableNumber]);
 
   useEffect(() => {
-    if (!restaurantIdState) return;
+    if (!slug) return;
     const interval = setInterval(async () => {
-      const { data: menuData } = await supabase.from("menu_items").select("*").eq("restaurant_id", restaurantIdState);
-      if (!menuData) return;
+      const catalog = await vaptApiRequest<PublicCatalogDto>({
+        method: "GET",
+        route: `/public/restaurants/${encodeURIComponent(slug)}/catalog`,
+        requireAuth: false,
+      }).catch(() => null);
+      if (!catalog?.restaurant.localEnabled) return;
 
-      const newItems: PublicMenuItem[] = (menuData as MenuItemRow[]).map((m) => ({
-        id: m.id,
-        name: m.name,
-        description: m.description || "",
-        price: Number(m.price),
-        category: m.category || "Geral",
-        imageUrl: m.image_url || undefined,
-        available: m.available,
-        availableFrom: m.available_from || null,
-        availableUntil: m.available_until || null,
-        badge: m.badge || null,
-        isChefSuggestion: m.is_chef_suggestion || false,
-        prepTimeMinutes: m.prep_time_minutes || null,
-      }));
-
-      const itemIds = newItems.map((item) => String(item.id));
-      if (itemIds.length > 0) {
-        const { data: varData } = await supabase.from("menu_item_variations").select("*").in("menu_item_id", itemIds);
-        if (varData) {
-          const varMap: Record<string, MenuItemVariation[]> = {};
-          for (const v of varData as MenuVariationRow[]) {
-            if (!varMap[v.menu_item_id]) varMap[v.menu_item_id] = [];
-            varMap[v.menu_item_id].push({
-              id: v.id,
-              name: v.name,
-              options: Array.isArray(v.options) ? v.options : [],
-              required: v.required,
-            });
-          }
-          for (const item of newItems) item.variations = varMap[item.id] || [];
-        }
-      }
+      const newItems = mapCatalogItems(catalog.items);
 
       const prev = prevItemsRef.current;
+      const currentIds = new Set(newItems.map((item) => item.id));
+      for (const [itemId, wasAvailable] of prev) {
+        if (!wasAvailable || currentIds.has(itemId)) continue;
+        const name = itemNamesRef.current.get(itemId) || "Um item";
+        const inCart = cart.items.some((ci) => ci.item.id === itemId);
+        toast({
+          title: inCart ? "Item indisponível no pedido" : `"${name}" ficou indisponível`,
+          description: inCart
+            ? `"${name}" saiu do cardápio agora. Remova antes de confirmar.`
+            : "Este item não está disponível no momento.",
+          variant: inCart ? "destructive" : undefined,
+        });
+      }
       for (const item of newItems) {
         const wasAvailable = prev.get(item.id);
         if (wasAvailable === undefined) continue;
-        if (wasAvailable && !item.available) {
-          const inCart = cart.items.some((ci) => ci.item.id === item.id);
-          toast({
-            title: inCart ? "Item indisponível no pedido" : `"${item.name}" ficou indisponível`,
-            description: inCart
-              ? `"${item.name}" saiu do cardápio agora. Remova antes de confirmar.`
-              : "Este item não está disponível no momento.",
-            variant: inCart ? "destructive" : undefined,
-          });
-        } else if (!wasAvailable && item.available) {
+        if (!wasAvailable && item.available) {
           toast({
             title: `"${item.name}" voltou ao cardápio`,
             description: "Você já pode adicionar esse item ao pedido.",
@@ -287,14 +222,18 @@ const PublicMenu = () => {
         }
       }
 
-      const newMap = new Map<string | number, boolean>();
-      newItems.forEach((item) => newMap.set(item.id, item.available));
+      const newMap = new Map<string | number, boolean>(prev);
+      for (const itemId of newMap.keys()) newMap.set(itemId, false);
+      newItems.forEach((item) => {
+        newMap.set(item.id, item.available);
+        itemNamesRef.current.set(item.id, item.name);
+      });
       prevItemsRef.current = newMap;
       setItems(newItems);
     }, 8000);
 
     return () => clearInterval(interval);
-  }, [restaurantIdState, cart.items]);
+  }, [slug, cart.items]);
 
   const categories = useMemo(() => Array.from(new Set(items.filter((i) => i.available).map((i) => i.category))), [items]);
   const availableItems = useMemo(() => items.filter((i) => i.available), [items]);
@@ -316,29 +255,30 @@ const PublicMenu = () => {
   }, [restaurant]);
 
   useEffect(() => {
-    if (!restaurant) return;
-    let cancelled = false;
-    let primed = false;
     readyNotifiedRef.current.clear();
-
-    const getSessionOrderIds = (): string[] => {
-      try { return JSON.parse(sessionStorage.getItem("vapt_current_order_ids") || "[]"); } catch { return []; }
-    };
-
-    const checkReadyOrders = async () => {
-      const currentSessionIds = new Set(getSessionOrderIds());
-      const accesses = readStoredOrderAccess(restaurant.id)
-        .filter((access) => currentSessionIds.has(access.orderId));
+    readyPrimedRef.current = false;
+    setHasReadyOrder(false);
+  }, [restaurant?.id]);
+  const getCurrentOrderAccesses = useCallback(() => {
+    if (!restaurant) return [];
+    try {
+      const currentSessionIds = new Set<string>(JSON.parse(sessionStorage.getItem("vapt_current_order_ids") || "[]"));
+      return readStoredOrderAccess(restaurant.id).slice(0, 24).filter(access => currentSessionIds.has(access.orderId));
+    } catch { return []; }
+  }, [restaurant?.id]);
+  const checkReadyOrders = useCallback(async () => {
+      if (!restaurant) return;
+      const isCurrent = () => mountedRef.current && currentRestaurantRef.current === restaurant.id;
+      const accesses = getCurrentOrderAccesses();
       if (accesses.length === 0) {
-        if (!cancelled) setHasReadyOrder(false);
-        primed = true;
+        if (isCurrent()) { setHasReadyOrder(false); readyPrimedRef.current = true; }
         return;
       }
 
       const results = await Promise.allSettled(
         accesses.map((access) => orderClient.get(access.orderId, access.publicToken)),
       );
-      if (cancelled) return;
+      if (!isCurrent()) return;
 
       const readyOrders = results
         .filter((result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof orderClient.get>>> => result.status === "fulfilled")
@@ -347,23 +287,18 @@ const PublicMenu = () => {
 
       setHasReadyOrder(readyOrders.length > 0);
       readyOrders.forEach((order) => {
-        if (primed && !readyNotifiedRef.current.has(order.orderId)) {
+        if (readyPrimedRef.current && !readyNotifiedRef.current.has(order.orderId)) {
           setHasReadyOrder(true);
           toast({ title: "Pedido pronto", description: `Seu pedido #${order.displayId} está pronto para retirada.` });
         }
         readyNotifiedRef.current.add(order.orderId);
       });
-      primed = true;
-    };
-
-    void checkReadyOrders();
-    const interval = window.setInterval(() => void checkReadyOrders(), 5000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [restaurant]);
+      readyPrimedRef.current = true;
+  }, [restaurant?.id, getCurrentOrderAccesses]);
+  const currentOrderAccesses = getCurrentOrderAccesses();
+  useRealtimeRefresh({ scopes: currentOrderAccesses.map(access => ({ mode: "order", orderId: access.orderId, token: access.publicToken })), topics: ["orders"],
+    enabled: ENV.realtimeEnabled, active: !!restaurant && currentOrderAccesses.length > 0,
+    refresh: checkReadyOrders, fallbackMs: 5000 });
 
   const handleSessionCreated = useCallback((sessionId: string) => {
     if (!restaurant) return;
@@ -375,6 +310,7 @@ const PublicMenu = () => {
   const handleOrderPlaced = useCallback((access: StoredOrderAccess) => {
     if (!restaurant) return;
     saveStoredOrderAccess(restaurant.id, access);
+    setTableSessionOrderAccess(access);
 
     try {
       const sessionIds = JSON.parse(sessionStorage.getItem("vapt_current_order_ids") || "[]");
@@ -509,7 +445,13 @@ const PublicMenu = () => {
         tableSessionId={tableSessionId}
         paymentMode={paymentMode}
       />
-      {paymentMode === "open_tab" && hasPlacedOrder && tableSessionId && <FloatingActions sessionId={tableSessionId} primaryColor={restaurant.primaryColor} />}
+      {paymentMode === "open_tab" && hasPlacedOrder && tableSessionId && (
+        <FloatingActions
+          sessionId={tableSessionId}
+          orderAccess={tableSessionOrderAccess}
+          primaryColor={restaurant.primaryColor}
+        />
+      )}
     </div>
   );
 };

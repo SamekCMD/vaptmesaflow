@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Check, X } from "lucide-react";
@@ -6,18 +6,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePlan } from "@/hooks/use-plan";
+import { useSubscription } from "@/hooks/useSubscription";
 import { PLANS } from "@/lib/plans";
 import { toast } from "@/hooks/use-toast";
-import StripeCheckoutModal from "@/components/dashboard/StripeCheckoutModal";
+import { billingClient, redirectToBilling, type BillingPlanType } from "@/lib/billing-client";
 
 const PricingPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { planType, planStatus, restaurantId } = usePlan();
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const { planType, planStatus, restaurantId, canManageBilling, canStartCheckout, loading, billingError } = useSubscription();
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const requestInFlight = useRef(false);
+  const managed = canManageBilling && !canStartCheckout;
 
-  const handleSubscribe = async (planId: string) => {
+  const handleSubscribe = async (planId?: BillingPlanType) => {
     if (!user) {
       navigate(`/login?redirect=/pricing`);
       return;
@@ -29,11 +32,21 @@ const PricingPage = () => {
       return;
     }
 
-    setSelectedPlanId(planId);
+    if (requestInFlight.current || loading) return;
+    requestInFlight.current = true; setPending(true); setError(null);
+    try {
+      const result = managed || !planId
+        ? await billingClient.createPortal(restaurantId)
+        : await billingClient.createCheckout({ restaurantId, planType: planId });
+      redirectToBilling(result.url);
+    } catch {
+      setError("Não foi possível abrir a cobrança. Tente novamente.");
+    } finally {
+      requestInFlight.current = false; setPending(false);
+    }
   };
 
   const isCurrentPlan = (planId: string) => user && planStatus === "active" && planType === planId;
-  const selectedPlan = PLANS.find((plan) => plan.id === selectedPlanId) ?? null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -56,10 +69,17 @@ const PricingPage = () => {
             Escolha o plano ideal para seu restaurante
           </h1>
           <p className="mx-auto max-w-2xl text-base text-muted-foreground">
-            Comece com 3 dias de teste gr�tis. Sem compromisso, cancele quando quiser.
+            Comece com 3 dias de teste grátis. Sem compromisso, cancele quando quiser.
           </p>
         </motion.div>
 
+        {(error || (user && billingError)) && <p role="alert" className="mb-6 text-center text-sm text-destructive">{error || billingError}</p>}
+        {pending && <p role="status" className="mb-6 text-center text-sm">Abrindo cobrança segura…</p>}
+        {user && managed && (
+          <div className="mb-6 text-center">
+            <Button disabled={pending || loading} onClick={() => void handleSubscribe()}>Gerenciar cobrança</Button>
+          </div>
+        )}
         <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-3">
           {PLANS.map((plan, i) => (
             <motion.div key={plan.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
@@ -95,7 +115,7 @@ const PricingPage = () => {
                     <span className={`font-mono text-3xl font-semibold ${plan.highlighted ? "text-primary-foreground" : ""}`}>
                       R$ {plan.price}
                     </span>
-                    <span className={`text-sm ${plan.highlighted ? "text-primary-foreground/72" : "text-muted-foreground"}`}>/m�s</span>
+                    <span className={`text-sm ${plan.highlighted ? "text-primary-foreground/72" : "text-muted-foreground"}`}>/mês</span>
                   </div>
                 </CardHeader>
 
@@ -121,14 +141,14 @@ const PricingPage = () => {
                     ))}
                   </ul>
 
-                  <Button
+                  {!managed && <Button
                     className="w-full"
                     variant={plan.highlighted ? "default" : "outline"}
-                    disabled={!!isCurrentPlan(plan.id)}
+                    disabled={pending || (!!user && loading)}
                     onClick={() => handleSubscribe(plan.id)}
                   >
-                    {isCurrentPlan(plan.id) ? "Plano Atual" : "Assinar Agora"}
-                  </Button>
+                    Assinar Agora
+                  </Button>}
                 </CardContent>
               </Card>
             </motion.div>
@@ -136,19 +156,9 @@ const PricingPage = () => {
         </div>
 
         <p className="mt-12 text-center text-sm text-muted-foreground">
-          Todos os planos incluem 3 dias gr�tis de teste. Cancele a qualquer momento.
+          Todos os planos incluem 3 dias grátis de teste. Cancele a qualquer momento.
         </p>
 
-        <StripeCheckoutModal
-          open={!!selectedPlan}
-          onOpenChange={(open) => !open && setSelectedPlanId(null)}
-          plan={selectedPlan}
-          onAutoCharged={() => {
-            setSelectedPlanId(null);
-            toast({ title: "Plano atualizado com sucesso!" });
-            navigate("/dashboard");
-          }}
-        />
       </div>
     </div>
   );

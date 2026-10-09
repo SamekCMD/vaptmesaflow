@@ -1,7 +1,7 @@
-﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
@@ -14,16 +14,12 @@ vi.mock("@/contexts/AuthContext", () => ({
   }),
 }));
 
-vi.mock("@/lib/supabase", () => ({
-  supabase: {
-    from: vi.fn(),
-  },
+vi.mock("@/lib/restaurants", () => ({
+  createOnboarding: vi.fn(),
 }));
 
 vi.mock("@/hooks/useSubscription", () => ({
-  useSubscription: () => ({
-    refetch: vi.fn(),
-  }),
+  useSubscription: () => ({ refetch: vi.fn() }),
 }));
 
 vi.mock("recharts", () => ({
@@ -46,13 +42,15 @@ vi.stubGlobal("ResizeObserver", ResizeObserverMock);
 
 import OnboardingPage from "@/pages/onboarding/OnboardingPage";
 import { getGuideChecklistState, OverviewGuideChecklist } from "@/pages/dashboard/Overview";
-import { supabase } from "@/lib/supabase";
+import { createOnboarding } from "@/lib/restaurants";
 import {
   EMPTY_GUIDE_PROGRESS,
   POST_SETUP_PRIMARY_ACTION,
   POST_SETUP_SECONDARY_ACTION,
   markGuideModuleComplete,
 } from "@/lib/onboarding";
+
+const mockedCreateOnboarding = vi.mocked(createOnboarding);
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -61,154 +59,68 @@ afterEach(() => {
 describe("onboarding flow", () => {
   const clickNext = () => fireEvent.click(screen.getByRole("button", { name: /próximo/i }));
 
-  it("keeps the starter menu inputs on step 2 and the operation setup on step 3", () => {
-    render(
-      <MemoryRouter>
-        <OnboardingPage />
-      </MemoryRouter>
-    );
+  beforeEach(() => {
+    mockedCreateOnboarding.mockResolvedValue({
+      id: "10000000-0000-4000-8000-000000000001",
+      name: "Vapt Burger",
+      slug: "vapt-burger",
+    } as never);
+  });
 
+  const fillAtomicOnboarding = () => {
     fireEvent.change(screen.getByLabelText("Nome do Restaurante"), {
       target: { value: "Vapt Burger" },
     });
     clickNext();
+    fireEvent.change(screen.getByLabelText("Nome do Prato"), {
+      target: { value: "X-Burguer Especial" },
+    });
+    fireEvent.change(screen.getByLabelText("Preço (R$)"), {
+      target: { value: "29.90" },
+    });
+  };
+
+  it("collects only the fields persisted by the atomic onboarding endpoint", () => {
+    render(<MemoryRouter><OnboardingPage /></MemoryRouter>);
+
+    fireEvent.change(screen.getByLabelText("Nome do Restaurante"), {
+      target: { value: "Vapt Burger" },
+    });
+    expect(screen.getByDisplayValue("vapt-burger")).toBeInTheDocument();
+    expect(screen.queryByText(/whatsapp/i)).not.toBeInTheDocument();
     clickNext();
 
     expect(screen.getByRole("heading", { name: "Primeiro prato" })).toBeInTheDocument();
     expect(screen.getByLabelText("Nome do Prato")).toBeInTheDocument();
     expect(screen.getByLabelText("Preço (R$)")).toBeInTheDocument();
-    expect(screen.getByLabelText("Categoria")).toBeInTheDocument();
-    expect(screen.getByLabelText("Descrição")).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText("Nome do Prato"), {
-      target: { value: "X-Burguer Especial" },
-    });
-    fireEvent.change(screen.getByLabelText("Preço (R$)"), {
-      target: { value: "29.90" },
-    });
-    clickNext();
-
-    expect(screen.getByRole("heading", { name: "Primeira operação" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Número inicial de mesas")).toBeInTheDocument();
-    expect(screen.getByText(/você pode alterar isso depois nas configurações\./i)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Categoria")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Descrição")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Finalizar" })).toBeInTheDocument();
   });
 
-  it("creates the restaurant with trial defaults and the starter menu item on finish", async () => {
-    const restaurantInsert = vi.fn(() => ({
-      select: () => ({
-        single: async () => ({ data: { id: "rest-1" }, error: null }),
-      }),
-    }));
-    const menuInsert = vi.fn().mockResolvedValue({ error: null });
+  it("creates restaurant and first dish through the credentialed API contract", async () => {
+    render(<MemoryRouter><OnboardingPage /></MemoryRouter>);
 
-    vi.mocked(supabase.from).mockImplementation((table: string) => {
-      if (table === "restaurants") {
-        return { insert: restaurantInsert } as unknown as ReturnType<typeof supabase.from>;
-      }
-      if (table === "menu_items") {
-        return { insert: menuInsert } as unknown as ReturnType<typeof supabase.from>;
-      }
-      throw new Error(`Unexpected table: ${table}`);
-    });
-
-    render(
-      <MemoryRouter>
-        <OnboardingPage />
-      </MemoryRouter>
-    );
-
-    fireEvent.change(screen.getByLabelText("Nome do Restaurante"), {
-      target: { value: "Vapt Burger" },
-    });
-    clickNext();
-    clickNext();
-
-    fireEvent.change(screen.getByLabelText("Nome do Prato"), {
-      target: { value: "X-Burguer Especial" },
-    });
-    fireEvent.change(screen.getByLabelText("Preço (R$)"), {
-      target: { value: "29.90" },
-    });
-    clickNext();
-
-    fireEvent.change(screen.getByLabelText("Número inicial de mesas"), {
-      target: { value: "3" },
-    });
+    fillAtomicOnboarding();
     fireEvent.click(screen.getByRole("button", { name: "Finalizar" }));
 
-    await waitFor(() => {
-      expect(restaurantInsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          owner_id: "user-1",
-          name: "Vapt Burger",
-          slug: "vapt-burger",
-          plan_type: "starter",
-          plan_status: "trialing",
-          total_tables: 3,
-          max_tables: 3,
-          trial_ends_at: expect.any(String),
-        })
-      );
-      expect(menuInsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          restaurant_id: "rest-1",
-          name: "X-Burguer Especial",
-          price: 29.9,
-        })
-      );
-    });
+    await waitFor(() => expect(mockedCreateOnboarding).toHaveBeenCalledWith({
+      restaurantName: "Vapt Burger",
+      slug: "vapt-burger",
+      dishName: "X-Burguer Especial",
+      dishPrice: "29.90",
+    }));
   });
 
   it("shows the post-setup choice state with caixa and guide actions after finish", async () => {
-    const restaurantInsert = vi.fn(() => ({
-      select: () => ({
-        single: async () => ({ data: { id: "rest-1" }, error: null }),
-      }),
-    }));
-    const menuInsert = vi.fn().mockResolvedValue({ error: null });
+    render(<MemoryRouter><OnboardingPage /></MemoryRouter>);
 
-    vi.mocked(supabase.from).mockImplementation((table: string) => {
-      if (table === "restaurants") {
-        return { insert: restaurantInsert } as unknown as ReturnType<typeof supabase.from>;
-      }
-      if (table === "menu_items") {
-        return { insert: menuInsert } as unknown as ReturnType<typeof supabase.from>;
-      }
-      throw new Error(`Unexpected table: ${table}`);
-    });
-
-    render(
-      <MemoryRouter>
-        <OnboardingPage />
-      </MemoryRouter>
-    );
-
-    fireEvent.change(screen.getByLabelText("Nome do Restaurante"), {
-      target: { value: "Vapt Burger" },
-    });
-    clickNext();
-    clickNext();
-
-    fireEvent.change(screen.getByLabelText("Nome do Prato"), {
-      target: { value: "X-Burguer Especial" },
-    });
-    fireEvent.change(screen.getByLabelText("Preço (R$)"), {
-      target: { value: "29.90" },
-    });
-    clickNext();
-
-    fireEvent.change(screen.getByLabelText("Número inicial de mesas"), {
-      target: { value: "3" },
-    });
+    fillAtomicOnboarding();
     fireEvent.click(screen.getByRole("button", { name: "Finalizar" }));
 
     await waitFor(() => {
-      expect(
-        screen.getByRole("link", { name: POST_SETUP_PRIMARY_ACTION.label })
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: POST_SETUP_SECONDARY_ACTION.label })
-      ).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: POST_SETUP_PRIMARY_ACTION.label })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: POST_SETUP_SECONDARY_ACTION.label })).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Operação pronta" })).toBeInTheDocument();
     });
   });
@@ -233,9 +145,7 @@ describe("onboarding flow", () => {
 
   it("lists the five guide modules and hides itself when all are complete", async () => {
     const { rerender } = render(
-      <MemoryRouter>
-        <OverviewGuideChecklist guideProgress={EMPTY_GUIDE_PROGRESS} />
-      </MemoryRouter>
+      <MemoryRouter><OverviewGuideChecklist guideProgress={EMPTY_GUIDE_PROGRESS} /></MemoryRouter>,
     );
 
     expect(screen.getByText("Próximos passos")).toBeInTheDocument();
@@ -247,21 +157,16 @@ describe("onboarding flow", () => {
 
     rerender(
       <MemoryRouter>
-        <OverviewGuideChecklist
-          guideProgress={{
-            cashier: true,
-            menu: true,
-            kitchen: true,
-            settings: true,
-            overview: true,
-          }}
-        />
-      </MemoryRouter>
+        <OverviewGuideChecklist guideProgress={{
+          cashier: true,
+          menu: true,
+          kitchen: true,
+          settings: true,
+          overview: true,
+        }} />
+      </MemoryRouter>,
     );
 
-    await waitFor(() => {
-      expect(screen.queryByText("Próximos passos")).toBeNull();
-    });
+    await waitFor(() => expect(screen.queryByText("Próximos passos")).toBeNull());
   });
 });
-

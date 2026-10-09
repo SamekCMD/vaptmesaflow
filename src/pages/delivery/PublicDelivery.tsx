@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useRef } from "react";
+import { useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, ChevronUp, Minus, Plus, RotateCcw, Store, Truck } from "lucide-react";
@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
-import { fontFamilyMap, type RestaurantConfig } from "@/lib/restaurant-config";
+import type { PublicCatalogDto, PublicRestaurantDto } from "@/lib/business-api.types";
+import { fontFamilyMap } from "@/lib/restaurant-config";
 import { PublicMenuSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { createOrderIdempotencyKey, orderClient } from "@/lib/order-client";
 import { parseHostedCheckoutUrl } from "@/lib/hosted-checkout-url";
@@ -19,18 +19,9 @@ import {
   savePendingCheckout,
   type PendingCheckout,
 } from "@/lib/payment-client";
-import { VaptApiClientError } from "@/lib/vapt-api-client";
-
-type RestaurantDeliveryRow = {
-  id: string;
-  name: string;
-  slug: string;
-  logo_url: string | null;
-  primary_color: string | null;
-  secondary_color: string | null;
-  font_family: RestaurantConfig["fontFamily"] | null;
-  delivery_enabled: boolean;
-};
+import { VaptApiClientError, vaptApiRequest } from "@/lib/vapt-api-client";
+import { ENV } from "@/lib/env";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 type DeliveryMenuItem = {
   id: string;
@@ -38,7 +29,7 @@ type DeliveryMenuItem = {
   description: string | null;
   price: number;
   category: string;
-  image_url: string | null;
+  imageUrl: string | null;
   available: boolean;
 };
 
@@ -143,7 +134,7 @@ const normalizeDeliveryStatus = (status: string | null | undefined): DeliveryOrd
 const PublicDelivery = () => {
   const { slug } = useParams<{ slug: string }>();
   const [loading, setLoading] = useState(true);
-  const [restaurant, setRestaurant] = useState<RestaurantDeliveryRow | null>(null);
+  const [restaurant, setRestaurant] = useState<PublicRestaurantDto | null>(null);
   const [items, setItems] = useState<DeliveryMenuItem[]>([]);
   const [activeCategory, setActiveCategory] = useState("");
   const [cart, setCart] = useState<Record<string, CartItem>>({});
@@ -165,6 +156,10 @@ const PublicDelivery = () => {
     neighborhood: "",
   });
   const idempotencyKeyRef = useRef<string | null>(null);
+  const currentOrderRef = useRef({ restaurantId: restaurant?.id, orderId: lastOrderId, publicToken: lastOrderToken });
+  currentOrderRef.current = { restaurantId: restaurant?.id, orderId: lastOrderId, publicToken: lastOrderToken };
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   const pruneDeliveredOrders = (orders: SessionDeliveryOrderSnapshot[]) => {
     const now = Date.now();
@@ -182,35 +177,36 @@ const PublicDelivery = () => {
         return;
       }
 
-      const { data: restData, error: restError } = await supabase
-        .rpc("get_public_restaurant_by_slug", { p_slug: slug })
-        .maybeSingle();
+      try {
+        const catalog = await vaptApiRequest<PublicCatalogDto>({
+          method: "GET",
+          route: `/public/restaurants/${encodeURIComponent(slug)}/catalog`,
+          requireAuth: false,
+        });
 
-      if (restError || !restData || !restData.delivery_enabled) {
+        if (!catalog.restaurant.deliveryEnabled) {
+          setRestaurant(null);
+          return;
+        }
+
+        setRestaurant(catalog.restaurant);
+        const parsedItems = catalog.items.map((menuItem): DeliveryMenuItem => ({
+          id: menuItem.id,
+          name: menuItem.name,
+          description: menuItem.description,
+          price: Number(menuItem.price),
+          category: menuItem.category,
+          imageUrl: menuItem.imageUrl,
+          available: menuItem.available,
+        }));
+
+        setItems(parsedItems);
+        if (parsedItems.length > 0) setActiveCategory(parsedItems[0].category);
+      } catch {
         setRestaurant(null);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const parsedRestaurant = restData as RestaurantDeliveryRow;
-      setRestaurant(parsedRestaurant);
-
-      const { data: menuData } = await supabase
-        .from("menu_items")
-        .select("id, name, description, price, category, image_url, available")
-        .eq("restaurant_id", parsedRestaurant.id)
-        .eq("available", true)
-        .order("category", { ascending: true })
-        .order("name", { ascending: true });
-
-      const parsedItems = ((menuData || []) as DeliveryMenuItem[]).map((menuItem) => ({
-        ...menuItem,
-        price: Number(menuItem.price),
-      }));
-
-      setItems(parsedItems);
-      if (parsedItems.length > 0) setActiveCategory(parsedItems[0].category);
-      setLoading(false);
     };
 
     fetchDeliveryData();
@@ -255,13 +251,12 @@ const PublicDelivery = () => {
     }
   }, [restaurant?.id]);
 
-  useEffect(() => {
+  const refreshOrder = useCallback(async () => {
     if (!restaurant?.id || !lastOrderId || !lastOrderToken) return;
-
-    let active = true;
-    const poll = async () => {
       const data = await orderClient.get(lastOrderId, lastOrderToken).catch(() => null);
-      if (!active || !data?.orderId) return;
+      const current = currentOrderRef.current;
+      if (!mountedRef.current || current.restaurantId !== restaurant.id || current.orderId !== lastOrderId
+        || current.publicToken !== lastOrderToken || !data?.orderId) return;
 
       const normalized = normalizeDeliveryStatus(data.status);
       setLastOrderStatus(normalized);
@@ -297,23 +292,20 @@ const PublicDelivery = () => {
         }
         return cleaned;
       });
-    };
-
-    void poll();
-    const intervalId = window.setInterval(() => void poll(), 4000);
-    return () => {
-      active = false;
-      window.clearInterval(intervalId);
-    };
   }, [lastOrderId, lastOrderToken, pendingCheckout?.orderId, restaurant?.id]);
+  useRealtimeRefresh({ scopes: lastOrderId && lastOrderToken ? [{ mode: "order", orderId: lastOrderId, token: lastOrderToken }] : [],
+    topics: ["orders"], enabled: ENV.realtimeEnabled, active: !!restaurant && !!lastOrderId && !!lastOrderToken,
+    refresh: refreshOrder, fallbackMs: 4000 });
 
   const categories = useMemo(() => Array.from(new Set(items.map((item) => item.category))), [items]);
   const filteredItems = useMemo(() => items.filter((item) => item.category === activeCategory), [items, activeCategory]);
   const cartItems = useMemo(() => Object.values(cart), [cart]);
   const cartTotal = useMemo(() => cartItems.reduce((acc, current) => acc + current.item.price * current.quantity, 0), [cartItems]);
   const cartItemsCount = useMemo(() => cartItems.reduce((acc, current) => acc + current.quantity, 0), [cartItems]);
-  const primaryColor = restaurant?.primary_color || DEFAULT_PRIMARY;
-  const fontFamily = restaurant?.font_family || "modern";
+  const primaryColor = restaurant?.primaryColor || DEFAULT_PRIMARY;
+  const fontFamily = restaurant?.fontFamily === "classic" || restaurant?.fontFamily === "rounded"
+    ? restaurant.fontFamily
+    : "modern";
   const resumableCheckout =
     lastOrderStatus === "waiting_payment" &&
     pendingCheckout?.orderId === lastOrderId
@@ -517,7 +509,7 @@ const PublicDelivery = () => {
     );
   }
 
-  if (!restaurant.delivery_enabled) {
+  if (!restaurant.deliveryEnabled) {
     return (
       <div className="min-h-screen bg-background px-4 py-14" style={{ fontFamily: fontFamilyMap[fontFamily] }}>
         <div className="mx-auto max-w-xl rounded-3xl border border-border bg-card p-7 text-center sm:p-8">
@@ -535,8 +527,8 @@ const PublicDelivery = () => {
     <div className="min-h-screen overflow-x-hidden bg-background pb-24 lg:pb-10" style={{ fontFamily: fontFamilyMap[fontFamily] }}>
       <header className="border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-4 sm:px-6">
-          {restaurant.logo_url ? (
-            <img src={restaurant.logo_url} alt={restaurant.name} className="h-11 w-11 rounded-xl object-cover ring-1 ring-border" />
+          {restaurant.logoUrl ? (
+            <img src={restaurant.logoUrl} alt={restaurant.name} className="h-11 w-11 rounded-xl object-cover ring-1 ring-border" />
           ) : (
             <div className="flex h-11 w-11 items-center justify-center rounded-xl text-sm font-semibold ring-1 ring-border" style={{ backgroundColor: `${primaryColor}18`, color: primaryColor }}>
               {restaurant.name.slice(0, 2).toUpperCase()}

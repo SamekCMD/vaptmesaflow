@@ -21,6 +21,9 @@ const PublicMenu = lazy(() => import("./pages/menu/PublicMenu"));
 const PublicDelivery = lazy(() => import("./pages/delivery/PublicDelivery"));
 const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
 const SignupPage = lazy(() => import("./pages/auth/SignupPage"));
+const VerifyEmailPage = lazy(() => import("./pages/auth/VerifyEmailPage"));
+const ForgotPasswordPage = lazy(() => import("./pages/auth/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("./pages/auth/ResetPasswordPage"));
 const OnboardingPage = lazy(() => import("./pages/onboarding/OnboardingPage"));
 const PricingPage = lazy(() => import("./pages/PricingPage"));
 const SubscriptionPage = lazy(() => import("./pages/dashboard/SubscriptionPage"));
@@ -48,6 +51,9 @@ const App = () => {
                   <Route path="/" element={<Index />} />
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/signup" element={<SignupPage />} />
+                  <Route path="/verify-email" element={<VerifyEmailPage />} />
+                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                  <Route path="/reset-password" element={<ResetPasswordPage />} />
                   <Route path="/pricing" element={<PricingPage />} />
                   <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
                   <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
