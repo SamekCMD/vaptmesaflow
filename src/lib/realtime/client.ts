@@ -11,6 +11,8 @@ type Entry = {
 };
 // No token-derived/loggable keys. Equality is checked in memory only.
 const entries = new Set<Entry>();
+// Client sanity allows small unsynchronized device clocks, not longer server authority.
+const clockSkewMs = 5000;
 const active = () => navigator.onLine !== false && !document.hidden;
 const safely = (call: () => void) => { try { call(); } catch { /* isolate consumers */ } };
 function state(entry: Entry, value: RealtimeState) {
@@ -66,7 +68,7 @@ async function connect(entry: Entry) {
     if (!admission || Object.keys(admission).sort().join(",") !== "expiresAt,restaurantId,ticket"
       || !ingress || Number(ingress[1]) !== admission.expiresAt
       || !uuidPattern.test(admission.restaurantId) || !Number.isSafeInteger(admission.expiresAt)
-      || admission.expiresAt <= Date.now() || admission.expiresAt > Date.now() + 30_000
+      || admission.expiresAt <= Date.now() || admission.expiresAt > Date.now() + 30_000 + clockSkewMs
       || (scope.mode === "owner" && admission.restaurantId !== scope.restaurantId)) throw new Error("Invalid ticket");
     const socket = new WebSocket(socketUrl(admission.restaurantId), ["vapt.realtime.v1", `vapt.ticket.${admission.ticket}`]);
     entry.socket = socket; entry.connecting = false;
@@ -81,12 +83,12 @@ async function connect(entry: Entry) {
         const value: unknown = JSON.parse(event.data);
         if (!ready) {
           const control = parseRealtimeReady(value);
-          if (!control || control.leaseExpiresAt <= Date.now() + 5000 || control.leaseExpiresAt > Date.now() + 300_000) throw new Error("Invalid lease");
+          if (!control || control.leaseExpiresAt <= Date.now() + 5000 || control.leaseExpiresAt > Date.now() + 300_000 + clockSkewMs) throw new Error("Invalid lease");
           ready = true; entry.attempts = 0; clearTimeout(entry.timer);
           entry.timer = setTimeout(() => {
             if (!current()) return;
             stopTransport(entry); state(entry, "fallback"); void connect(entry);
-          }, control.leaseExpiresAt - Date.now() - 5000);
+          }, Math.min(300_000, control.leaseExpiresAt - Date.now()) - 5000);
           state(entry, "connected"); signal(entry, "connected"); return;
         }
         const envelope = parseRealtimeEnvelope(value);

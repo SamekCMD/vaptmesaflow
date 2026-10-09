@@ -1,5 +1,9 @@
 # Vapt — Plano Completo de Transição de Infraestrutura
 
+## Registro atual — diagnóstico do realtime production, 09/10/2026
+
+Operador production separado preparado/CI e duas autenticações reais passaram; primeiro ensaio falhou antes de pedidos/conexões e fez cleanupzero12tabelas/rollback. Ensaios mínimos próprios confirmaram forged/transplant403 e upgrade101/ready válido: o cliente rejeitava o ready por diferença de relógio local~0.5s. Corrigidos apenas cliente/operador com grace<=5s e renovação relativa limitada; TTL30s/HMAC/single-use/lease5min/auth/CPU1000/seisrates no servidor intactos.179frontend/550API/21operator+17guards/15frontendguards/TypeScript/build+verify dos dois modos passaram. API9f1c7e77/frontend28c56520 continuam realtimefalse/mesmos recursos; novos builds não publicados. Próximo exactCI e ensaio completo owner/order/isolamento/reconnect/revogação/cleanup antes de frontend/navegador; runbook no repoAPI `docs/infra-migration-phase-13-realtime-production-activation.md`. Sem main/DNS/novo recurso/secret/plano/Live/VPSshutdown, Etapa13/cutover abertos. Histórico abaixo preservado.
+
 ## Registro atual — deploy público protegido, 08/10/2026
 
 Configs públicos explícitos e comandos guardados qualificados por publicação/readback nos dois Workers/domínios existentes, sem modificar preview/preparação privada. Frontend916951fb: sete chaves públicas/NODE_ENV fixado/artefato separado; API94fffd63: guard privado reutilizado/CPU1000/mesmos recursos/secrets/auth/flags. Revisão corrigiu override de desenvolvimento RED→GREEN. Gates10+13/suítes175/539/workerd22/TypeScript/build/dry-runs e oito controles públicos/index exato passaram. Evidência em `docs/infra-migration-phase-13-public-deploy.md`. Sem novo DNS/recurso/credencial/assinatura/main/desligamentoVPS; provedores/imagens/realtime/observabilidade/capacidade/backup/cutover ainda pendentes. Histórico abaixo preservado.

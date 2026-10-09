@@ -88,6 +88,23 @@ test("unsigned ticket does not open a socket", async () => {
   const stop = (await client()).subscribeRealtime(guest, vi.fn(), vi.fn()); await flush();
   expect(Socket.all).toHaveLength(0); stop();
 });
+test("small server clock skew does not reject a signed ticket while excessive expiry still fails", async () => {
+  const c = await client();
+  for (const [aheadMs, admitted] of [[5000, true], [5001, false]] as const) {
+    const expiresAt = Date.now() + 30_000 + aheadMs;
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ticket:ticket(expiresAt),restaurantId:rest,expiresAt}),{status:200}));
+    const before=Socket.all.length, stop=c.subscribeRealtime(guest,vi.fn(),vi.fn());await flush();
+    expect(Socket.all.length-before).toBe(admitted?1:0);stop();
+  }
+});
+test("server clock skew in ready keeps renewal bounded and never extends the client lease timer", async () => {
+  const signal=vi.fn(),stop=(await client()).subscribeRealtime(guest,signal,vi.fn());await flush();
+  Socket.all[0].ready(Date.now()+305_000);
+  expect(signal).toHaveBeenCalledWith("connected");
+  await vi.advanceTimersByTimeAsync(294_999);expect(fetchSpy).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(1);expect(fetchSpy).toHaveBeenCalledTimes(2);
+  expect(Socket.all[0].readyState).toBe(3);expect(Socket.all).toHaveLength(2);stop();
+});
 
 test("stalled ticket admission times out and retries; discarded admission is aborted", async () => {
   let pendingSignal!: AbortSignal;
@@ -124,7 +141,7 @@ test("expired or excessive lease and invalid frames fall back; public scope reje
   const c = await client();
   for (const frame of [
     { version: 1, type: "ready", leaseExpiresAt: Date.now() + 5_000 },
-    { version: 1, type: "ready", leaseExpiresAt: Date.now() + 300_001 },
+    { version: 1, type: "ready", leaseExpiresAt: Date.now() + 305_001 },
     { version: 2, topic: "orders", eventId, entityId: orderId, reason: "updated", sequence: 1 },
     { version: 1, topic: "payments", eventId, entityId: orderId, reason: "updated", sequence: 1 },
     { version: 1, topic: "orders", eventId, entityId: rest, reason: "updated", sequence: 1 },
