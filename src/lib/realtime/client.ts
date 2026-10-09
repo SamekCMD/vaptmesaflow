@@ -62,8 +62,9 @@ async function connect(entry: Entry) {
       signal: admissionController.signal, timeoutMs: 10_000,
     });
     if (!current()) return;
+    const ingress = typeof admission?.ticket === "string" ? admission.ticket.match(/^rt1\.[A-Za-z0-9_-]{43}\.([1-9][0-9]{0,15})\.[A-Za-z0-9_-]{43}$/) : null;
     if (!admission || Object.keys(admission).sort().join(",") !== "expiresAt,restaurantId,ticket"
-      || typeof admission.ticket !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(admission.ticket)
+      || !ingress || Number(ingress[1]) !== admission.expiresAt
       || !uuidPattern.test(admission.restaurantId) || !Number.isSafeInteger(admission.expiresAt)
       || admission.expiresAt <= Date.now() || admission.expiresAt > Date.now() + 30_000
       || (scope.mode === "owner" && admission.restaurantId !== scope.restaurantId)) throw new Error("Invalid ticket");

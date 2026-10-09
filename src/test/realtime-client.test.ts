@@ -5,7 +5,7 @@ const orderId = "22222222-2222-4222-8222-222222222222";
 const eventId = "33333333-3333-4333-8333-333333333333";
 const owner = { mode: "owner", userId: "owner-1", restaurantId: rest } as const;
 const guest = { mode: "order", orderId, token: "private-order-token" } as const;
-const ticket = "a".repeat(43);
+const ticket = (expiresAt = Date.now() + 30_000) => `rt1.${"a".repeat(43)}.${expiresAt}.${"b".repeat(43)}`;
 const now = Date.parse("2026-10-05T12:00:00Z");
 let online = true; let hidden = false;
 let stops: Array<() => void> = [];
@@ -26,7 +26,7 @@ class Socket {
   close(code = 1000) { if (this.readyState === 3) return; this.readyState = 3; this.onclose?.({ code }); }
 }
 let fetchSpy: ReturnType<typeof vi.fn>;
-const response = () => new Response(JSON.stringify({ ticket, restaurantId: rest, expiresAt: Date.now() + 30_000 }), { status: 200 });
+const response = () => { const expiresAt = Date.now() + 30_000; return new Response(JSON.stringify({ ticket: ticket(expiresAt), restaurantId: rest, expiresAt }), { status: 200 }); };
 async function client() {
   const actual = await import("../lib/realtime/client");
   return { ...actual, subscribeRealtime: (...args: Parameters<typeof actual.subscribeRealtime>) => {
@@ -68,9 +68,25 @@ test("same scope shares one socket with refcounts; owner and guest never share a
 test("ticket is sent only in subprotocols and socket URL contains no credential", async () => {
   const stop = (await client()).subscribeRealtime(guest, vi.fn(), vi.fn()); await flush();
   expect(Socket.all[0].url).toBe(`wss://api.test.example.com/realtime/restaurants/${rest}/socket`);
-  expect(Socket.all[0].protocols).toEqual(["vapt.realtime.v1", `vapt.ticket.${ticket}`]);
-  expect(Socket.all[0].url).not.toContain(ticket); expect(Socket.all[0].url).not.toContain(guest.token);
+  expect(Socket.all[0].protocols).toEqual(["vapt.realtime.v1", `vapt.ticket.${ticket()}`]);
+  expect(Socket.all[0].url).not.toContain(ticket()); expect(Socket.all[0].url).not.toContain(guest.token);
   expect(Socket.all[0].url).not.toContain("?"); stop();
+});
+
+test("signed ingress ticket is forwarded only as opaque subprotocol authority", async () => {
+  const expiresAt = Date.now() + 30_000;
+  const signed = `rt1.${"a".repeat(43)}.${expiresAt}.${"b".repeat(43)}`;
+  fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ ticket: signed, restaurantId: rest, expiresAt }), { status: 200 }));
+  const stop = (await client()).subscribeRealtime(guest, vi.fn(), vi.fn()); await flush();
+  expect(Socket.all).toHaveLength(1);
+  expect(Socket.all[0].protocols).toEqual(["vapt.realtime.v1", `vapt.ticket.${signed}`]);
+  expect(Socket.all[0].url).not.toContain(signed); stop();
+});
+
+test("unsigned ticket does not open a socket", async () => {
+  fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ ticket: "a".repeat(43), restaurantId: rest, expiresAt: Date.now() + 30_000 }), { status: 200 }));
+  const stop = (await client()).subscribeRealtime(guest, vi.fn(), vi.fn()); await flush();
+  expect(Socket.all).toHaveLength(0); stop();
 });
 
 test("stalled ticket admission times out and retries; discarded admission is aborted", async () => {

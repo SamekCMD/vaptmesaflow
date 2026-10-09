@@ -17,7 +17,10 @@ class Socket {
   close() { this.readyState = 3; }
   send() {}
 }
-const response = () => new Response(JSON.stringify({ ticket: "a".repeat(43), restaurantId: rest, expiresAt: Date.now() + 30_000 }));
+const response = () => {
+  const expiresAt = Date.now() + 30_000;
+  return new Response(JSON.stringify({ ticket: `rt1.${"a".repeat(43)}.${expiresAt}.${"b".repeat(43)}`, restaurantId: rest, expiresAt }));
+};
 const session = (id: string) => ({ data: { user: { id, email: "synthetic@example.test", name: "Synthetic" },
   session: { id: `session-${id}`, userId: id, expiresAt: new Date(Date.now() + 60_000) } },
   isPending: false, isRefetching: false, refetch: auth.refetch });
