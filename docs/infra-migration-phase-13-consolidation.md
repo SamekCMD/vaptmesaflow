@@ -1,5 +1,9 @@
 # Etapa 13 — preparação e consolidação
 
+## Diagnóstico local seguinte — recuperação após timeout, 09/10/2026
+
+Dois testes novos exercitam KitchenMonitor, HTTP client, hook e fila reais, controlando apenas transportes externos/identidade local: GET e corpo pendentes sobrevivem à aba oculta, abortam no deadline15s, preservam quatro pedidos e recuperam um quinto ao retornar; resposta tardia não sobrescreve dados novos. Caracterização passou sem alteração de produto, não prova causa do incidente remoto. Suíte181/43arquivos e TypeScript passaram. CI APIff74f8f/root67db0f5 push+PR success. Conexão browser atual6 permitiu duas leituras da tela de login; sessão/fixture anteriores já removidas, localhost55734 expirado. Próximo ensaio exige fixture/login novos e testemunho browser que distinga socket de polling; não reutilizar senha/sessão antigas nem repetir providers. Runtime continua parcd160445/f114262b desligado até ativação guardada/readback deliberados.
+
 ## Registro atual — gate browser incompleto e rollback confirmado, 09/10/2026
 
 Login humano abriu o dashboard próprio; a cozinha mostrou três pedidos sintéticos enviados por API sem reload manual, e o fluxo público normal enviou o quarto pedido. Essas atualizações **não comprovam WebSocket exclusivo nem latência**: as esperas DOM concorrentes não produziram uma medição válida e troca de aba pode disparar resync HTTP. A conexão de automação ficou indisponível duas vezes, inclusive após uma recuperação documentada; a cozinha exibiu quatro pedidos junto do toast `Request deadline exceeded`. Gate browser não aprovado; caixa/status público/reconexão/fallback/logout desse ensaio continuam pendentes. O smoke Node completo anterior permanece evidência histórica válida, não substituto do navegador.

@@ -1,5 +1,9 @@
 # Vapt — Plano Completo de Transição de Infraestrutura
 
+## Diagnóstico seguinte — timeout e recuperação local, 09/10/2026
+
+Caracterização com tela/HTTP/hook/fila reais confirmou recuperação após deadline de GET/corpo pendente durante aba oculta, preservação dos pedidos e rejeição de resposta tardia; sem alteração de produto ou causa remota presumida. Dois testes novos/suíte181/TypeScript passaram; CI anteriores APIff74f8f/root67db0f5 push+PR success. Runtime ainda polling/parcd160445-f114262b. Browser voltou a responder na tela de login; próximo gate precisa sessão sintética nova e evidência browser de socket/evento sem ler credenciais/protocolos. Registro detalhado em `docs/infra-migration-phase-13-consolidation.md`; Etapa13/cutover/main continuam abertos.
+
 ## Registro atual — gate browser incompleto e rollback confirmado, 09/10/2026
 
 Login humano abriu o dashboard próprio; a cozinha mostrou três pedidos sintéticos enviados por API sem reload manual, e o fluxo público normal enviou o quarto pedido. Essas atualizações **não comprovam WebSocket exclusivo nem latência**: as esperas DOM concorrentes não produziram uma medição válida e troca de aba pode disparar resync HTTP. A conexão de automação ficou indisponível duas vezes, inclusive após uma recuperação documentada; a cozinha exibiu quatro pedidos junto do toast `Request deadline exceeded`. Gate browser não aprovado; caixa/status público/reconexão/fallback/logout desse ensaio continuam pendentes. O smoke Node completo anterior permanece evidência histórica válida, não substituto do navegador.
