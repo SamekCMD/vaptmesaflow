@@ -38,6 +38,12 @@ function fallback(entry: Entry, unauthorized = false) {
   const delay = Math.max(1000, Math.min(30_000, Math.round(base * (0.5 + Math.random() * 0.5))));
   entry.timer = setTimeout(() => { entry.timer = undefined; void connect(entry); }, delay);
 }
+// Realtime is versioned independently of the unversioned business API.
+// Local fixtures may already include /v1 in their configured API base.
+function realtimePath(): string {
+  const basePath = new URL(ENV.vaptApiBaseUrl).pathname.replace(/\/$/, "");
+  return basePath.endsWith("/v1") ? "realtime" : "v1/realtime";
+}
 function socketUrl(restaurantId: string): string {
   const url = new URL(ENV.vaptApiBaseUrl);
   if (url.username || url.password || url.search || url.hash) throw new Error("Invalid API URL");
@@ -45,7 +51,7 @@ function socketUrl(restaurantId: string): string {
   if (url.protocol === "https:") url.protocol = "wss:";
   else if (url.protocol === "http:" && local) url.protocol = "ws:";
   else throw new Error("Unsafe API URL");
-  url.pathname = `${url.pathname.replace(/\/$/, "")}/realtime/restaurants/${restaurantId}/socket`;
+  url.pathname = `${url.pathname.replace(/\/$/, "")}/${realtimePath()}/restaurants/${restaurantId}/socket`;
   return url.toString();
 }
 async function connect(entry: Entry) {
@@ -58,7 +64,7 @@ async function connect(entry: Entry) {
     socketUrl(entry.scope.mode === "owner" ? entry.scope.restaurantId : "pending");
     const scope = entry.scope;
     const admission = await vaptApiRequest<{ ticket: string; restaurantId: string; expiresAt: number }>({
-      method: "POST", route: "realtime/tickets", requireAuth: scope.mode === "owner",
+      method: "POST", route: `${realtimePath()}/tickets`, requireAuth: scope.mode === "owner",
       body: scope.mode === "owner" ? { mode: "owner", restaurantId: scope.restaurantId } : { mode: "order", orderId: scope.orderId },
       headers: scope.mode === "order" ? { "X-Vapt-Order-Token": scope.token } : {},
       signal: admissionController.signal, timeoutMs: 10_000,

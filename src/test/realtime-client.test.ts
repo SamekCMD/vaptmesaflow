@@ -65,9 +65,30 @@ test("same scope shares one socket with refcounts; owner and guest never share a
   stopGuest(); expect(vi.getTimerCount()).toBe(0);
 });
 
+test.each([
+  ["https://api.vapt.app.br", "https://api.vapt.app.br/v1/realtime/tickets", `wss://api.vapt.app.br/v1/realtime/restaurants/${rest}/socket`],
+  ["http://localhost:8789/browser/v1", "http://localhost:8789/browser/v1/realtime/tickets", `ws://localhost:8789/browser/v1/realtime/restaurants/${rest}/socket`],
+  ["http://localhost:8789/browser", "http://localhost:8789/browser/v1/realtime/tickets", `ws://localhost:8789/browser/v1/realtime/restaurants/${rest}/socket`],
+])("admission and socket use the server v1 routes exactly once for API base %s", async (base, admissionUrl, socketEndpoint) => {
+  vi.stubEnv("VITE_VAPT_API_BASE_URL", base);
+  // The production server registers /v1/realtime, not /realtime. Enforce
+  // that external boundary so a permissive fake cannot mask route drift.
+  fetchSpy.mockImplementation(async (url, options) => {
+    if (url !== admissionUrl || options.method !== "POST") return new Response("{}", { status: 404 });
+    return response();
+  });
+  const stop = (await client()).subscribeRealtime(owner, vi.fn(), vi.fn()); await flush();
+  expect(Socket.all).toHaveLength(1);
+  expect(Socket.all[0].url).toBe(socketEndpoint);
+  expect(fetchSpy).toHaveBeenCalledWith(admissionUrl, expect.objectContaining({
+    method: "POST", credentials: "include", body: JSON.stringify({ mode: "owner", restaurantId: rest }),
+  }));
+  stop();
+});
+
 test("ticket is sent only in subprotocols and socket URL contains no credential", async () => {
   const stop = (await client()).subscribeRealtime(guest, vi.fn(), vi.fn()); await flush();
-  expect(Socket.all[0].url).toBe(`wss://api.test.example.com/realtime/restaurants/${rest}/socket`);
+  expect(Socket.all[0].url).toBe(`wss://api.test.example.com/v1/realtime/restaurants/${rest}/socket`);
   expect(Socket.all[0].protocols).toEqual(["vapt.realtime.v1", `vapt.ticket.${ticket()}`]);
   expect(Socket.all[0].url).not.toContain(ticket()); expect(Socket.all[0].url).not.toContain(guest.token);
   expect(Socket.all[0].url).not.toContain("?"); stop();
