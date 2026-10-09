@@ -50,6 +50,12 @@ jobs:
       - name: Validate public production package without publishing
         run: npx --no-install wrangler deploy --dry-run --config wrangler.production.jsonc
 
+      - name: Build and verify isolated realtime production artifact without publishing
+        run: npm run build:production-realtime && npm run verify:production-realtime
+
+      - name: Validate realtime production package without publishing
+        run: npx --no-install wrangler deploy --dry-run --config wrangler.production-realtime.jsonc
+
   billing_email:
     runs-on: ubuntu-latest
     timeout-minutes: 10

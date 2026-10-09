@@ -15,6 +15,9 @@
     "preview": "vite preview",
     "deploy:preview": "npm run build:preview && wrangler versions upload",
     "deploy:production": "npm run build:production && wrangler deploy --config wrangler.production.jsonc --keep-vars",
+    "build:production-realtime": "node scripts/production-deploy.mjs --build-realtime",
+    "verify:production-realtime": "node scripts/production-deploy.mjs --verify-realtime-artifact",
+    "deploy:production-realtime": "npm run build:production-realtime && npm run verify:production-realtime && wrangler deploy --config wrangler.production-realtime.jsonc --keep-vars",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

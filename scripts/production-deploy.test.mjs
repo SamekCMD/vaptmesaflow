@@ -123,3 +123,77 @@ test('CLI refuses unexpected command before building or publishing and suppresse
   assert.doesNotMatch(result.stdout + result.stderr, /synthetic-secret/);
   assert.match(result.stdout, /"ok":false/);
 });
+
+test('explicit realtime build pins enabled semantics without accepting parent environment overrides', async () => {
+  const { productionBuildOptions } = await feature();
+  const options = productionBuildOptions({ VITE_REALTIME_ENABLED: 'false', VITE_PAYMENT_ENVIRONMENT: 'production',
+    VITE_UNUSED_SECRET: 'synthetic-secret' }, 'enabled');
+  assert.equal(options.define['import.meta.env.VITE_REALTIME_ENABLED'], '"true"');
+  assert.equal(options.define['import.meta.env.VITE_PAYMENT_ENVIRONMENT'], '"sandbox"');
+  assert.equal(options.define['import.meta.env.VITE_TURNSTILE_ENABLED'], '"true"');
+  assert.equal(options.build.outDir, 'dist-production-realtime');
+  assert.equal(options.envFile, false); assert.deepEqual(options.envPrefix, []);
+  assert.doesNotMatch(JSON.stringify(options), /synthetic-secret/);
+  for (const mode of ['true', true, null, {}, 'synthetic-secret']) {
+    assert.throws(() => productionBuildOptions({}, mode), error => !String(error).includes('synthetic-secret'));
+  }
+});
+
+test('activation config cannot be mixed with disabled or preview artifacts', async () => {
+  const { checkFrontendProductionConfig: check } = await feature();
+  const config = valid(); config.assets.directory = './dist-production-realtime';
+  assert.equal(check(config, 'enabled').ok, true);
+  assert.equal(check(config).ok, false);
+  assert.equal(check(valid(), 'enabled').ok, false);
+  for (const mutate of [c => { c.account_id = 'other'; }, c => { c.keep_vars = false; },
+    c => { c.routes[0].pattern = '*.vapt.app.br'; }, c => { c.workers_dev = true; },
+    c => { c.vars = { SECRET: 'synthetic-secret' }; }, c => { c.assets.directory = './dist'; }]) {
+    const candidate = structuredClone(config); mutate(candidate);
+    const result = check(candidate, 'enabled'); assert.equal(result.ok, false);
+    assert.doesNotMatch(JSON.stringify(result), /synthetic-secret/);
+  }
+  for (const mode of ['true', true, null, {}]) assert.equal(check(config, mode).ok, false);
+  const committed = JSON.parse(readFileSync(new URL('../wrangler.production-realtime.jsonc', import.meta.url), 'utf8'));
+  assert.equal(check(committed, 'enabled').ok, true);
+  const { $schema, ...settings } = committed; assert.deepEqual(settings, config);
+});
+
+test('real Vite realtime artifact exposes only pinned approved values and production semantics', async () => {
+  const { productionBuildOptions } = await feature();
+  const result = await build({ ...productionBuildOptions({ VITE_REALTIME_ENABLED: 'false', VITE_UNUSED_SECRET: 'synthetic-secret' }, 'enabled'),
+    configFile: false, logLevel: 'silent',
+    plugins: [{ name: 'test-enabled', resolveId: id => id === 'test-enabled' ? '\0test-enabled' : null,
+      load: id => id === '\0test-enabled' ? 'globalThis.envProof = import.meta.env;' : null }],
+    build: { write: false, minify: false, rollupOptions: { input: 'test-enabled' } } });
+  const code = result.output.find(item => item.type === 'chunk').code, context = {};
+  runInNewContext(code, context);
+  assert.equal(context.envProof.VITE_REALTIME_ENABLED, 'true');
+  assert.equal(context.envProof.VITE_VAPT_API_BASE_URL, 'https://api.vapt.app.br');
+  assert.equal(context.envProof.VITE_TURNSTILE_ENABLED, 'true');
+  assert.equal(context.envProof.VITE_PAYMENT_ENVIRONMENT, 'sandbox');
+  assert.equal(context.envProof.PROD, true); assert.equal(context.envProof.DEV, false);
+  assert.doesNotMatch(code, /synthetic-secret|VITE_UNUSED_SECRET/);
+});
+
+test('realtime CLI explicitly selects the matching artifact without publication', () => {
+  const result = spawnSync(process.execPath, [fileURLToPath(new URL('./production-deploy.mjs', import.meta.url)), '--check-realtime'], { encoding: 'utf8' });
+  assert.equal(result.status, 0); assert.match(result.stdout, /"ok":true/);
+  assert.match(result.stdout, /"noPublication":true/);
+});
+
+test('artifact verification rejects disabled, stale or malformed build proof for activation', async () => {
+  const { checkProductionArtifact: check } = await feature();
+  assert.equal(typeof check, 'function', 'mode-bound artifact verification not implemented');
+  const hash = 'a'.repeat(64);
+  const proof = { version: 1, realtime: true, artifactSha256: hash };
+  assert.equal(check(proof, hash, 'enabled').ok, true);
+  assert.equal(check(proof, hash).ok, false);
+  assert.equal(check({ ...proof, realtime: false }, hash, 'enabled').ok, false);
+  assert.equal(check(proof, 'b'.repeat(64), 'enabled').ok, false);
+  for (const candidate of [null, {}, { ...proof, version: 2 }, { ...proof, SECRET: 'synthetic-secret' },
+    { ...proof, realtime: 'true' }, { ...proof, artifactSha256: 'synthetic-secret' }]) {
+    const result = check(candidate, hash, 'enabled'); assert.equal(result.ok, false);
+    assert.doesNotMatch(JSON.stringify(result), /synthetic-secret/);
+  }
+  assert.equal(check(proof, hash, 'synthetic-secret').ok, false);
+});
