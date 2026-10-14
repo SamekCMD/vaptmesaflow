@@ -1,5 +1,9 @@
 # Etapa 13 — preparação e consolidação
 
+## Observabilidade — linha de base em 14/10/2026
+
+Readback somente leitura confirmou o par API 914f79f0/frontend e77339dd com realtime ligado, CPU de 1000 ms, seis rates, mesmos recursos/secrets por nome, ingress alternativo da API desligado, Stripe Test e R2 privado. GraphQL delimitado de 10/10–14/10 retornou 106 grupos/317 requisições/zero invocationErrors/outcomes success, maior CPU P99 de grupo de 95.992 ms; baixo tráfego, não HTTP 2xx/capacidade/custo total/P99 global ou máximo absoluto. Workers Logs persistidos não comprovados (`observability:null`); subscription read indisponível não significa Free ou cancelamento. Registro, limites e próximo gate em `docs/infra-migration-phase-13-observability.md`. Nenhum teste de carga, fixture/provider/deploy/alerta/automação/assinatura/main/DNS ou desligamento do servidor nesta rodada. Linha de base aprovada dentro desse escopo; logging seguro, alertas/cobertura, capacidade/estabilidade e demais gates da Etapa 13 continuam abertos. Realtime de 09/10 e CI dos heads documentais concluídos, não repetir.
+
 ## Integração realtime no navegador — 09/10/2026
 
 Humano confirmou explicitamente Status101 e nova mensagem em Messages após pedido sintético; automação observou Kitchen0→1 sem Atualizar/reload. Pelo fluxo público normal, segundo pedido da mesa2 entrou no Caixa1→2mesasocupadas sem atualização manual; Kitchen NaFila→Preparando→Pronto refletiu no acompanhamento público sem reload. Navegações Caixa/Cardápio/Kitchen ressincronizaram dados. Evidência humana e DOM são separadas; não certificam conteúdo doframe, latência exata ou exclusividade de transporte em cada atualização.
