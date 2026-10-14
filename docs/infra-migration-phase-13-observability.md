@@ -1,5 +1,11 @@
 # Etapa 13 — observabilidade e proteção de custo
 
+## Achado operacional — 14/10/2026
+
+Erros agregados da conta não eram erros da API: janela last24h UTC13Oct16:42:21.632→14Oct16:42:21.631 mostrou API18/0 e billing production1319/1319, preview1320/1320, todos os erros billing `scriptThrewException`. Uma execução natural por Cron classificou exceção de cota, sem saída bruta; sessões temporárias removidas e controles pré/pós idênticos. Neon confirmou limite de compute mensal do projeto existente Free; gates SQL atuais bloqueados, sem upgrade. Isso não certifica status HTTP ou saúde SQL nas18invocações da API. Registro e consumo: `docs/infra-migration-phase-13-billing-compute-incident.md`.
+
+Sonda de metadata separada ainda não provisionada: query de permissão retornou403/10000 antes de criar recurso. OAuth existente segue válido para leituras de controls/GraphQL; não ampliar acesso/criar credenciais ou ligar persistência por inferência. O acesso ao Brave foi recuperado, mas nenhum gate de metadata/persistência/alerta foi declarado concluído.
+
 ## Logging seguro — preparação local em 14/10/2026
 
 Após aprovação do desenho limitado, o logger do engine Better Auth Worker passou a descartar mensagens/argumentos brutos e emitir somente `auth_operation_failed`; Node/Coolify e auth/rates/SQL permanecem inalterados. Dois casos reais RED→GREEN; API 552/552, workerd 22/22 incluindo os consumidores de logging, retention 1/1, guardas 25/25, TypeScript e dry-run aprovados. Configuração opt-in de sampling 1%, query redaction e logs sem invocation logs/traces/Issues/destinos externos usa guarda separada que preserva todos os controles atuais. CI valida sem publicar; configurações padrão não foram alteradas.

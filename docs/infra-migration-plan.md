@@ -1,5 +1,9 @@
 # Vapt — Plano Completo de Transição de Infraestrutura
 
+## Ajuste aprovado de consumo ocioso — 14/10/2026
+
+Neon Free do projeto existente atingiu a cota de compute (GET114,81CU-h; allowance atual100CU-h por projeto). Os dois Cron billing1min consultavam o banco vazio e impediam suspensão após5min; mecanismo identificado, não atribuição de todo consumo histórico. Usuário aprovou30min em preview+production: schedules agora `*/30 * * * *`, readback preservou versões/settings/filas/consumers/secrets/ingresso, sem redeploy/SQL/email/upgrade. Configs e testes/dry-runs locais aprovados. Frequência e recuperação de leases/republicações ficam30min, não SLA sob backlog. Cota já consumida permanece bloqueio dos gates SQL; próximo ciclo indicado1Nov00UTC. Launch por consumo foi perguntado/recomendado apenas se custo extra for aceitável, sem ativação ou nova autorização financeira. Registro, limites, preços e estimativas: `docs/infra-migration-phase-13-billing-compute-incident.md`. Main/DNS/StripeLive/ZeroTrustproduction/aposentadoria do servidor inalterados; demais gates da Etapa13 permanecem.
+
 ## Integração realtime no navegador — 09/10/2026
 
 Humano confirmou explicitamente Status101 e nova mensagem em Messages após pedido sintético; automação observou Kitchen0→1 sem Atualizar/reload. Pelo fluxo público normal, segundo pedido da mesa2 entrou no Caixa1→2mesasocupadas sem atualização manual; Kitchen NaFila→Preparando→Pronto refletiu no acompanhamento público sem reload. Navegações Caixa/Cardápio/Kitchen ressincronizaram dados. Evidência humana e DOM são separadas; não certificam conteúdo doframe, latência exata ou exclusividade de transporte em cada atualização.

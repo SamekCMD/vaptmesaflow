@@ -6,7 +6,7 @@
   "workers_dev": false,
   "preview_urls": false,
   "vars": { "ENVIRONMENT": "preview" },
-  "triggers": { "crons": ["* * * * *"] },
+  "triggers": { "crons": ["*/30 * * * *"] },
   "queues": {
     "producers": [{ "binding": "BILLING_EMAIL_QUEUE", "queue": "vapt-emails-preview" }],
     "consumers": [{

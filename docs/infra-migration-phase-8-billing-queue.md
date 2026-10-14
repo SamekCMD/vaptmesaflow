@@ -1,5 +1,9 @@
 # Phase 8 — billing email Queue runbook
 
+## Current dispatch cadence — 2026-10-14
+
+User-approved development cadence is now `*/30 * * * *` in both environments. Schedule-only updates preserved deployed versions, bindings, secrets, ingress and Queue consumers/retries/DLQ. The one-minute deployments below are historical. This reduces idle Neon polling but does not restore the exhausted Free compute allowance. Dispatch/reaper opportunities are every30minutes, not an email-delivery SLA under backlog; batch20 and all delivery/idempotency/retry logic remain unchanged. Evidence and conditional consumption-pricing recommendation (no upgrade performed): `docs/infra-migration-phase-13-billing-compute-incident.md`.
+
 ## Scope and immutable choices
 
 The billing webhook only writes the Neon outbox intent. A scheduled Cloudflare Worker publishes outbox IDs to the existing environment Queue; its consumer sends the frozen request through a published Resend template. Runtime secrets, recipients and message variables never belong in this file or Git. Vercel and Easypanel are legacy; this phase does not change DNS or the Coolify API.
