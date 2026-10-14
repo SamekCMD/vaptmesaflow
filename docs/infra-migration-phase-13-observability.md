@@ -1,5 +1,11 @@
 # Etapa 13 — observabilidade e proteção de custo
 
+## Logging seguro — preparação local em 14/10/2026
+
+Após aprovação do desenho limitado, o logger do engine Better Auth Worker passou a descartar mensagens/argumentos brutos e emitir somente `auth_operation_failed`; Node/Coolify e auth/rates/SQL permanecem inalterados. Dois casos reais RED→GREEN; API 552/552, workerd 22/22 incluindo os consumidores de logging, retention 1/1, guardas 25/25, TypeScript e dry-run aprovados. Configuração opt-in de sampling 1%, query redaction e logs sem invocation logs/traces/Issues/destinos externos usa guarda separada que preserva todos os controles atuais. CI valida sem publicar; configurações padrão não foram alteradas.
+
+Não houve deploy ou habilitação de coleta. Provas locais de console/configuração não certificam metadados e exceções acrescentados pela plataforma; readback e sentinelas sintéticas continuam exigidos antes de persistência. Runbook detalhado no repositório API: `docs/infra-migration-phase-13-safe-logging.md`. Alertas e observabilidade operacional completa permanecem pendentes. Linha de base remota abaixo preservada como evidência histórica.
+
 ## Linha de base verificada em 14/10/2026
 
 Consultas somente leitura ao control plane e GraphQL da Cloudflare, com OAuth existente em memória. Nenhuma invocação de teste, fixture, email, pagamento, deploy, assinatura ou configuração remota foi criada nesta rodada.

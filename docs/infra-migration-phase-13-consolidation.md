@@ -1,5 +1,9 @@
 # Etapa 13 — preparação e consolidação
 
+## Logging seguro — preparado localmente em 14/10/2026
+
+Logger do Better Auth Worker sanitizado com dois casos reais RED→GREEN, sem mudar Node/Coolify/auth/rates/SQL. API 552/552, workerd 22/22 com os consumidores de logging, retention 1/1, guardas 25/25, TypeScript e bundle dry-run passaram. Configuração de persistência a 1% isolada e guardada, sem invocation logs/traces/Issues/destinos externos e com query redaction; não altera configs padrão. Nenhum deploy/coleta/alerta habilitado. Metadados e exceções da plataforma precisam de gate próprio antes de ativação, sem assumir que console sanitizado equivale a storage sanitizado. Detalhes no runbook API `docs/infra-migration-phase-13-safe-logging.md` e no produto `docs/infra-migration-phase-13-observability.md`. Etapa 13 continua aberta; main/DNS/recursos/custos/servidor inalterados.
+
 ## Observabilidade — linha de base em 14/10/2026
 
 Readback somente leitura confirmou o par API 914f79f0/frontend e77339dd com realtime ligado, CPU de 1000 ms, seis rates, mesmos recursos/secrets por nome, ingress alternativo da API desligado, Stripe Test e R2 privado. GraphQL delimitado de 10/10–14/10 retornou 106 grupos/317 requisições/zero invocationErrors/outcomes success, maior CPU P99 de grupo de 95.992 ms; baixo tráfego, não HTTP 2xx/capacidade/custo total/P99 global ou máximo absoluto. Workers Logs persistidos não comprovados (`observability:null`); subscription read indisponível não significa Free ou cancelamento. Registro, limites e próximo gate em `docs/infra-migration-phase-13-observability.md`. Nenhum teste de carga, fixture/provider/deploy/alerta/automação/assinatura/main/DNS ou desligamento do servidor nesta rodada. Linha de base aprovada dentro desse escopo; logging seguro, alertas/cobertura, capacidade/estabilidade e demais gates da Etapa 13 continuam abertos. Realtime de 09/10 e CI dos heads documentais concluídos, não repetir.
