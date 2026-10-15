@@ -65,7 +65,7 @@ Execução **direta/inline**, já escolhida pelo usuário. Não criar agentes po
 
 Novos arquivos menores por responsabilidade, sem remodelar módulos privados. Tests `.test.ts` ao lado dos módulos API; React/controller em `src/test/`. A tarefa que introduz uma dependência define seu tipo concreto e o exporta; não introduzir interfaces sem consumidor.
 
-### T1: Contrato público e protocolo de comandos
+### Task 1: Contrato público e protocolo de comandos
 
 **Files:** A create `src/modules/catalog-publication/{contracts,policy,contracts.test}.ts`; F create `src/lib/catalog/contracts.ts`, `src/test/catalog-contracts.test.ts`.
 
@@ -79,7 +79,7 @@ Definir também `CommandIdentity = {operationId: string; restaurantId: string; a
 - [ ] Reexecutar ambos e conferir limites compartilhados contra spec. Testar patch misto classificado público e private-only sem revisão pública.
 - [ ] Commit local A/F: `feat: define public catalog publication contracts`, somente novos contratos e testes.
 
-### T2: Transação idempotente e journal SQL
+### Task 2: Transação idempotente e journal SQL
 
 **Files:** F create os quatro SQLs009/verify do mapa; A create `src/modules/catalog-publication/{journal,transaction,transaction.test}.ts`; modify repositories de menu/restaurants/catalog; create `src/modules/catalog-publication/transaction.pg-integration.ts`.
 
@@ -91,7 +91,7 @@ Definir também `CommandIdentity = {operationId: string; restaurantId: string; a
 - [ ] Testar helpers legados sem duplaBEGIN; excluir item vira transacional neste fluxo. LimpezaSQL de operações expiradas limitada a100 linhas por aplicação real, sem Cron. Grants para as duas roles: somente tabelas/sequence necessários, sem DDL/admin. Integração usa somente `CATALOG_TEST_DATABASE_URL` loopback explícita e fixture descartável identificada; script recusa URL remota/ausente, não usa DATABASE_URL implicitamente. Com PG local disponível, rodar `npx tsx --test src/modules/catalog-publication/transaction.pg-integration.ts`; se ausente, registrar gatePG bloqueado e seguir testes puros, nunca marcar integração como verde nem conectar Neon esgotado.
 - [ ] Commit local A `feat: journal catalog mutations atomically`; F `feat: version catalog publication schema and grants`; incluir testes eSQL explícitos. Não aplicar migração remota.
 
-### T3: Projeção R2 com fencing e roteamento de slugs
+### Task 3: Projeção R2 com fencing e roteamento de slugs
 
 **Files:** A create `src/worker/catalog/{projection,projection.test}.ts`; modify `src/worker/environment.ts` para tipo de bindingR2 com métodos get/head/put/list/delete reais sem enfraquecer o gateway de imagens.
 
@@ -103,7 +103,7 @@ Definir também `CommandIdentity = {operationId: string; restaurantId: string; a
 - [ ] Reexecutar testes incluindo objetos com JSON inválido/truncado e isolamento preview/production. Limpeza só após ready, mantém atual+anterior; não usa lifecycle cego sobre snapshots referenciados. Falhas/ambiguidade de limpeza entram no estado de trabalho localT4 para reconciliação limitada, não loopSQL. Cache interno imutável é opcional: iniciar sem ele; não criar cache global para provar a meta0SQL.
 - [ ] Commit A `feat: project versioned public catalogs to R2` com adapter/tests/bindingtype.
 
-### T4: Executor durável antes do commit e recuperação limitada
+### Task 4: Executor durável antes do commit e recuperação limitada
 
 **Files:** A create `src/worker/catalog/{command-store,command-store.test,coordinator,coordinator.test}.ts`.
 
@@ -115,7 +115,7 @@ Definir também `CommandIdentity = {operationId: string; restaurantId: string; a
 - [ ] Completar testes de expiração: apagar corpo privado imediatamente ao concluir, máximo24h nos demais; após24h não aplicar comando sem corpo, estacionar e manter só metadata segura. Operação committed conserva snapshot público necessário à publicação, não credenciais. Retry autenticado de committed retoma publicação; não ressuscita intenção accepted expirada. Alarmes locais podem expirar metadata7dias semSQL; esgotar retries remove agendaSQL mas não agenda de privacidade. CleanupR2 limitado usa o mesmo estado, sem apagamento aindaambíguo/referenciado.
 - [ ] Commit A `feat: recover durable catalog commands without idle SQL`.
 
-### T5: Admissão autenticada e fechamento de todos os writers
+### Task 5: Admissão autenticada e fechamento de todos os writers
 
 **Files:** A create `src/worker/catalog/{writer,writer.test}.ts`; modify `src/worker/routes/restaurant.ts`, `src/worker/http.ts`, `src/worker/app.ts`, `src/worker/environment.ts`; F create `docs/infra-migration-public-catalog-writers.md`. A usar `AuthRuntime` e services existentes, sem cache novo de sessão.
 
@@ -129,7 +129,7 @@ Definir também `CommandIdentity = {operationId: string; restaurantId: string; a
 
 Bootstrap/republicação usa POST `/restaurants/me/catalog/rebuild`, com o mesmo gate autenticado/owner, rate e idempotência. Só admite o restaurante pertencente à sessão, nunca um ID arbitrário de outro dono. Teste `rebuildCannotTargetAnotherOwner`. Isso dá a T10 um transporte concreto sem novo serviço, segredo administrativo ou endpoint anônimo.
 
-### T6: Reader público R2 e socket hibernável isolado
+### Task 6: Reader público R2 e socket hibernável isolado
 
 **Files:** A create `src/worker/catalog/{admission,admission.test}.ts`, `src/worker/routes/catalog.ts`, `src/worker/catalog-routes.test.ts`; modify `src/worker/routes/public.ts`, `app.ts`, `http.ts`, `realtime-entry.ts`, `catalog/coordinator.ts`.
 
@@ -141,7 +141,7 @@ Bootstrap/republicação usa POST `/restaurants/me/catalog/rebuild`, com o mesmo
 - [ ] Implementar auto-response estático `vapt.catalog.v1:ping`→`vapt.catalog.v1:pong`, sem setInterval no DO. Testar constructor/ready/hibernação com SQL factory que lança e contador zerado. Aplicar limite512 aos frames de protocolo e fechar frames binários/estranhos. Rate HTTP/sockets limita abuso, mas não é teto financeiro de mensagens auto-respondidas: registrar limitação no rollout, sem prometer fatura impossível de exceder.
 - [ ] Commit A `feat: serve catalog snapshots and isolated public updates`.
 
-### T7: Controlador frontend por recurso, sem polling
+### Task 7: Controlador frontend por recurso, sem polling
 
 **Files:** F create `src/lib/catalog/{client,controller}.ts`, `src/hooks/use-public-catalog.ts`, `src/test/public-catalog-controller.test.ts`, `src/test/public-catalog-transport.test.ts`; modify `src/lib/env.ts` e testesenv para flag `VITE_PUBLIC_CATALOG_EVENTS_ENABLED` falsedefault.
 
@@ -153,7 +153,7 @@ Bootstrap/republicação usa POST `/restaurants/me/catalog/rebuild`, com o mesmo
 - [ ] Testar fechamento antes de ready, handshake pendurado com deadline10s, pong sem ready, timer atrasado/background,404/503 e retry manual. Preservar último catálogo com aviso, sem aplicar resposta de outro restaurante. Validar frames512/versão/slugs, fechar protocolo inválido. Limpar registro ao liberar último subscriber; React StrictMode não deixa requests/sockets órfãos.
 - [ ] Commit F `feat: subscribe to public catalog versions without polling`.
 
-### T8: Integrar cardápios e feedback de publicação ao dono
+### Task 8: Integrar cardápios e feedback de publicação ao dono
 
 **Files:** F modify `src/pages/menu/PublicMenu.tsx`, `src/pages/delivery/PublicDelivery.tsx`, `src/lib/menu-items.ts`, `src/lib/restaurants.ts`, páginas`dashboard/MenuManagement.tsx`, `AppearancePage.tsx`, `SettingsPage.tsx`, `onboarding/OnboardingPage.tsx`; create `src/lib/catalog-mutations.ts`, `src/components/menu/CatalogPublicationStatus.tsx`, `src/test/catalog-mutations.test.ts`, `src/test/catalog-publication-status.test.tsx`, `src/test/public-delivery-catalog.test.tsx`; extend `src/test/public-menu-catalog.test.tsx` e testes de managementexistentes.
 
@@ -165,7 +165,7 @@ Bootstrap/republicação usa POST `/restaurants/me/catalog/rebuild`, com o mesmo
 - [ ] Feedback com padrões visuais existentes: “Alteração aceita”, “Gravada; publicação pendente”, “Publicada”, “Publicação bloqueada”; status/retry manual autenticados, sem intervalo. Bloquear ação conflitante até resolver ambiguidade; não reenviar automaticamente após logout. Payload/cookies fora de localStorage/logs. Imagem antiga só é limpa após revisão ready que não a referencia; upload+PATCH de imagem são ações distintas, sem limpeza antecipada.
 - [ ] Reexecutar novos testes e existentes `npm test -- src/test/menu-management.test.tsx src/test/menu-items-api.test.ts src/test/menu-image-storage.test.ts src/test/public-order-realtime.test.tsx src/test/public-menu-rating.test.tsx`; commit F `feat: refresh public menus on published catalog changes`.
 
-### T9: Prova local R2/SQLite/hibernação e guard de implantação
+### Task 9: Prova local R2/SQLite/hibernação e guard de implantação
 
 **Files:** A create `src/worker/catalog.workerd.ts`, `catalog-test-fixture.ts`, `wrangler.worker-catalog-test.jsonc`, `scripts/verify-catalog-config.mjs`, `scripts/verify-catalog-config.test.mjs`, `docs/public-catalog-runtime-verification.md`; modify `package.json` com scriptslocais e criar `wrangler.worker-catalog-preview.jsonc`/`wrangler.worker-catalog-production.jsonc` candidatos. F create `docs/infra-migration-public-catalog-rollout.md`; modificar deployguards/envfrontendexistentes somente paraflagsnovas.
 
@@ -177,7 +177,7 @@ Bootstrap/republicação usa POST `/restaurants/me/catalog/rebuild`, com o mesmo
 - [ ] Rodar F `npm test`, `npm run typecheck`, `npm run build`, `npm run lint`; A `npm test`, `npm run test:worker`, `npm run build`, `npm run build:worker-production-realtime`; mais novos guards. Dry-run não é deploy. Executar integração PG de T2 se local disponível; ausência mantém gate SQL aberto. Registrar contagens/testes/heads e falhas preexistentes separadas de regressões; pass local não é CI verde. Reportar custos residuais sob abuso sem teto USD garantido.
 - [ ] Commit A `test: gate event-driven catalog rollout on local runtime proof`; F `docs: define public catalog activation and rollback gates`. Revisão de branch antes da implantação via skill apropriada, sem agentes por tarefa e sem push/main automático.
 
-### T10: Bootstrap controlado e gate remoto separado
+### Task 10: Bootstrap controlado e gate remoto separado
 
 **Files:** A create `scripts/bootstrap-public-catalog.ts`, `scripts/bootstrap-public-catalog.test.mjs`; F update inventory/rollout docs; nenhum deploy ou SQL remoto antes das condições abaixo.
 
@@ -199,4 +199,4 @@ Pontos que bloqueiam **ativação**, não trabalho local: integração PG se run
 
 Referências técnicas verificadas15/10: [R2/CAS e writes em voo](https://developers.cloudflare.com/r2/reference/consistency/), [DO auto-response](https://developers.cloudflare.com/durable-objects/api/state/), [Neon scale-to-zero](https://neon.com/docs/introduction/scale-to-zero). Demais fontes/custos estão na pesquisa; metas0GET/0SQL são critérios de teste, não resultados já obtidos.
 
-**Estado:** plano escrito e autorrevisado, aguardando revisão do usuário. Nenhuma tarefa executada. Execução direta preservada; após confirmação, iniciar T1/TDD, sem nova escolha de método nem implantação remota por inferência.
+**Estado:** plano aprovado pelo usuário em15/10/2026 (“continuar” após revisão); execução direta iniciada. Checkboxes só mudam mediante evidência. Implantação remota permanece em gate separado.
