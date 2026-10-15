@@ -1,6 +1,6 @@
 # Cardápio público por evento, sem polling de catálogo
 
-Data:15/10/2026. Estado: **desenho escrito para revisão do usuário; não aprovado para implementação/implantação**.
+Data:15/10/2026. Estado: **desenho aprovado pelo usuário; plano de implementação em revisão; implantação remota ainda não autorizada por este documento**.
 
 ## 1. Intenção e limites
 
@@ -126,4 +126,4 @@ Novo namespace, migração, grants, tráfego e artefatos remotos só após teste
 
 ## 8. Estado e próximo passo
 
-Desenho submetido à revisão do usuário. Nenhum código, schema, recurso, binding ou tráfego alterado. Após aprovação **deste arquivo**, produzir plano de implementação com tarefas/TDD, critérios por etapa e execução inline; implementação não começa por inferência a partir da pesquisa.
+Desenho aprovado pelo usuário em15/10/2026. Nenhum código, schema, recurso, binding ou tráfego alterado nesta fase documental. Próximo gate: revisão do [plano de implementação](D:/Projetos/vaptmesaflow/docs/infra-migration-public-catalog-event-driven-plan.md), com tarefas/TDD e execução direta/inline já escolhida. Aprovar o desenho não ativa recursos remotos nem autoriza Neon pago.
