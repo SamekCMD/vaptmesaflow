@@ -1,5 +1,11 @@
 # Etapa 13 — observabilidade e proteção de custo
 
+## Teste remoto de metadata — 15/10/2026
+
+**Policy candidata de persistência reprovada; coleta da API real segue desligada.** Sonda privada descartável/CPU25/sem secrets ou recursos de negócio confirmou logs persistidos/invocation_logsoff/queryredactiontrue/tracesIssuesoff/destinosvazios. Uma chamada conhecidaHTTP200 confirmou nove sentinelas fictícias e três códigos fixos emitidos; dashboard próprio retornou os três registros e o detalhe da requisição reteve o email fictício colocado no path. Isso basta para rejeitar a promessa de logs contendo somente códigos seguros; não houve leitura de tokens/PII reais nem certificação de ausência dos demais campos. Exceção intencional não foi testada, pois a primeira amostra válida já era insegura.
+
+Leitura somente pela UI já autenticada, filtro exato da sonda/datasetWorkers, sem ampliar OAuth que retornara403 nem usar cookies/fetch internos. Tentativa anterior falhou sem causa comprovada e limpou o recurso; não atribuir o sucesso seguinte a um fix. Ambas removeram sua própria sonda/404/transporte fechado; última90645exit0 e strictpre/post API914f/frontend e773 coleção ausente/mesmos controles. Logs sintéticos podem permanecer pela retenção; nenhum purge ou assinatura/termos novos. CI rootcb70a23/API72fcaf0 push+PR aprovado antes deste registro. Evidência, limites e proibição de executar o deploy opt-in por mera validação estática: runbook API `docs/infra-migration-phase-13-safe-logging.md`. Métricas existentes ficam disponíveis; persistência requer novo desenho aprovado, não habilitação automática. Nenhum DB/email/Paid/main/DNS/retirada do servidor.
+
 ## Achado operacional — 14/10/2026
 
 Erros agregados da conta não eram erros da API: janela last24h UTC13Oct16:42:21.632→14Oct16:42:21.631 mostrou API18/0 e billing production1319/1319, preview1320/1320, todos os erros billing `scriptThrewException`. Uma execução natural por Cron classificou exceção de cota, sem saída bruta; sessões temporárias removidas e controles pré/pós idênticos. Neon confirmou limite de compute mensal do projeto existente Free; gates SQL atuais bloqueados, sem upgrade. Isso não certifica status HTTP ou saúde SQL nas18invocações da API. Registro e consumo: `docs/infra-migration-phase-13-billing-compute-incident.md`.

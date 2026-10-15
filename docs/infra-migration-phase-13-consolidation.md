@@ -1,5 +1,9 @@
 # Etapa 13 — preparação e consolidação
 
+## Logging remoto — limitação confirmada em 15/10/2026
+
+Sonda privada sem recursos/secrets de negócio, CPU25 e sampling100% apenas no teste: policy remota confirmada, HTTP200/nove sentinelas fictícias/três códigos fixos; UI escopada retornou três eventos e metadata de requisição reteve email fictício no path. Contrato de persistir só códigos seguros reprovado, não coleta liberada. Primeira tentativa falhou sem causa comprovada; ambas tiveram transporte encerrado/remoção própria404; última90645exit0/produção914f-e773 e controles intactos/coleção ausente. Nenhum dado real/provider/DB/Paid/novo token/termo/main. Detalhes/limites: `docs/infra-migration-phase-13-observability.md` e runbook API de logging. Manter métricas agregadas existentes e persistência off; próximo desenho de sanitização precisa decisão explícita. O CI dos heads anteriores rootcb70a23/API72fcaf0 push+PR passou; não repetir browser/providers já concluídos. Etapa13 continua aberta, incluindo capacidade Neon esgotada.
+
 ## Cota Neon esgotada — diagnóstico em 14/10/2026
 
 Mitigação posterior aprovada: schedules dos dois billing Workers agora `*/30 * * * *`, readback preservou versões/settings/consumers/secrets/ingresso; nenhum deploy/SQL/email. Testes RED2→GREEN2, billing47pass/2DBskips, typecheck e dry-runs aprovados. Cota continua esgotada; Neon Launch apenas recomendado condicionalmente ao orçamento, **não ativado**. Frequência30min não é SLA para backlog e reaper/republicações também passam a essa cadência; detalhes/custos no registro abaixo. Cron1min mencionado no diagnóstico é o estado anterior.
