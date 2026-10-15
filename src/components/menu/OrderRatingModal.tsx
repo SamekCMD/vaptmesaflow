@@ -15,8 +15,8 @@ interface OrderRatingModalProps {
   open: boolean;
   onClose: () => void;
   orderId: string;
-  displayId: number;
-  restaurantId: string;
+  publicToken: string;
+  displayId: string | number;
   primaryColor: string;
 }
 
@@ -24,8 +24,8 @@ const OrderRatingModal = ({
   open,
   onClose,
   orderId,
+  publicToken,
   displayId,
-  restaurantId,
   primaryColor,
 }: OrderRatingModalProps) => {
   const [rating, setRating] = useState(0);
@@ -40,7 +40,7 @@ const OrderRatingModal = ({
     try {
       await submitOrderFeedback({
         orderId,
-        restaurantId,
+        publicToken,
         rating,
         reasons: [],
         comment: comment.trim() || null,

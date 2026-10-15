@@ -38,13 +38,6 @@ interface PlanData {
   refetch: () => void;
 }
 
-type RestaurantPlanRow = {
-  id: string;
-  plan_type: PlanType | null;
-  plan_status: PlanStatus | null;
-  trial_ends_at: string | null;
-};
-
 const normalizePlanType = (planType: string | null | undefined): PlanType => {
   if (typeof planType !== "string") return "starter";
   const normalized = planType.trim().toLowerCase();
@@ -77,17 +70,13 @@ export function usePlan(): PlanData {
       setLoading(false);
       return;
     }
-    const data = await fetchOwnedRestaurant<RestaurantPlanRow & { owner_id: string }>(
-      user.id,
-      "id, owner_id, plan_type, plan_status, trial_ends_at, updated_at",
-    );
+    const data = await fetchOwnedRestaurant();
 
     if (data) {
-      const row = data as RestaurantPlanRow;
-      setRestaurantId(row.id);
-      setPlanType(normalizePlanType(row.plan_type));
-      setPlanStatus(normalizePlanStatus(row.plan_status));
-      setTrialEndsAt(row.trial_ends_at ? new Date(row.trial_ends_at) : null);
+      setRestaurantId(data.id);
+      setPlanType(normalizePlanType(data.planType));
+      setPlanStatus(normalizePlanStatus(data.planStatus));
+      setTrialEndsAt(data.trialEndsAt ? new Date(data.trialEndsAt) : null);
     }
     setLoading(false);
   }, [user]);

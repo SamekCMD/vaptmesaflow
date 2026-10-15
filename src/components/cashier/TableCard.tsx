@@ -1,16 +1,8 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Users, Clock, Receipt } from "lucide-react";
+import type { TableSessionSummaryDto } from "@/lib/business-api.types";
 
-export interface TableSession {
-  id: string;
-  restaurant_id: string;
-  table_number: string;
-  status: "open" | "check_requested" | "closed";
-  opened_at: string;
-  closed_at: string | null;
-  session_total: number | null;
-  order_count: number | null;
-}
+export type TableSession = TableSessionSummaryDto;
 
 interface TableCardProps {
   tableNumber: string;
@@ -36,7 +28,7 @@ const TableCard = ({ tableNumber, session, onClick }: TableCardProps) => {
   const isCheckRequested = session?.status === "check_requested";
   const isOpen = session?.status === "open";
 
-  const elapsed = session ? formatElapsed(session.opened_at) : null;
+  const elapsed = session ? formatElapsed(session.openedAt) : null;
 
   return (
     <Card
@@ -66,9 +58,9 @@ const TableCard = ({ tableNumber, session, onClick }: TableCardProps) => {
             <p className={`text-xs font-medium ${isCheckRequested ? "text-[hsl(44_51%_54%)]" : "text-primary"}`}>
               {isCheckRequested ? "Pedindo a conta" : "Ocupada"}
             </p>
-            {session.order_count && session.order_count > 0 && (
+            {session.orderCount > 0 && (
               <p className="text-xs text-muted-foreground font-mono">
-                {session.order_count} pedido{session.order_count > 1 ? "s" : ""} · R$ {(session.session_total || 0).toFixed(2).replace(".", ",")}
+                {session.orderCount} pedido{session.orderCount > 1 ? "s" : ""} · R$ {session.sessionTotal.replace(".", ",")}
               </p>
             )}
           </div>

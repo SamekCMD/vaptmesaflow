@@ -1,5 +1,5 @@
-import { supabase } from "@/lib/supabase";
-import { n8nClient } from "@/lib/n8n-client";
+import type { OrderFeedbackDto } from "@/lib/business-api.types";
+import { vaptApiRequest } from "@/lib/vapt-api-client";
 
 const STORAGE_KEY = "rated_orders";
 
@@ -11,37 +11,14 @@ export const FEEDBACK_REASONS = [
   "Precisei de ajuda",
 ] as const;
 
-export type OrderFeedbackPayload = {
-  order_id: string;
-  restaurant_id: string;
-  rating: number;
-  reasons: string[];
-  comment: string | null;
-  created_at: string;
-};
+export type StoredOrderFeedbackRecord = OrderFeedbackDto;
 
-export type StoredOrderFeedbackRecord = OrderFeedbackPayload;
-
-type OrderFeedbackRow = {
-  order_id: string;
-  restaurant_id: string;
-  rating: number | string;
-  reasons: unknown;
-  comment: string | null;
-  created_at: string;
-};
-
-type OrderFeedbackInput = {
+type SubmitOrderFeedbackInput = {
   orderId: string;
-  restaurantId: string;
+  publicToken: string;
   rating: number;
   reasons?: string[];
   comment?: string | null;
-  createdAt?: string;
-};
-
-type SubmitOrderFeedbackInput = OrderFeedbackInput & {
-  feedbackWebhookUrl?: string;
 };
 
 export const getRatedOrderIds = (): string[] => {
@@ -68,64 +45,19 @@ export const shouldPromptForOrderFeedback = ({
   status: string;
 }) => status === "completed" && !getRatedOrderIds().includes(orderId);
 
-export const buildOrderFeedbackPayload = ({
+export const submitOrderFeedback = ({
   orderId,
-  restaurantId,
+  publicToken,
   rating,
   reasons = [],
   comment = null,
-  createdAt = new Date().toISOString(),
-}: OrderFeedbackInput): OrderFeedbackPayload => ({
-  order_id: orderId,
-  restaurant_id: restaurantId,
-  rating,
-  reasons,
-  comment,
-  created_at: createdAt,
-});
-
-export const fetchOrderFeedbackRecords = async ({
-  restaurantId,
-  periodStart,
-}: {
-  restaurantId: string;
-  periodStart: Date;
-}): Promise<StoredOrderFeedbackRecord[]> => {
-  const { data, error } = await supabase
-    .from("order_feedback")
-    .select("order_id, restaurant_id, rating, reasons, comment, created_at")
-    .eq("restaurant_id", restaurantId)
-    .gte("created_at", periodStart.toISOString());
-
-  if (error) {
-    throw error;
-  }
-
-  return ((data || []) as OrderFeedbackRow[]).map((record) => ({
-    order_id: record.order_id,
-    restaurant_id: record.restaurant_id,
-    rating: Number(record.rating),
-    reasons: Array.isArray(record.reasons) ? record.reasons : [],
-    comment: typeof record.comment === "string" ? record.comment : null,
-    created_at: record.created_at,
-  }));
-};
-
-export const submitOrderFeedback = async ({
-  feedbackWebhookUrl: _feedbackWebhookUrl,
-  ...input
-}: SubmitOrderFeedbackInput): Promise<OrderFeedbackPayload> => {
-  const payload = buildOrderFeedbackPayload(input);
-
-  const { error } = await supabase
-    .from("order_feedback")
-    .upsert(payload, { onConflict: "order_id" });
-
-  if (error) {
-    throw new Error("feedback_persist_failed");
-  }
-
-  await n8nClient.ingest.orderFeedback(payload);
-
-  return payload;
+}: SubmitOrderFeedbackInput): Promise<OrderFeedbackDto> => {
+  if (!publicToken) return Promise.reject(new Error("order_access_required"));
+  return vaptApiRequest<OrderFeedbackDto>({
+    method: "PUT",
+    route: `/public/orders/${encodeURIComponent(orderId)}/feedback`,
+    requireAuth: false,
+    headers: { "X-Vapt-Order-Token": publicToken },
+    body: { rating, reasons, comment },
+  });
 };

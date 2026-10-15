@@ -22,7 +22,7 @@ export type CreateOrderRequest = {
 
 export type CreateOrderResponse = {
   orderId: string;
-  displayId: number | null;
+  displayId: string | null;
   restaurantId: string;
   tableSessionId: string | null;
   totalPrice: string;

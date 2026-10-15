@@ -1,62 +1,59 @@
-import { supabase } from "@/lib/supabase";
+import type { RestaurantDto } from "@/lib/business-api.types";
+import { VaptApiClientError, vaptApiRequest } from "@/lib/vapt-api-client";
 
-type RestaurantLike = {
-  owner_id: string;
-  plan_status?: string | null;
-  trial_ends_at?: string | null;
-  updated_at?: string | null;
+export type OnboardingInput = {
+  restaurantName: string;
+  slug: string;
+  dishName: string;
+  dishPrice: string;
 };
 
-const normalizePlanStatus = (planStatus: string | null | undefined): string | null => {
-  if (typeof planStatus !== "string") return null;
-  const normalized = planStatus.trim().toLowerCase();
-  return normalized.length > 0 ? normalized : null;
-};
+export type OwnedRestaurantPatch = Partial<Pick<
+  RestaurantDto,
+  | "name"
+  | "slug"
+  | "cnpj"
+  | "whatsapp"
+  | "address"
+  | "phone"
+  | "hours"
+  | "description"
+  | "primaryColor"
+  | "secondaryColor"
+  | "fontFamily"
+  | "logoUrl"
+  | "totalTables"
+  | "maxTables"
+  | "paymentMode"
+  | "maxPendingOrders"
+  | "localEnabled"
+  | "deliveryEnabled"
+>>;
 
-const getRestaurantPriority = (restaurant: RestaurantLike): number => {
-  const planStatus = normalizePlanStatus(restaurant.plan_status);
-
-  if (planStatus === "active") return 3;
-
-  if (planStatus === "trialing") {
-    if (!restaurant.trial_ends_at) return 2;
-
-    const trialEndsAt = new Date(restaurant.trial_ends_at);
-    if (!Number.isNaN(trialEndsAt.getTime()) && trialEndsAt > new Date()) {
-      return 2;
-    }
-  }
-
-  return 1;
-};
-
-const compareRestaurants = (left: RestaurantLike, right: RestaurantLike): number => {
-  const priorityDelta = getRestaurantPriority(right) - getRestaurantPriority(left);
-  if (priorityDelta !== 0) return priorityDelta;
-
-  const leftUpdatedAt = left.updated_at ? new Date(left.updated_at).getTime() : 0;
-  const rightUpdatedAt = right.updated_at ? new Date(right.updated_at).getTime() : 0;
-
-  return rightUpdatedAt - leftUpdatedAt;
-};
-
-export async function fetchOwnedRestaurant<T extends RestaurantLike>(
-  ownerId: string,
-  select: string,
-): Promise<T | null> {
-  const { data, error } = await supabase
-    .from("restaurants")
-    .select(select)
-    .eq("owner_id", ownerId);
-
-  if (error) {
+export async function fetchOwnedRestaurant(): Promise<RestaurantDto | null> {
+  try {
+    return await vaptApiRequest<RestaurantDto>({
+      method: "GET",
+      route: "/restaurants/me",
+    });
+  } catch (error) {
+    if (error instanceof VaptApiClientError && error.status === 404) return null;
     throw error;
   }
+}
 
-  if (!data || data.length === 0) {
-    return null;
-  }
+export function createOnboarding(input: OnboardingInput): Promise<RestaurantDto> {
+  return vaptApiRequest<RestaurantDto>({
+    method: "POST",
+    route: "/onboarding",
+    body: input,
+  });
+}
 
-  const restaurants = (data as T[]).slice().sort(compareRestaurants);
-  return restaurants[0] ?? null;
+export function updateOwnedRestaurant(patch: OwnedRestaurantPatch): Promise<RestaurantDto> {
+  return vaptApiRequest<RestaurantDto>({
+    method: "PATCH",
+    route: "/restaurants/me",
+    body: patch,
+  });
 }

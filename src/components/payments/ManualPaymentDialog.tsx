@@ -16,8 +16,8 @@ import { paymentClient, type ManualPaymentMethod } from "@/lib/payment-client";
 
 export type ManualPaymentOrder = {
   id: string;
-  displayId: number | null;
-  totalPrice: number;
+  displayId: string | number | null;
+  totalPrice: string | number;
   paymentStatus: string | null;
   paymentConfirmedAt: string | null;
 };

@@ -9,11 +9,16 @@ lerna-debug.log*
 
 node_modules
 dist
+dist-production
+dist-production-realtime
 dist-ssr
 *.local
 .env
 .env.*
 !.env.example
+!.env.preview
+.dev.vars
+.dev.vars.*
 
 # Editor directories and files
 .vscode/*
@@ -38,6 +43,7 @@ lovable.*
 docs/current-backlog.md
 tools/
 vapt-api/
+.worktrees/
 
 # Scratch files
 *.new

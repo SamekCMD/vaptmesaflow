@@ -61,10 +61,7 @@ const DashboardLayout = () => {
 
   useEffect(() => {
     if (!user) return;
-    fetchOwnedRestaurant<{ id: string; slug: string; owner_id: string; updated_at: string }>(
-      user.id,
-      "id, slug, owner_id, updated_at",
-    ).then((data) => {
+    fetchOwnedRestaurant().then((data) => {
       if (data) {
         setRestaurantId(data.id);
         setRestaurantSlug(data.slug);
@@ -78,7 +75,7 @@ const DashboardLayout = () => {
     }
   }, [planLoading, isActive, location.pathname, navigate]);
 
-  const fullName = user?.user_metadata?.full_name || "Usuário";
+  const fullName = user?.name || "Usuário";
   const initials = fullName
     .split(" ")
     .map((n: string) => n[0])

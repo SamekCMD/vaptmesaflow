@@ -1,10 +1,7 @@
-import { STRIPE_PRICE_STARTER, STRIPE_PRICE_PRO, STRIPE_PRICE_BUSINESS } from '@/lib/constants';
-
 export interface PlanDefinition {
   id: "starter" | "pro" | "business";
   name: string;
   price: number;
-  priceId: string;
   features: string[];
   blockedFeatures: string[];
   highlighted: boolean;
@@ -15,7 +12,6 @@ export const PLANS: PlanDefinition[] = [
     id: "starter",
     name: "Starter",
     price: 97,
-    priceId: STRIPE_PRICE_STARTER,
     features: [
       "Cardápio digital ilimitado",
       "QR Codes para mesas",
@@ -30,7 +26,6 @@ export const PLANS: PlanDefinition[] = [
     id: "pro",
     name: "Pro",
     price: 197,
-    priceId: STRIPE_PRICE_PRO,
     features: [
       "Tudo do Starter",
       "Caixa e Comanda Aberta",
@@ -44,7 +39,6 @@ export const PLANS: PlanDefinition[] = [
     id: "business",
     name: "Business",
     price: 347,
-    priceId: STRIPE_PRICE_BUSINESS,
     features: [
       "Tudo do Pro",
       "Multi-usuários",

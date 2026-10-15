@@ -8,12 +8,12 @@ const buildRecord = (
   rating: number,
   createdAt: string
 ): StoredOrderFeedbackRecord => ({
-  order_id: orderId,
-  restaurant_id: restaurantId,
+  orderId,
+  restaurantId,
   rating,
   reasons: [],
   comment: null,
-  created_at: createdAt,
+  createdAt,
 });
 
 describe("overview satisfaction summary", () => {
