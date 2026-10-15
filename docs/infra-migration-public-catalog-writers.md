@@ -35,9 +35,20 @@ Inspeção mostrou um writer adicional de **conteúdo de objeto**, não apenas d
 
 Assim, só encaminhar CRUD ao coordenador não cobre esse writer. **Ativação permanece bloqueada** até que upload não sobrescreva uma imagem publicada, exclusão não remova um objeto ainda referenciado e a UI espere a publicação correta antes de limpar. A integração de imagens exige testes de armazenamento e frontend; não declarar T5 completa apenas porque os novos testes do gateway passaram. Não habilitar lifecycle destrutivo nem tornar bucket público para contornar o problema.
 
-Decisão explícita do usuário: **50 MiB (52.428.800 bytes) de imagens por restaurante**, somando objetos atuais, versões retidas e reservas de uploads pendentes; permanece o máximo de 5 MiB por arquivo. Reserva não expira financeiramente junto com a URL: um PUT com resposta perdida pode ainda estar em andamento. Só liberar bytes após descarte confirmado e protegido contra reuso da URL. A cota não é um teto da fatura de requisições Cloudflare.
+Decisão explícita revisada pelo usuário: **100 MiB (104.857.600 bytes) de imagens por restaurante**, substituindo os50MiB iniciais; soma objetos atuais, versões retidas e reservas pendentes. Seleção de JPG/PNG/WebP até5MiB; `src/lib/menu-image-optimization.ts` converte antes da assinatura/upload, preferindoWebP, maior lado até1200px, meta300KiB e teto1MiB enviado. Backend valida esse teto independentemente do navegador. FallbackJPEG apenas para fonteJPEG; PNG/WebP mantém fallbackPNG para não perder transparência. Não contratar Cloudflare Images nem instalar codec/dependência para esse fluxo. Reserva não expira financeiramente junto com a URL: um PUT com resposta perdida pode ainda estar em andamento. Só liberar bytes após descarte confirmado e protegido contra reuso da URL. A cota não é um teto da fatura de requisições Cloudflare.
 
-Proteções locais em preparação: reserva durável antes do armazenamento, no máximo dez uploads pendentes e inventário limitado a mil objetos por restaurante, com falha fechada se o inventário não puder ser lido integralmente. Esses limites técnicos controlam trabalho/estado; não alteram o plano contratado. O novo protocolo continua sem integração/ativação remota.
+Proteções locais em preparação: reserva durável antes do armazenamento, no máximo dez uploads pendentes e inventário limitado a mil objetos por restaurante, com falha fechada se o inventário não puder ser lido integralmente. Esses limites técnicos controlam trabalho/estado; não alteram o plano contratado. A compressão está integrada ao cliente local; o protocolo durável de cota/limpeza continua sem integração/ativação remota.
+
+Medição local do encoder real Chromium em15/10, somente imagens sintéticas; tempos não representam celulares lentos nem garantia de qualidade para qualquer foto:
+
+| Entrada | Original(bytes) | Fluxo anterior(bytes) | NovoWebP(bytes) | Tempo(ms) |
+| --- | ---: | ---: | ---: | ---: |
+| PNG detalhado2400×1600 | 3838014 | 160226 | 95140 | 149 |
+| JPEG detalhado2400×1600 | 783798 | 159590 | 95994 | 169 |
+| PNG transparente300×150 | 1592 | 1592 | 866 | 8 |
+| PNG ruído1200×800 | 3303892 | 3303892 | 307120 | 614 |
+
+Teste de transparência confirmou alfa0 no canto e pixelcentralRGBA[255,1,0,255]; arquivo corrompido foi rejeitado. O caso de ruído precisou reduzir para960×640; demais fotos ficaram1200×800 sem ampliar fontes pequenas. Não guardar originais, transformar a cada visualização, nem prometer que toda imagem terá poucosKB. Até9 encodes com qualidade0.82/0.72/0.62 em3 escalas (mais1 caso de fallback); se a meta não for atingida, aceitar apenas resultado≤1MiB ou mostrar erro, sem reduzir qualidade indefinidamente.
 
 ## Node/Coolify e outros consumidores
 

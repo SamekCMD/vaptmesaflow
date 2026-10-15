@@ -1,5 +1,6 @@
 import { VaptApiClientError, vaptApiRequest } from "@/lib/vapt-api-client";
 import { ENV } from "@/lib/env";
+import { optimizeMenuImage } from "@/lib/menu-image-optimization";
 
 type MenuImageContentType = "image/jpeg" | "image/png" | "image/webp";
 
@@ -54,20 +55,21 @@ export async function uploadMenuImage({
   image,
 }: UploadMenuImageInput): Promise<string> {
   requireR2Cutover();
-  const contentType = requireSupportedContentType(image.type);
+  const optimized = await optimizeMenuImage(image);
+  const contentType = requireSupportedContentType(optimized.type);
   const descriptor = await vaptApiRequest<UploadDescriptor>({
     method: "POST",
     route: `/restaurants/${restaurantId}/menu-items/${itemId}/image/upload`,
     body: {
       contentType,
-      contentLength: image.size,
+      contentLength: optimized.size,
     },
   });
 
   const response = await fetch(descriptor.uploadUrl, {
     method: descriptor.method,
     headers: descriptor.headers,
-    body: image,
+    body: optimized,
   });
   if (!response.ok) {
     throw new VaptApiClientError(

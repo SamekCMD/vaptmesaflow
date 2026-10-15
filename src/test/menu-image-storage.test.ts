@@ -5,6 +5,7 @@ const { envMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/env", () => ({ ENV: envMock }));
+vi.mock("@/lib/menu-image-optimization", () => ({ optimizeMenuImage: vi.fn(async (image: Blob) => image) }));
 
 vi.mock("@/lib/vapt-api-client", () => ({
   vaptApiRequest: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock("@/lib/vapt-api-client", () => ({
 
 import { vaptApiRequest, VaptApiClientError } from "@/lib/vapt-api-client";
 import { deleteMenuImage, uploadMenuImage } from "@/lib/menu-image-storage";
+import { optimizeMenuImage } from "@/lib/menu-image-optimization";
 
 const restaurantId = "10000000-0000-4000-8000-000000000001";
 const itemId = "20000000-0000-4000-8000-000000000002";
@@ -32,6 +34,23 @@ afterEach(() => {
 });
 
 describe("menu image R2 client", () => {
+  it("signs and uploads the converted WebP bytes, not the original PNG", async () => {
+    const optimized = new Blob(["optimized-webp"], { type: "image/webp" });
+    vi.mocked(optimizeMenuImage).mockResolvedValueOnce(optimized);
+    vi.mocked(vaptApiRequest).mockResolvedValue({ method: "PUT", uploadUrl: "https://signed.example.com/upload",
+      publicUrl: "https://assets.test/image", objectKey: "restaurant/item", headers: { "Content-Type": "image/webp" }, expiresInSeconds: 300 });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true }); vi.stubGlobal("fetch", fetchMock);
+    await uploadMenuImage({ restaurantId, itemId, image: new Blob(["original-png-image"], { type: "image/png" }) });
+    expect(vaptApiRequest).toHaveBeenCalledWith(expect.objectContaining({ body: { contentType: "image/webp", contentLength: 14 } }));
+    expect(fetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ body: optimized }));
+  });
+
+  it("never reserves an upload or sends bytes if optimization fails", async () => {
+    vi.mocked(optimizeMenuImage).mockRejectedValueOnce(new Error("Imagem inválida"));
+    const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
+    await expect(uploadMenuImage({ restaurantId, itemId, image: new Blob(["bad-image"], { type: "image/png" }) })).rejects.toThrow("Imagem inválida");
+    expect(vaptApiRequest).not.toHaveBeenCalled(); expect(fetchMock).not.toHaveBeenCalled();
+  });
   it("does not call the API before the coordinated R2 cutover flag is enabled", async () => {
     envMock.menuImageStorageMode = "disabled";
 

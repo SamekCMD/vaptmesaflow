@@ -47,35 +47,6 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Tente novamente.";
 }
 
-// --- Image resize utility ---
-function resizeImage(file: File, maxSize = 1200): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      let { width, height } = img;
-      if (width <= maxSize && height <= maxSize) {
-        resolve(file);
-        return;
-      }
-      const ratio = Math.min(maxSize / width, maxSize / height);
-      width = Math.round(width * ratio);
-      height = Math.round(height * ratio);
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, 0, width, height);
-      canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error("Canvas toBlob failed"))),
-        "image/jpeg",
-        0.85
-      );
-    };
-    img.onerror = reject;
-    img.src = URL.createObjectURL(file);
-  });
-}
-
 const MenuManagement = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -188,8 +159,7 @@ const MenuManagement = () => {
       }
 
       if (imageFile) {
-        const resized = await resizeImage(imageFile);
-        const publicUrl = await uploadMenuImage({ restaurantId, itemId: savedItem.id, image: resized });
+        const publicUrl = await uploadMenuImage({ restaurantId, itemId: savedItem.id, image: imageFile });
         savedItem = await updateMenuItem(savedItem.id, { imageUrl: publicUrl });
       }
 
@@ -368,7 +338,7 @@ const MenuManagement = () => {
                         className="w-full h-24 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-primary hover:text-primary transition-colors"
                       >
                         <Upload className="h-5 w-5" />
-                        <span className="text-xs">JPG, PNG ou WebP (máx 5MB)</span>
+                        <span className="text-xs">JPG, PNG ou WebP · até 5 MiB · compressão automática</span>
                       </button>
                     )}
                     <input
