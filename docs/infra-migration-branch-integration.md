@@ -8,6 +8,8 @@ O plano principal continua na **Etapa 13**, consolidação/validação do destin
 
 O desvio de redução de consultas tem dez tarefas. No início desta continuação, cinco estavam formalmente concluídas localmente (1, 3, 4, 6 e 7); 2, 5 e 8 tinham implementação parcial, e 9/10 ainda não estavam encerradas. Isso não representa percentual de migração concluída nem redução financeira já medida. O checkpoint atualizado fica no inventário de writers.
 
+Atualização desta continuação: **6/10 concluídas localmente**, incluindo a tarefa8 (`e7647be`, suíte final281/281). As quatro ainda abertas são2(prova PostgreSQL real),5(cobertura dos writers ativos),9(gates finais de runtime/deploy/CPU/privacidade) e10(bootstrap/ativação controlada). A tarefa9 avançou com293 testes frontend,660 API,29 workerd e25 guards aprovados, mas não está encerrada. A leitura remota confirmou o bucket preview público e exige ajuste aprovado do desenho; foi solicitada separação dos snapshots em buckets privados, sem criar recursos. Nenhum número significa produção já ativada.
+
 Restam como gates do desvio: integração das telas e imagens; prova PostgreSQL real do journal; validação de runtime, CPU, flags/rollback e privacidade; bootstrap controlado; comprovação de que os writers ativos usam o protocolo; revisão final e ativação controlada. Testes locais não substituem esses gates.
 
 Depois retomamos os gates ainda abertos da Etapa 13, incluindo a consolidação/reteste do billing e a verificação conjunta do produto. As etapas finais são:

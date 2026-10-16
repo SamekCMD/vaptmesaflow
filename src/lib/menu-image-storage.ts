@@ -1,5 +1,6 @@
 import { VaptApiClientError, vaptApiRequest } from "@/lib/vapt-api-client";
 import { ENV } from "@/lib/env";
+import { catalogWriterEnabled } from "@/lib/catalog/flags";
 import { optimizeMenuImage } from "@/lib/menu-image-optimization";
 
 type MenuImageContentType = "image/jpeg" | "image/png" | "image/webp";
@@ -72,23 +73,23 @@ export async function uploadMenuImage({
   requireR2Cutover();
   const optimized = await optimizeMenuImage(image);
   const contentType = requireSupportedContentType(optimized.type);
-  const key = operationId ?? (ENV.publicCatalogEventsEnabled ? crypto.randomUUID() : undefined);
+  const key = operationId ?? (catalogWriterEnabled() ? crypto.randomUUID() : undefined);
   if (key && !uuidPattern.test(key)) throw new VaptApiClientError("invalid_operation_id", "Operação de imagem inválida.", 400);
   const descriptor = await vaptApiRequest<UploadDescriptor>({
     method: "POST",
     route: `/restaurants/${restaurantId}/menu-items/${itemId}/image/upload`,
-    ...(ENV.publicCatalogEventsEnabled ? { headers: { "X-Vapt-Catalog-Protocol": "1", "Idempotency-Key": key! } } : {}),
+    ...(catalogWriterEnabled() ? { headers: { "X-Vapt-Catalog-Protocol": "1", "Idempotency-Key": key! } } : {}),
     body: {
       contentType,
       contentLength: optimized.size,
     },
   });
 
-  if (ENV.publicCatalogEventsEnabled && imageKey(descriptor.publicUrl, restaurantId, itemId) !== descriptor.objectKey) {
+  if (catalogWriterEnabled() && imageKey(descriptor.publicUrl, restaurantId, itemId) !== descriptor.objectKey) {
     throw new VaptApiClientError("invalid_image_key", "O envio não corresponde a esta imagem.", 502);
   }
   if (descriptor.state === "uploaded") return descriptor.publicUrl;
-  if (ENV.publicCatalogEventsEnabled && (descriptor.state !== "upload_required" || !descriptor.headers["If-Match"] || descriptor.headers["Content-Type"] !== contentType)) {
+  if (catalogWriterEnabled() && (descriptor.state !== "upload_required" || !descriptor.headers["If-Match"] || descriptor.headers["Content-Type"] !== contentType)) {
     throw new VaptApiClientError("invalid_image_descriptor", "Não foi possível reservar um envio seguro da imagem.", 502);
   }
 
@@ -96,7 +97,7 @@ export async function uploadMenuImage({
     method: descriptor.method,
     headers: descriptor.headers,
     body: optimized,
-    ...(ENV.publicCatalogEventsEnabled ? { credentials: "omit" as const } : {}),
+    ...(catalogWriterEnabled() ? { credentials: "omit" as const } : {}),
   });
   if (!response.ok) {
     throw new VaptApiClientError(
@@ -118,6 +119,6 @@ export async function deleteMenuImage({
   await vaptApiRequest<null>({
     method: "DELETE",
     route: `/restaurants/${restaurantId}/menu-items/${itemId}/image`,
-    ...(ENV.publicCatalogEventsEnabled ? { query: { objectKey: imageKey(imageUrl, restaurantId, itemId) } } : {}),
+    ...(catalogWriterEnabled() ? { query: { objectKey: imageKey(imageUrl, restaurantId, itemId) } } : {}),
   });
 }

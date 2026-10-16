@@ -16,7 +16,7 @@ import {
   saveGuideProgress,
 } from "@/lib/onboarding";
 import { createOnboarding, fetchOwnedRestaurant } from "@/lib/restaurants";
-import { ENV } from "@/lib/env";
+import { catalogWriterEnabled } from "@/lib/catalog/flags";
 import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
 import { CatalogPublicationFeedback } from "@/components/menu/CatalogPublicationStatus";
 
@@ -72,7 +72,7 @@ const OnboardingPage = () => {
         dishName: dishName.trim(),
         dishPrice: dishPrice.trim(),
       };
-      if (ENV.publicCatalogEventsEnabled) await createOnboarding(input, publication); else await createOnboarding(input);
+      if (catalogWriterEnabled()) await createOnboarding(input, publication); else await createOnboarding(input);
       finishSetup();
     } catch (error: unknown) {
       if (isCatalogPublicationDeferred(error)) return;

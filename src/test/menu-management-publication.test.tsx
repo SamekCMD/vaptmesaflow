@@ -4,9 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import MenuManagement from "@/pages/dashboard/MenuManagement";
 import { vaptApiRequest } from "@/lib/vapt-api-client";
 import type { MenuItemDto } from "@/lib/business-api.types";
-const environment = vi.hoisted(() => ({ user: { id: "11111111-1111-4111-8111-111111111111" } }));
+const environment = vi.hoisted(() => ({ user: { id: "11111111-1111-4111-8111-111111111111" }, reader: true }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: environment.user }) }));
-vi.mock("@/lib/env", async original => ({ ENV: { ...(await original<typeof import("@/lib/env")>()).ENV, publicCatalogEventsEnabled: true, menuImageStorageMode: "r2" } }));
+vi.mock("@/lib/env", async original => ({ ENV: { ...(await original<typeof import("@/lib/env")>()).ENV, get publicCatalogEventsEnabled() { return environment.reader; }, publicCatalogWriterEnabled: true, menuImageStorageMode: "r2" } }));
 vi.mock("@/lib/vapt-api-client", async original => ({ ...(await original<typeof import("@/lib/vapt-api-client")>()), vaptApiRequest: vi.fn() }));
 vi.mock("@/lib/menu-image-optimization", () => ({ optimizeMenuImage: async (image: Blob) => image }));
 vi.mock("@/hooks/use-toast", () => ({ toast: vi.fn() }));
@@ -33,7 +33,8 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const page = () => render(<MemoryRouter><MenuManagement /></MemoryRouter>);
-describe("owner menu receipt and image ordering integration", () => {
+describe.each([true, false])("owner menu receipt and image ordering integration, reader=%s", reader => {
+  beforeEach(() => { environment.reader = reader; });
   it("shows committed-not-ready, blocks another save and reloads after manual ready", async () => {
     page(); await screen.findByText("Prato do dia"); fireEvent.click(screen.getByRole("button", { name: "Editar Prato do dia" }));
     fireEvent.click(screen.getByRole("button", { name: "Salvar" }));

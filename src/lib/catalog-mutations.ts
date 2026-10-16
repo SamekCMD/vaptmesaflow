@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ENV } from "@/lib/env";
+import { catalogWriterEnabled } from "@/lib/catalog/flags";
 import { VaptApiClientError, vaptApiRequest } from "@/lib/vapt-api-client";
 import { compareVersion, type CommandOutcome, type CommandReceipt } from "./catalog/contracts";
 export type CatalogMutationInput = { operationId: string; route: string; method: "POST" | "PATCH" | "DELETE"; body?: unknown; signal?: AbortSignal };
@@ -14,7 +14,7 @@ const receiptSchema = z.object({ operationId: z.string().uuid(), restaurantId: z
   return value.committed ? value.version !== null : value.version === null;
 });
 function enabled(): void {
-  if (!ENV.publicCatalogEventsEnabled) throw new VaptApiClientError("catalog_protocol_disabled", "Publicação por evento não está ativa.", 503);
+  if (!catalogWriterEnabled()) throw new VaptApiClientError("catalog_protocol_disabled", "Publicação por evento não está ativa.", 503);
 }
 function id(value: string): string {
   const result = z.string().uuid().safeParse(value);

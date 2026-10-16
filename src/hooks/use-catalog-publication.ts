@@ -2,7 +2,7 @@ import type { CatalogMutationInput } from "@/lib/catalog-mutations";
 import { getCatalogOperation, retryCatalogOperation, runCatalogMutation } from "@/lib/catalog-mutations";
 import type { CommandReceipt } from "@/lib/catalog/contracts";
 import { useEffect, useRef, useState } from "react";
-import { ENV } from "@/lib/env";
+import { catalogWriterEnabled } from "@/lib/catalog/flags";
 import { VaptApiClientError } from "@/lib/vapt-api-client";
 
 class PublicationDeferred extends Error { constructor() { super("Verifique a publicação antes de continuar."); } }
@@ -24,7 +24,7 @@ export function useCatalogPublication(ownerId?: string, onPublished?: (isCurrent
   const blocked = (value: State) => value.busy || (!!value.operationId && value.receipt?.phase !== "ready"
     && !(value.receipt?.phase === "blocked" && !value.receipt.committed && !value.receipt.retryable));
   async function run<T>(input: Omit<CatalogMutationInput, "operationId">, reload?: () => Promise<T>): Promise<T> {
-    if (!active() || !ENV.publicCatalogEventsEnabled || blocked(latest.current)) throw new PublicationDeferred();
+    if (!active() || !catalogWriterEnabled() || blocked(latest.current)) throw new PublicationDeferred();
     const epoch = generation.current; const current = () => active() && generation.current === epoch;
     const controller = new AbortController(); pending.current = controller;
     const operationId = crypto.randomUUID(); update({ ...empty(ownerId), operationId, busy: true });
@@ -55,7 +55,7 @@ export function useCatalogPublication(ownerId?: string, onPublished?: (isCurrent
   }
   async function control(action: "check" | "retry"): Promise<void> {
     const value = latest.current;
-    if (!active() || !ENV.publicCatalogEventsEnabled || value.busy || !value.operationId || (action === "retry" && !value.receipt?.retryable)) return;
+    if (!active() || !catalogWriterEnabled() || value.busy || !value.operationId || (action === "retry" && !value.receipt?.retryable)) return;
     const epoch = generation.current; const current = () => active() && generation.current === epoch;
     const controller = new AbortController(); pending.current = controller; update({ ...value, busy: true, error: null });
     try {
@@ -73,6 +73,6 @@ export function useCatalogPublication(ownerId?: string, onPublished?: (isCurrent
   }
   const view = state.ownerId === ownerId ? state : empty(ownerId);
   return { receipt: view.receipt, busy: view.busy, uncertain: view.uncertain, error: view.error,
-    blocked: ENV.publicCatalogEventsEnabled && blocked(view), operationId: view.operationId,
+    blocked: catalogWriterEnabled() && blocked(view), operationId: view.operationId,
     run, check: () => control("check"), retry: () => control("retry") };
 }

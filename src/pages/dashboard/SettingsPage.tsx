@@ -15,6 +15,7 @@ import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import CurrentPaymentMethodsCard from "@/components/payments/CurrentPaymentMethodsCard";
 import MercadoPagoSettingsCard from "@/components/payments/MercadoPagoSettingsCard";
 import { ENV } from "@/lib/env";
+import { catalogWriterEnabled } from "@/lib/catalog/flags";
 import { fetchOwnedRestaurant, updateOwnedRestaurant } from "@/lib/restaurants";
 import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
 import { CatalogPublicationFeedback } from "@/components/menu/CatalogPublicationStatus";
@@ -142,7 +143,7 @@ const SettingsPage = () => {
         maxTables: form.max_tables,
         deliveryEnabled: channelsForm.delivery_enabled,
       };
-      if (ENV.publicCatalogEventsEnabled) await updateOwnedRestaurant(patch, publication); else await updateOwnedRestaurant(patch);
+      if (catalogWriterEnabled()) await updateOwnedRestaurant(patch, publication); else await updateOwnedRestaurant(patch);
       toast({ title: "Configurações salvas", description: "As alterações foram aplicadas com sucesso." });
     } catch (error: unknown) {
       if (isCatalogPublicationDeferred(error)) return;
@@ -161,7 +162,7 @@ const SettingsPage = () => {
         paymentMode: paymentForm.payment_mode,
         maxPendingOrders: paymentForm.max_pending_orders,
       };
-      if (ENV.publicCatalogEventsEnabled) await updateOwnedRestaurant(patch, publication); else await updateOwnedRestaurant(patch);
+      if (catalogWriterEnabled()) await updateOwnedRestaurant(patch, publication); else await updateOwnedRestaurant(patch);
 
       toast({ title: "Fluxo de pagamento salvo", description: "O novo modo já vale para os próximos pedidos." });
     } catch (error: unknown) {

@@ -22,7 +22,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { fetchOwnedRestaurant } from "@/lib/restaurants";
 import { deleteMenuImage, uploadMenuImage } from "@/lib/menu-image-storage";
-import { ENV } from "@/lib/env";
+import { catalogWriterEnabled } from "@/lib/catalog/flags";
 import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
 import { CatalogPublicationFeedback } from "@/components/menu/CatalogPublicationStatus";
 import type { MenuItemDto } from "@/lib/business-api.types";
@@ -152,10 +152,10 @@ const MenuManagement = () => {
         variations,
       };
       let savedItem = editItem
-        ? ENV.publicCatalogEventsEnabled ? await updateMenuItem(editItem.id, input, publication) : await updateMenuItem(editItem.id, input)
-        : ENV.publicCatalogEventsEnabled ? await createMenuItem(input, publication) : await createMenuItem(input);
+        ? catalogWriterEnabled() ? await updateMenuItem(editItem.id, input, publication) : await updateMenuItem(editItem.id, input)
+        : catalogWriterEnabled() ? await createMenuItem(input, publication) : await createMenuItem(input);
 
-      if (!ENV.publicCatalogEventsEnabled && removeImage && editItem?.imageUrl) {
+      if (!catalogWriterEnabled() && removeImage && editItem?.imageUrl) {
         try { await deleteMenuImage({ restaurantId, itemId: editItem.id }); }
         catch (error: unknown) { toast({ title: "Item salvo; limpeza da imagem pendente", description: errorMessage(error) }); }
       }
@@ -165,11 +165,11 @@ const MenuManagement = () => {
         // item, never issue another POST and accidentally create a duplicate.
         if (!editItem) { setEditItem(savedItem); setItems(current => [savedItem, ...current.filter(item => item.id !== savedItem.id)]); }
         const publicUrl = await uploadMenuImage({ restaurantId, itemId: savedItem.id, image: imageFile });
-        savedItem = ENV.publicCatalogEventsEnabled ? await updateMenuItem(savedItem.id, { imageUrl: publicUrl }, publication)
+        savedItem = catalogWriterEnabled() ? await updateMenuItem(savedItem.id, { imageUrl: publicUrl }, publication)
           : await updateMenuItem(savedItem.id, { imageUrl: publicUrl });
       }
 
-      if (ENV.publicCatalogEventsEnabled && editItem?.imageUrl && (removeImage || imageFile)) {
+      if (catalogWriterEnabled() && editItem?.imageUrl && (removeImage || imageFile)) {
         try { await deleteMenuImage({ restaurantId, itemId: editItem.id, imageUrl: editItem.imageUrl }); }
         catch (error: unknown) { toast({ title: "Item salvo; limpeza da imagem pendente", description: errorMessage(error) }); }
       }
@@ -224,10 +224,10 @@ const MenuManagement = () => {
     try {
       // The legacy endpoint still authorizes through the existing item and uses
       // a mutable key. Only the versioned protocol can safely retire after ready.
-      if (!ENV.publicCatalogEventsEnabled && item.imageUrl) await deleteMenuImage({ restaurantId, itemId: item.id });
-      if (ENV.publicCatalogEventsEnabled) await deleteMenuItem(item.id, publication); else await deleteMenuItem(item.id);
+      if (!catalogWriterEnabled() && item.imageUrl) await deleteMenuImage({ restaurantId, itemId: item.id });
+      if (catalogWriterEnabled()) await deleteMenuItem(item.id, publication); else await deleteMenuItem(item.id);
       setItems((current) => current.filter((i) => i.id !== item.id));
-      if (ENV.publicCatalogEventsEnabled && item.imageUrl) {
+      if (catalogWriterEnabled() && item.imageUrl) {
         try { await deleteMenuImage({ restaurantId, itemId: item.id, imageUrl: item.imageUrl }); }
         catch (error: unknown) { toast({ title: "Item removido; limpeza da imagem pendente", description: errorMessage(error) }); }
       }

@@ -3,15 +3,21 @@ import { runCatalogMutation, getCatalogOperation, retryCatalogOperation } from "
 import { vaptApiRequest } from "@/lib/vapt-api-client";
 import type { CommandReceipt } from "@/lib/catalog/contracts";
 
-const environment = vi.hoisted(() => ({ publicCatalogEventsEnabled: true }));
+const environment = vi.hoisted(() => ({ publicCatalogEventsEnabled: true, publicCatalogWriterEnabled: false }));
 vi.mock("@/lib/env", () => ({ ENV: environment }));
 vi.mock("@/lib/vapt-api-client", async original => ({ ...(await original<typeof import("@/lib/vapt-api-client")>()), vaptApiRequest: vi.fn() }));
 const operationId = "11111111-1111-4111-8111-111111111111";
 const restaurantId = "22222222-2222-4222-8222-222222222222";
 const receipt: CommandReceipt = { operationId, restaurantId, phase: "committed", version: "9007199254740993", committed: true, retryable: true };
-beforeEach(() => { vi.clearAllMocks(); environment.publicCatalogEventsEnabled = true; });
+beforeEach(() => { vi.clearAllMocks(); environment.publicCatalogEventsEnabled = true; environment.publicCatalogWriterEnabled = false; });
 afterEach(() => vi.restoreAllMocks());
 describe("owner catalog mutation protocol", () => {
+  it("keeps authenticated status and writes on the protocol when only the reader is rolled back", async () => {
+    environment.publicCatalogEventsEnabled = false; environment.publicCatalogWriterEnabled = true;
+    vi.mocked(vaptApiRequest).mockResolvedValueOnce({ receipt }).mockResolvedValueOnce(receipt);
+    expect((await runCatalogMutation({ operationId, method: "PATCH", route: "/restaurants/me", body: {} })).receipt).toEqual(receipt);
+    expect(await getCatalogOperation(operationId)).toEqual(receipt);
+  });
   it("returns committed-not-ready without pretending it is a DTO or scheduling status polling", async () => {
     vi.mocked(vaptApiRequest).mockResolvedValue({ receipt });
     const result = await runCatalogMutation({ operationId, method: "PATCH", route: "/restaurants/me", body: { name: "Bistrô" } });

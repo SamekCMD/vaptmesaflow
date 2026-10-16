@@ -12,7 +12,7 @@ import { Upload, Smartphone, ExternalLink, Loader2, UtensilsCrossed } from "luci
 import { AppearanceFormSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchOwnedRestaurant, updateOwnedRestaurant } from "@/lib/restaurants";
-import { ENV } from "@/lib/env";
+import { catalogWriterEnabled } from "@/lib/catalog/flags";
 import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
 import { CatalogPublicationFeedback } from "@/components/menu/CatalogPublicationStatus";
 
@@ -99,7 +99,7 @@ const AppearancePage = () => {
         fontFamily: config.fontFamily,
         logoUrl: config.logoUrl || null,
       };
-      if (ENV.publicCatalogEventsEnabled) await updateOwnedRestaurant(patch, publication); else await updateOwnedRestaurant(patch);
+      if (catalogWriterEnabled()) await updateOwnedRestaurant(patch, publication); else await updateOwnedRestaurant(patch);
       toast({ title: "Aparencia salva", description: "As alteracoes de marca foram aplicadas." });
     } catch (err: unknown) {
       if (isCatalogPublicationDeferred(err)) return;

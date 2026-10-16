@@ -28,6 +28,7 @@ export const ENV = {
   vaptApiBaseUrl: readRequiredEnv("VITE_VAPT_API_BASE_URL"),
   realtimeEnabled: readEnv("VITE_REALTIME_ENABLED") === "true",
   publicCatalogEventsEnabled: readEnv("VITE_PUBLIC_CATALOG_EVENTS_ENABLED") === "true",
+  publicCatalogWriterEnabled: readEnv("VITE_PUBLIC_CATALOG_WRITER_ENABLED") === "true",
   paymentEnvironment: readPaymentEnvironment(),
   vapidPublicKey: readEnv("VITE_VAPID_PUBLIC_KEY"),
   turnstileEnabled,

@@ -47,7 +47,7 @@ test('build settings ignore hostile origin, feature flags and unused VITE values
   assert.equal(options.define['import.meta.env.VITE_REALTIME_ENABLED'], '"false"');
   assert.equal(options.define['import.meta.env.VITE_MENU_IMAGE_STORAGE_MODE'], '"disabled"');
   assert.equal(options.define['import.meta.env.VITE_PAYMENT_ENVIRONMENT'], '"sandbox"');
-  assert.equal(Object.keys(options.define).length, 7);
+  assert.equal(Object.keys(options.define).length, 9);
   assert.doesNotMatch(JSON.stringify(options), /synthetic-secret|other\.example/);
 });
 test('rejects malformed VAPID input instead of putting a credential in the public bundle', async () => {
@@ -75,11 +75,20 @@ test('real Vite dynamic import.meta.env bundle excludes parent VITE credentials 
     assert.equal(context.envProof.VITE_REALTIME_ENABLED, 'false');
     assert.equal(context.envProof.VITE_PAYMENT_ENVIRONMENT, 'sandbox');
     assert.deepEqual(Object.keys(context.envProof).filter(key => key.startsWith('VITE_')).sort(), [
-      'VITE_MENU_IMAGE_STORAGE_MODE', 'VITE_PAYMENT_ENVIRONMENT', 'VITE_REALTIME_ENABLED',
+      'VITE_MENU_IMAGE_STORAGE_MODE', 'VITE_PAYMENT_ENVIRONMENT', 'VITE_PUBLIC_CATALOG_EVENTS_ENABLED', 'VITE_PUBLIC_CATALOG_WRITER_ENABLED', 'VITE_REALTIME_ENABLED',
       'VITE_TURNSTILE_ENABLED', 'VITE_TURNSTILE_SITE_KEY', 'VITE_VAPID_PUBLIC_KEY', 'VITE_VAPT_API_BASE_URL',
     ]);
     assert.doesNotMatch(code, /VITE_UNUSED_SECRET|synthetic-secret-never-bundle/);
   } finally { if (previous === undefined) delete process.env.VITE_UNUSED_SECRET; else process.env.VITE_UNUSED_SECRET = previous; }
+});
+
+test('normal production builds cannot activate catalog reader or writer through ambient env', async () => {
+  const { productionBuildOptions } = await feature();
+  for (const mode of ['disabled', 'enabled']) {
+    const options = productionBuildOptions({ VITE_PUBLIC_CATALOG_EVENTS_ENABLED: 'true', VITE_PUBLIC_CATALOG_WRITER_ENABLED: 'true' }, mode);
+    assert.equal(options.define['import.meta.env.VITE_PUBLIC_CATALOG_EVENTS_ENABLED'], '"false"');
+    assert.equal(options.define['import.meta.env.VITE_PUBLIC_CATALOG_WRITER_ENABLED'], '"false"');
+  }
 });
 test('committed public frontend config passes and preview config is not deployable as public production', async () => {
   const { checkFrontendProductionConfig: check } = await feature();

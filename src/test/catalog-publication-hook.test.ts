@@ -3,14 +3,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
 import { getCatalogOperation, retryCatalogOperation, runCatalogMutation } from "@/lib/catalog-mutations";
 import type { CommandReceipt } from "@/lib/catalog/contracts";
-const env = vi.hoisted(() => ({ publicCatalogEventsEnabled: true }));
+const env = vi.hoisted(() => ({ publicCatalogEventsEnabled: true, publicCatalogWriterEnabled: false }));
 vi.mock("@/lib/env", () => ({ ENV: env }));
 vi.mock("@/lib/catalog-mutations", () => ({ runCatalogMutation: vi.fn(), getCatalogOperation: vi.fn(), retryCatalogOperation: vi.fn() }));
 const receipt = (operationId: string, phase: CommandReceipt["phase"] = "committed"): CommandReceipt => ({ operationId,
   restaurantId: "22222222-2222-4222-8222-222222222222", phase, version: phase === "accepted" ? null : "12", committed: phase !== "accepted", retryable: phase !== "ready" });
-beforeEach(() => { vi.resetAllMocks(); env.publicCatalogEventsEnabled = true; });
+beforeEach(() => { vi.resetAllMocks(); env.publicCatalogEventsEnabled = true; env.publicCatalogWriterEnabled = false; });
 afterEach(cleanup);
 describe("owner publication lifecycle", () => {
+  it("reader rollback keeps accepted operations locked and manually recoverable", async () => {
+    env.publicCatalogEventsEnabled = false; env.publicCatalogWriterEnabled = true;
+    vi.mocked(runCatalogMutation).mockImplementation(async input => ({ receipt: receipt(input.operationId) }));
+    const { result } = renderHook(() => useCatalogPublication("owner"));
+    await act(async () => { try { await result.current.run({ method: "PATCH", route: "/restaurants/me", body: {} }); } catch { /* Publication remains pending. */ } });
+    expect(runCatalogMutation).toHaveBeenCalledOnce(); expect(result.current.blocked).toBe(true);
+    const key = result.current.operationId!; vi.mocked(getCatalogOperation).mockResolvedValue(receipt(key, "ready"));
+    await act(async () => { await result.current.check(); }); expect(getCatalogOperation).toHaveBeenCalledWith(key, expect.any(AbortSignal)); expect(result.current.blocked).toBe(false);
+  });
   it("locks conflicting actions after acceptance, with no automatic status/retry", async () => {
     vi.mocked(runCatalogMutation).mockImplementation(async input => ({ receipt: receipt(input.operationId) }));
     const { result } = renderHook(() => useCatalogPublication("owner"));
