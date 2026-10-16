@@ -36,6 +36,7 @@ vi.mock("@/lib/menu-image-storage", () => ({
 vi.mock("@/hooks/use-toast", () => ({ toast: vi.fn() }));
 
 import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { deleteMenuImage } from "@/lib/menu-image-storage";
 
 const restaurant = {
   id: "10000000-0000-4000-8000-000000000001",
@@ -130,5 +131,12 @@ describe("menu management API cutover", () => {
 
     await waitFor(() => expect(deleteMenuItem).toHaveBeenCalledWith(existingItem.id));
     expect(screen.queryByText("X-Salada")).not.toBeInTheDocument();
+  });
+  it("flag-off legacy image deletion still runs while its item exists", async () => {
+    vi.mocked(listOwnedMenuItems).mockResolvedValue([{ ...existingItem, imageUrl: "https://assets.test/legacy.webp" }]);
+    render(<MemoryRouter><MenuManagement /></MemoryRouter>); await screen.findByText("X-Salada");
+    fireEvent.click(screen.getByRole("button", { name: "Remover X-Salada" }));
+    await waitFor(() => expect(deleteMenuItem).toHaveBeenCalledWith(existingItem.id));
+    expect(vi.mocked(deleteMenuImage).mock.invocationCallOrder.at(-1)).toBeLessThan(vi.mocked(deleteMenuItem).mock.invocationCallOrder.at(-1)!);
   });
 });

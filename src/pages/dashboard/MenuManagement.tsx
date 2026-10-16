@@ -22,6 +22,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { fetchOwnedRestaurant } from "@/lib/restaurants";
 import { deleteMenuImage, uploadMenuImage } from "@/lib/menu-image-storage";
+import { ENV } from "@/lib/env";
+import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
+import { CatalogPublicationFeedback } from "@/components/menu/CatalogPublicationStatus";
 import type { MenuItemDto } from "@/lib/business-api.types";
 import {
   createMenuItem,
@@ -73,6 +76,12 @@ const MenuManagement = () => {
   const [newOptionInputs, setNewOptionInputs] = useState<Record<number, string>>({});
   const [prepTimeMinutes, setPrepTimeMinutes] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const publication = useCatalogPublication(user?.id, async isCurrent => {
+    const refreshed = await listOwnedMenuItems(); if (!isCurrent()) return;
+    setItems(refreshed); setDialogOpen(false);
+    if (imageFile) toast({ title: "Item publicado", description: "Abra a edição do item para concluir o envio da imagem." });
+    resetForm();
+  });
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -124,7 +133,7 @@ const MenuManagement = () => {
   };
 
   const handleSave = async () => {
-    if (!form.name || !form.price || !form.category || !restaurantId) return;
+    if (!user || publication.blocked || saving || !form.name || !form.price || !form.category || !restaurantId) return;
     setSaving(true);
 
     try {
@@ -143,24 +152,26 @@ const MenuManagement = () => {
         variations,
       };
       let savedItem = editItem
-        ? await updateMenuItem(editItem.id, input)
-        : await createMenuItem(input);
+        ? ENV.publicCatalogEventsEnabled ? await updateMenuItem(editItem.id, input, publication) : await updateMenuItem(editItem.id, input)
+        : ENV.publicCatalogEventsEnabled ? await createMenuItem(input, publication) : await createMenuItem(input);
 
-      if (removeImage && editItem?.imageUrl) {
-        try {
-          await deleteMenuImage({ restaurantId, itemId: editItem.id });
-        } catch (error: unknown) {
-          toast({
-            title: "Item salvo; limpeza da imagem pendente",
-            description: errorMessage(error),
-            variant: "destructive",
-          });
-        }
+      if (!ENV.publicCatalogEventsEnabled && removeImage && editItem?.imageUrl) {
+        try { await deleteMenuImage({ restaurantId, itemId: editItem.id }); }
+        catch (error: unknown) { toast({ title: "Item salvo; limpeza da imagem pendente", description: errorMessage(error) }); }
       }
 
       if (imageFile) {
+        // Once creation is confirmed, a failed upload must resume editing this
+        // item, never issue another POST and accidentally create a duplicate.
+        if (!editItem) { setEditItem(savedItem); setItems(current => [savedItem, ...current.filter(item => item.id !== savedItem.id)]); }
         const publicUrl = await uploadMenuImage({ restaurantId, itemId: savedItem.id, image: imageFile });
-        savedItem = await updateMenuItem(savedItem.id, { imageUrl: publicUrl });
+        savedItem = ENV.publicCatalogEventsEnabled ? await updateMenuItem(savedItem.id, { imageUrl: publicUrl }, publication)
+          : await updateMenuItem(savedItem.id, { imageUrl: publicUrl });
+      }
+
+      if (ENV.publicCatalogEventsEnabled && editItem?.imageUrl && (removeImage || imageFile)) {
+        try { await deleteMenuImage({ restaurantId, itemId: editItem.id, imageUrl: editItem.imageUrl }); }
+        catch (error: unknown) { toast({ title: "Item salvo; limpeza da imagem pendente", description: errorMessage(error) }); }
       }
 
       if (editItem) {
@@ -175,7 +186,7 @@ const MenuManagement = () => {
           const updated = savedItem.isChefSuggestion
             ? prev.map(i => i.isChefSuggestion ? { ...i, isChefSuggestion: false } : i)
             : prev;
-          return [savedItem, ...updated];
+          return [savedItem, ...updated.filter(item => item.id !== savedItem.id)];
         });
         toast({ title: "Item adicionado", description: `"${form.name}" foi adicionado ao cardápio.` });
       }
@@ -183,6 +194,7 @@ const MenuManagement = () => {
       resetForm();
       setDialogOpen(false);
     } catch (err: unknown) {
+      if (isCatalogPublicationDeferred(err)) { setDialogOpen(false); return; }
       toast({ title: "Erro ao salvar", description: errorMessage(err), variant: "destructive" });
     } finally {
       setSaving(false);
@@ -207,16 +219,23 @@ const MenuManagement = () => {
   };
 
   const handleDelete = async (item: MenuItem) => {
+    if (!user || publication.blocked || saving) return;
+    setSaving(true);
     try {
-      if (item.imageUrl) {
-        await deleteMenuImage({ restaurantId, itemId: item.id });
-      }
-      await deleteMenuItem(item.id);
+      // The legacy endpoint still authorizes through the existing item and uses
+      // a mutable key. Only the versioned protocol can safely retire after ready.
+      if (!ENV.publicCatalogEventsEnabled && item.imageUrl) await deleteMenuImage({ restaurantId, itemId: item.id });
+      if (ENV.publicCatalogEventsEnabled) await deleteMenuItem(item.id, publication); else await deleteMenuItem(item.id);
       setItems((current) => current.filter((i) => i.id !== item.id));
+      if (ENV.publicCatalogEventsEnabled && item.imageUrl) {
+        try { await deleteMenuImage({ restaurantId, itemId: item.id, imageUrl: item.imageUrl }); }
+        catch (error: unknown) { toast({ title: "Item removido; limpeza da imagem pendente", description: errorMessage(error) }); }
+      }
       toast({ title: "Item removido", description: `"${item.name}" foi removido do cardápio.`, variant: "destructive" });
     } catch (err: unknown) {
+      if (isCatalogPublicationDeferred(err)) return;
       toast({ title: "Erro ao remover", description: errorMessage(err), variant: "destructive" });
-    }
+    } finally { setSaving(false); }
   };
 
   const openNew = () => {
@@ -289,6 +308,7 @@ const MenuManagement = () => {
 
   return (
     <div className="space-y-6">
+      <CatalogPublicationFeedback publication={publication} authenticated={!!user} />
       {guideMode && (
         <OnboardingGuideCard
           module="menu"
@@ -305,7 +325,7 @@ const MenuManagement = () => {
         </div>
         <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
           <DialogTrigger asChild>
-            <Button onClick={openNew}>
+            <Button onClick={openNew} disabled={publication.blocked || saving || !user}>
               <Plus className="h-4 w-4 mr-2" />
               Adicionar Item
             </Button>
@@ -474,7 +494,7 @@ const MenuManagement = () => {
                   ))}
                 </div>
 
-                <Button onClick={handleSave} className="w-full" disabled={saving}>
+                <Button onClick={handleSave} className="w-full" disabled={saving || publication.blocked || !user}>
                   {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Salvar
                 </Button>
@@ -532,10 +552,10 @@ const MenuManagement = () => {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" aria-label={`Editar ${item.name}`} onClick={() => handleEdit(item)}>
+                      <Button variant="ghost" size="icon" disabled={publication.blocked || saving || !user} aria-label={`Editar ${item.name}`} onClick={() => handleEdit(item)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" aria-label={`Remover ${item.name}`} onClick={() => handleDelete(item)}>
+                      <Button variant="ghost" size="icon" disabled={publication.blocked || saving || !user} aria-label={`Remover ${item.name}`} onClick={() => handleDelete(item)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>

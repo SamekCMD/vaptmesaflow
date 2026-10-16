@@ -15,7 +15,10 @@ import {
   POST_SETUP_SECONDARY_ACTION,
   saveGuideProgress,
 } from "@/lib/onboarding";
-import { createOnboarding } from "@/lib/restaurants";
+import { createOnboarding, fetchOwnedRestaurant } from "@/lib/restaurants";
+import { ENV } from "@/lib/env";
+import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
+import { CatalogPublicationFeedback } from "@/components/menu/CatalogPublicationStatus";
 
 const STEPS = [
   { title: "Boas-vindas", icon: Store },
@@ -34,6 +37,13 @@ const OnboardingPage = () => {
   const [dishName, setDishName] = useState("");
   const [dishPrice, setDishPrice] = useState("");
   const progress = ((step + 1) / STEPS.length) * 100;
+  const finishSetup = () => {
+    const completed = GUIDE_MODULES.reduce((acc, module) => ({ ...acc, [module]: true }), {} as Record<(typeof GUIDE_MODULES)[number], boolean>);
+    saveGuideProgress(completed); toast({ title: "Restaurante criado com sucesso!" }); setSetupComplete(true);
+  };
+  const publication = useCatalogPublication(user?.id, async isCurrent => {
+    const restaurant = await fetchOwnedRestaurant(); if (restaurant && isCurrent()) finishSetup();
+  });
 
   const handleNameChange = (value: string) => {
     setRestaurantName(value);
@@ -53,23 +63,19 @@ const OnboardingPage = () => {
   };
 
   const handleFinish = async () => {
-    if (!user) return;
+    if (!user || saving || publication.blocked) return;
     setSaving(true);
     try {
-      await createOnboarding({
+      const input = {
         restaurantName: restaurantName.trim(),
         slug: slug.trim(),
         dishName: dishName.trim(),
         dishPrice: dishPrice.trim(),
-      });
-      const completedGuideProgress = GUIDE_MODULES.reduce(
-        (acc, module) => ({ ...acc, [module]: true }),
-        {} as Record<(typeof GUIDE_MODULES)[number], boolean>,
-      );
-      saveGuideProgress(completedGuideProgress);
-      toast({ title: "Restaurante criado com sucesso!" });
-      setSetupComplete(true);
+      };
+      if (ENV.publicCatalogEventsEnabled) await createOnboarding(input, publication); else await createOnboarding(input);
+      finishSetup();
     } catch (error: unknown) {
+      if (isCatalogPublicationDeferred(error)) return;
       const description = error instanceof Error ? error.message : "Tente novamente.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
@@ -106,6 +112,7 @@ const OnboardingPage = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {publication.operationId && <div className="mx-auto w-full max-w-lg px-4 pt-4"><CatalogPublicationFeedback publication={publication} authenticated={!!user} /></div>}
       <div className="px-4 pt-6 pb-2 max-w-lg mx-auto w-full">
         <div className="flex items-center justify-between mb-2">
           {STEPS.map((item, index) => (
@@ -194,15 +201,15 @@ const OnboardingPage = () => {
           )}
 
           <CardFooter className="flex justify-between">
-            <Button variant="outline" disabled={step === 0} onClick={() => setStep(0)}>
+            <Button variant="outline" disabled={step === 0 || publication.blocked} onClick={() => setStep(0)}>
               <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
             </Button>
             {step === 0 ? (
-              <Button disabled={!canAdvance()} onClick={() => setStep(1)}>
+              <Button disabled={!canAdvance() || publication.blocked} onClick={() => setStep(1)}>
                 Próximo <ArrowRight className="h-4 w-4 ml-1" />
               </Button>
             ) : (
-              <Button disabled={!canAdvance() || saving} onClick={handleFinish}>
+              <Button disabled={!canAdvance() || saving || publication.blocked || !user} onClick={handleFinish}>
                 {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
                 Finalizar
               </Button>

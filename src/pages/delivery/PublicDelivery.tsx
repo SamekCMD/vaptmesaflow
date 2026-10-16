@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useCallback, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, ChevronUp, Minus, Plus, RotateCcw, Store, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,8 +22,13 @@ import {
 import { VaptApiClientError, vaptApiRequest } from "@/lib/vapt-api-client";
 import { ENV } from "@/lib/env";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
+import { usePublicCatalog } from "@/hooks/use-public-catalog";
+import { useCatalogAvailabilityClock } from "@/hooks/use-catalog-availability-clock";
+import { isCatalogWithinHours } from "@/lib/catalog/availability";
 
 type DeliveryMenuItem = {
+  availableFrom?: string | null;
+  availableUntil?: string | null;
   id: string;
   name: string;
   description: string | null;
@@ -84,7 +89,7 @@ type SessionDeliveryOrderItem = {
 type SessionDeliveryOrderSnapshot = {
   publicToken: string;
   id: string;
-  displayId: number | null;
+  displayId: string | number | null;
   status: DeliveryOrderStatus;
   deliveredAt?: string | null;
   total: number;
@@ -133,9 +138,13 @@ const normalizeDeliveryStatus = (status: string | null | undefined): DeliveryOrd
 
 const PublicDelivery = () => {
   const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate(); const location = useLocation();
+  const published = usePublicCatalog(slug ?? "");
+  const catalogTenant = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [restaurant, setRestaurant] = useState<PublicRestaurantDto | null>(null);
   const [items, setItems] = useState<DeliveryMenuItem[]>([]);
+  useCatalogAvailabilityClock(items, ENV.publicCatalogEventsEnabled);
   const [activeCategory, setActiveCategory] = useState("");
   const [cart, setCart] = useState<Record<string, CartItem>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -156,6 +165,7 @@ const PublicDelivery = () => {
     neighborhood: "",
   });
   const idempotencyKeyRef = useRef<string | null>(null);
+  const submitFlightRef = useRef<{ restaurantId: string } | null>(null);
   const currentOrderRef = useRef({ restaurantId: restaurant?.id, orderId: lastOrderId, publicToken: lastOrderToken });
   currentOrderRef.current = { restaurantId: restaurant?.id, orderId: lastOrderId, publicToken: lastOrderToken };
   const mountedRef = useRef(true);
@@ -171,6 +181,7 @@ const PublicDelivery = () => {
   };
 
   useEffect(() => {
+    if (ENV.publicCatalogEventsEnabled) return;
     const fetchDeliveryData = async () => {
       if (!slug) {
         setLoading(false);
@@ -211,6 +222,25 @@ const PublicDelivery = () => {
 
     fetchDeliveryData();
   }, [slug]);
+
+  useEffect(() => {
+    if (!ENV.publicCatalogEventsEnabled) return;
+    const catalog = published.state?.catalog;
+    if (!catalog) { setLoading(published.status === "loading"); return; }
+    if (catalogTenant.current && catalogTenant.current !== catalog.restaurant.id) {
+      setCart({}); setLastOrderCode(null); setLastOrderId(null); setLastOrderToken(null); setLastOrderStatus(null);
+      setRecentOrders([]); setPendingCheckout(null); setSavedAddress(null); setActiveCategory("");
+      submitFlightRef.current = null; idempotencyKeyRef.current = null; setSubmitting(false);
+    }
+    catalogTenant.current = catalog.restaurant.id;
+    setRestaurant(catalog.restaurant);
+    setItems(catalog.items.map(item => ({ ...item, price: Number(item.price) })));
+    setActiveCategory(current => catalog.items.some(item => item.category === current) ? current : catalog.items[0]?.category ?? "");
+    setLoading(false);
+    if (catalog.restaurant.slug !== slug) navigate(`/delivery/${encodeURIComponent(catalog.restaurant.slug)}${location.search}`, { replace: true });
+  }, [published.state, published.status, slug, navigate, location.search]);
+
+  const orderingEnabled = !ENV.publicCatalogEventsEnabled || (!!published.state && published.state.catalog.restaurant.id === restaurant?.id && published.state.catalog.restaurant.deliveryEnabled);
 
   useEffect(() => {
     if (!restaurant?.id) return;
@@ -313,6 +343,9 @@ const PublicDelivery = () => {
       : null;
 
   const addToCart = (item: DeliveryMenuItem) => {
+    if (!orderingEnabled) return;
+    const current = items.find(value => value.id === item.id);
+    if (ENV.publicCatalogEventsEnabled && (!current?.available || !isCatalogWithinHours(current.availableFrom, current.availableUntil))) return;
     setCart((current) => {
       const existing = current[item.id];
       return {
@@ -384,8 +417,10 @@ const PublicDelivery = () => {
   };
 
   const submitOrder = async (paymentMode: DeliveryPaymentMode) => {
-    if (!restaurant || submitting) return;
+    if (!restaurant || submitting || submitFlightRef.current || !orderingEnabled) return;
     if (!validateCheckout() || !savedAddress) return;
+    const flight = { restaurantId: restaurant.id }; submitFlightRef.current = flight;
+    const isCurrent = () => mountedRef.current && submitFlightRef.current === flight && currentOrderRef.current.restaurantId === restaurant.id;
     setSubmitting(true);
 
     try {
@@ -426,6 +461,14 @@ const PublicDelivery = () => {
         })),
       };
 
+      if (!isCurrent()) {
+        const key = `${DELIVERY_RECENT_ORDERS_STORAGE_KEY}_${restaurant.id}`;
+        const previous: unknown = JSON.parse(localStorage.getItem(key) || "[]");
+        const retained = Array.isArray(previous) ? previous.filter(value => value && typeof value === "object" && value.id !== snapshot.id) : [];
+        localStorage.setItem(key, JSON.stringify([snapshot, ...retained].slice(0, 4)));
+        return;
+      }
+
       setRecentOrders((current) => {
         const next = [snapshot, ...current.filter((saved) => saved.id !== snapshot.id)].slice(0, 4);
         localStorage.setItem(`${DELIVERY_RECENT_ORDERS_STORAGE_KEY}_${restaurant.id}`, JSON.stringify(next));
@@ -443,6 +486,7 @@ const PublicDelivery = () => {
           order.publicToken,
           `checkout-${idempotencyKeyRef.current}`,
         );
+        if (!isCurrent()) return;
         const checkoutUrl = parseHostedCheckoutUrl(checkout.checkoutUrl);
 
         const pending: PendingCheckout = {
@@ -467,13 +511,17 @@ const PublicDelivery = () => {
         description: "O pagamento será feito na entrega. Acompanhe o preparo por aqui.",
       });
     } catch (error: unknown) {
+      if (!isCurrent()) return;
       toast({
         title: "Erro ao enviar pedido",
         description: error instanceof VaptApiClientError ? error.message : "Não foi possível finalizar agora. Tente novamente.",
         variant: "destructive",
       });
     } finally {
-      setSubmitting(false);
+      if (submitFlightRef.current === flight) {
+        submitFlightRef.current = null;
+        if (mountedRef.current) setSubmitting(false);
+      }
     }
   };
 
@@ -509,7 +557,7 @@ const PublicDelivery = () => {
     );
   }
 
-  if (!restaurant.deliveryEnabled) {
+  if (!restaurant.deliveryEnabled && !ENV.publicCatalogEventsEnabled) {
     return (
       <div className="min-h-screen bg-background px-4 py-14" style={{ fontFamily: fontFamilyMap[fontFamily] }}>
         <div className="mx-auto max-w-xl rounded-3xl border border-border bg-card p-7 text-center sm:p-8">
@@ -525,6 +573,10 @@ const PublicDelivery = () => {
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-background pb-24 lg:pb-10" style={{ fontFamily: fontFamilyMap[fontFamily] }}>
+      {!orderingEnabled && <p role="status" className="mx-auto max-w-6xl px-4 py-3 text-sm text-muted-foreground">Novos pedidos de delivery estão pausados.</p>}
+      {ENV.publicCatalogEventsEnabled && published.status !== "ready" && <div role="status" className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3 text-sm text-muted-foreground">
+        <span>Exibindo a última versão recebida. Verifique a conexão para atualizar o cardápio.</span><Button type="button" variant="outline" onClick={published.refresh}>Atualizar cardápio</Button>
+      </div>}
       <header className="border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-4 sm:px-6">
           {restaurant.logoUrl ? (
@@ -583,7 +635,7 @@ const PublicDelivery = () => {
                       R$ {item.price.toFixed(2).replace(".", ",")}
                     </p>
                   </div>
-                  <Button type="button" className="h-11 w-full rounded-xl text-sm font-semibold sm:w-auto sm:min-w-[120px]" style={{ backgroundColor: primaryColor }} onClick={() => addToCart(item)}>
+                  <Button type="button" disabled={!orderingEnabled || (ENV.publicCatalogEventsEnabled && (!item.available || !isCatalogWithinHours(item.availableFrom, item.availableUntil)))} className="h-11 w-full rounded-xl text-sm font-semibold sm:w-auto sm:min-w-[120px]" style={{ backgroundColor: primaryColor }} onClick={() => addToCart(item)}>
                     <Plus className="mr-1 h-4 w-4" />
                     Adicionar
                   </Button>
@@ -613,7 +665,7 @@ const PublicDelivery = () => {
                         <Minus className="h-4 w-4" />
                       </Button>
                       <span className="min-w-[20px] text-center text-sm font-semibold">{quantity}</span>
-                      <Button type="button" variant="outline" className="h-9 w-9 rounded-lg p-0" onClick={() => addToCart(item)}>
+                      <Button type="button" disabled={!orderingEnabled} variant="outline" className="h-9 w-9 rounded-lg p-0" onClick={() => addToCart(item)}>
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
@@ -652,10 +704,10 @@ const PublicDelivery = () => {
             </div>
 
             <div className="mt-5 hidden grid-cols-1 gap-2 lg:grid">
-              <Button type="button" className="h-11 w-full rounded-xl text-sm font-semibold" style={{ backgroundColor: primaryColor }} onClick={() => submitOrder("online")} disabled={submitting}>
+              <Button type="button" className="h-11 w-full rounded-xl text-sm font-semibold" style={{ backgroundColor: primaryColor }} onClick={() => submitOrder("online")} disabled={submitting || !orderingEnabled}>
                 {submitting ? "Abrindo pagamento..." : "Pagar online"}
               </Button>
-              <Button type="button" variant="outline" className="h-11 w-full rounded-xl text-sm font-semibold" onClick={() => submitOrder("on_delivery")} disabled={submitting}>
+              <Button type="button" variant="outline" className="h-11 w-full rounded-xl text-sm font-semibold" onClick={() => submitOrder("on_delivery")} disabled={submitting || !orderingEnabled}>
                 Pagar na entrega
               </Button>
               <p className="text-center text-[11px] leading-4 text-muted-foreground">No pagamento online, o pedido só entra em preparo após a confirmação.</p>
@@ -723,10 +775,10 @@ const PublicDelivery = () => {
             <p className="truncate text-xs text-muted-foreground">{cartItemsCount} itens</p>
             <p className="truncate text-sm font-semibold text-foreground">Total: R$ {cartTotal.toFixed(2).replace(".", ",")}</p>
           </div>
-          <Button type="button" variant="outline" className="h-11 shrink-0 rounded-xl px-3 text-xs font-semibold" aria-label="Pagar na entrega" onClick={() => submitOrder("on_delivery")} disabled={submitting}>
+          <Button type="button" variant="outline" className="h-11 shrink-0 rounded-xl px-3 text-xs font-semibold" aria-label="Pagar na entrega" onClick={() => submitOrder("on_delivery")} disabled={submitting || !orderingEnabled}>
             Na entrega
           </Button>
-          <Button type="button" className="h-11 min-w-[128px] shrink-0 rounded-xl px-4 text-sm font-semibold" aria-label="Continuar para pagamento online" style={{ backgroundColor: primaryColor }} onClick={() => submitOrder("online")} disabled={submitting}>
+          <Button type="button" className="h-11 min-w-[128px] shrink-0 rounded-xl px-4 text-sm font-semibold" aria-label="Continuar para pagamento online" style={{ backgroundColor: primaryColor }} onClick={() => submitOrder("online")} disabled={submitting || !orderingEnabled}>
             {submitting ? "Abrindo..." : "Pagar online"}
           </Button>
         </div>

@@ -1,5 +1,6 @@
 import type { RestaurantDto } from "@/lib/business-api.types";
 import { VaptApiClientError, vaptApiRequest } from "@/lib/vapt-api-client";
+import type { CatalogMutationExecutor } from "@/lib/catalog-mutations";
 
 export type OnboardingInput = {
   restaurantName: string;
@@ -42,7 +43,8 @@ export async function fetchOwnedRestaurant(): Promise<RestaurantDto | null> {
   }
 }
 
-export function createOnboarding(input: OnboardingInput): Promise<RestaurantDto> {
+export function createOnboarding(input: OnboardingInput, publication?: CatalogMutationExecutor): Promise<RestaurantDto> {
+  if (publication) return publication.run<RestaurantDto>({ method: "POST", route: "/onboarding", body: input }, reloadOwnedRestaurant);
   return vaptApiRequest<RestaurantDto>({
     method: "POST",
     route: "/onboarding",
@@ -50,10 +52,17 @@ export function createOnboarding(input: OnboardingInput): Promise<RestaurantDto>
   });
 }
 
-export function updateOwnedRestaurant(patch: OwnedRestaurantPatch): Promise<RestaurantDto> {
+export function updateOwnedRestaurant(patch: OwnedRestaurantPatch, publication?: CatalogMutationExecutor): Promise<RestaurantDto> {
+  if (publication) return publication.run<RestaurantDto>({ method: "PATCH", route: "/restaurants/me", body: patch }, reloadOwnedRestaurant);
   return vaptApiRequest<RestaurantDto>({
     method: "PATCH",
     route: "/restaurants/me",
     body: patch,
   });
+}
+
+async function reloadOwnedRestaurant(): Promise<RestaurantDto> {
+  const restaurant = await fetchOwnedRestaurant();
+  if (!restaurant) throw new VaptApiClientError("catalog_result_unavailable", "Alteração publicada, mas não foi possível recarregar o restaurante.", 503);
+  return restaurant;
 }

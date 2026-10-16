@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const { envMock } = vi.hoisted(() => ({
-  envMock: { menuImageStorageMode: "r2" as "disabled" | "r2" },
+  envMock: { menuImageStorageMode: "r2" as "disabled" | "r2", publicCatalogEventsEnabled: false },
 }));
 
 vi.mock("@/lib/env", () => ({ ENV: envMock }));
@@ -29,11 +29,52 @@ const itemId = "20000000-0000-4000-8000-000000000002";
 
 afterEach(() => {
   envMock.menuImageStorageMode = "r2";
+  envMock.publicCatalogEventsEnabled = false;
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 
 describe("menu image R2 client", () => {
+  it("new uploads forward the exact staging If-Match and omit credentials", async () => {
+    envMock.publicCatalogEventsEnabled = true;
+    const objectKey = `${restaurantId}/${itemId}/33333333-3333-4333-8333-333333333333`;
+    const image = new Blob(["webp"], { type: "image/webp" });
+    vi.mocked(vaptApiRequest).mockResolvedValue({ state: "upload_required", method: "PUT", objectKey, uploadUrl: "https://signed.test/upload",
+      publicUrl: `https://assets.test/${objectKey}`, headers: { "Content-Type": "image/webp", "If-Match": '"fence-etag"' }, expiresInSeconds: 300 });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true }); vi.stubGlobal("fetch", fetchMock);
+    await uploadMenuImage({ restaurantId, itemId, image });
+    expect(fetchMock).toHaveBeenCalledWith("https://signed.test/upload", { method: "PUT", headers: { "Content-Type": "image/webp", "If-Match": '"fence-etag"' }, body: image, credentials: "omit" });
+  });
+  it("never PUTs without a staging condition or accepts a different tenant's uploaded key", async () => {
+    envMock.publicCatalogEventsEnabled = true;
+    const objectKey = `${restaurantId}/${itemId}/33333333-3333-4333-8333-333333333333`;
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true }); vi.stubGlobal("fetch", fetchMock);
+    vi.mocked(vaptApiRequest).mockResolvedValue({ state: "upload_required", method: "PUT", objectKey, uploadUrl: "https://signed.test/upload", publicUrl: `https://assets.test/${objectKey}`, headers: { "Content-Type": "image/webp" }, expiresInSeconds: 300 });
+    await expect(uploadMenuImage({ restaurantId, itemId, image: new Blob(["webp"], { type: "image/webp" }) })).rejects.toMatchObject({ code: "invalid_image_descriptor" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.mocked(vaptApiRequest).mockResolvedValue({ state: "uploaded", objectKey, publicUrl: `https://assets.test/99999999-9999-4999-8999-999999999999/${itemId}/33333333-3333-4333-8333-333333333333` });
+    await expect(uploadMenuImage({ restaurantId, itemId, image: new Blob(["webp"], { type: "image/webp" }) })).rejects.toMatchObject({ code: "invalid_image_key" });
+  });
+  it("replays an already uploaded immutable object without PUT or overwrite", async () => {
+    envMock.publicCatalogEventsEnabled = true;
+    const objectKey = `${restaurantId}/${itemId}/33333333-3333-4333-8333-333333333333`;
+    vi.mocked(vaptApiRequest).mockResolvedValue({ state: "uploaded", objectKey, publicUrl: `https://assets.test/${objectKey}` });
+    const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
+    expect(await uploadMenuImage({ restaurantId, itemId, image: new Blob(["webp"], { type: "image/webp" }) })).toBe(`https://assets.test/${objectKey}`);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(vaptApiRequest).toHaveBeenCalledWith(expect.objectContaining({ headers: { "X-Vapt-Catalog-Protocol": "1", "Idempotency-Key": expect.any(String) } }));
+  });
+  it("cleanup names only the exact immutable object belonging to this restaurant/item", async () => {
+    envMock.publicCatalogEventsEnabled = true;
+    const objectKey = `${restaurantId}/${itemId}/33333333-3333-4333-8333-333333333333`;
+    vi.mocked(vaptApiRequest).mockResolvedValue(null);
+    await deleteMenuImage({ restaurantId, itemId, imageUrl: `https://assets.test/prefix/${objectKey}` });
+    expect(vaptApiRequest).toHaveBeenCalledWith({ method: "DELETE", route: `/restaurants/${restaurantId}/menu-items/${itemId}/image`, query: { objectKey } });
+    vi.mocked(vaptApiRequest).mockClear();
+    await expect(deleteMenuImage({ restaurantId, itemId, imageUrl: "https://assets.test/another/tenant/key" })).rejects.toMatchObject({ code: "invalid_image_key" });
+    expect(vaptApiRequest).not.toHaveBeenCalled();
+  });
   it("signs and uploads the converted WebP bytes, not the original PNG", async () => {
     const optimized = new Blob(["optimized-webp"], { type: "image/webp" });
     vi.mocked(optimizeMenuImage).mockResolvedValueOnce(optimized);

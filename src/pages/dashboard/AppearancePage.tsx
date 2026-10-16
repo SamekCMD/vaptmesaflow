@@ -12,6 +12,9 @@ import { Upload, Smartphone, ExternalLink, Loader2, UtensilsCrossed } from "luci
 import { AppearanceFormSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchOwnedRestaurant, updateOwnedRestaurant } from "@/lib/restaurants";
+import { ENV } from "@/lib/env";
+import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
+import { CatalogPublicationFeedback } from "@/components/menu/CatalogPublicationStatus";
 
 const AppearancePage = () => {
   const { user } = useAuth();
@@ -35,6 +38,14 @@ const AppearancePage = () => {
   const updateConfig = (partial: Partial<RestaurantConfig>) => {
     setConfig((prev) => ({ ...prev, ...partial }));
   };
+
+  const publication = useCatalogPublication(user?.id, async isCurrent => {
+    const data = await fetchOwnedRestaurant(); if (!data || !isCurrent()) return;
+    setConfig(current => ({ ...current, id: data.id, name: data.name, slug: data.slug, logoUrl: data.logoUrl || "",
+      primaryColor: data.primaryColor, secondaryColor: data.secondaryColor,
+      fontFamily: data.fontFamily === "classic" || data.fontFamily === "rounded" ? data.fontFamily : "modern" }));
+    setLogoPreview(data.logoUrl || ""); setDeliveryEnabled(data.deliveryEnabled);
+  });
 
   // Fetch restaurant data
   useEffect(() => {
@@ -77,19 +88,21 @@ const AppearancePage = () => {
   };
 
   const handleSave = async () => {
-    if (!user || !config.id) return;
+    if (!user || !config.id || saving || publication.blocked) return;
     setSaving(true);
     try {
-      await updateOwnedRestaurant({
+      const patch = {
         name: config.name,
         slug: config.slug,
         primaryColor: config.primaryColor,
         secondaryColor: config.secondaryColor,
         fontFamily: config.fontFamily,
         logoUrl: config.logoUrl || null,
-      });
+      };
+      if (ENV.publicCatalogEventsEnabled) await updateOwnedRestaurant(patch, publication); else await updateOwnedRestaurant(patch);
       toast({ title: "Aparencia salva", description: "As alteracoes de marca foram aplicadas." });
     } catch (err: unknown) {
+      if (isCatalogPublicationDeferred(err)) return;
       const description = err instanceof Error ? err.message : "Tente novamente.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
@@ -103,6 +116,7 @@ const AppearancePage = () => {
 
   return (
     <div className="space-y-6">
+      <CatalogPublicationFeedback publication={publication} authenticated={!!user} />
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Aparencia & Marca</h1>
         <p className="text-muted-foreground text-sm">Personalize a identidade visual do seu Cardapio publico</p>
@@ -194,7 +208,7 @@ const AppearancePage = () => {
           </Card>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:flex">
-            <Button onClick={handleSave} disabled={saving} className="h-11 w-full sm:w-auto">
+            <Button onClick={handleSave} disabled={saving || publication.blocked || !user} className="h-11 w-full sm:w-auto">
               {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : "Salvar alteracoes"}
             </Button>
             <Button variant="outline" asChild className="h-11 w-full sm:w-auto">

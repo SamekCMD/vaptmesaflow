@@ -1,5 +1,6 @@
 import type { MenuItemDto, MenuVariationDto } from "@/lib/business-api.types";
 import { vaptApiRequest } from "@/lib/vapt-api-client";
+import type { CatalogMutationExecutor } from "@/lib/catalog-mutations";
 
 export type MenuVariationInput = Omit<MenuVariationDto, "id">;
 
@@ -27,7 +28,8 @@ export function listOwnedMenuItems(): Promise<MenuItemDto[]> {
   });
 }
 
-export function createMenuItem(input: MenuItemInput): Promise<MenuItemDto> {
+export function createMenuItem(input: MenuItemInput, publication?: CatalogMutationExecutor): Promise<MenuItemDto> {
+  if (publication) return publication.run<MenuItemDto>({ method: "POST", route: "/restaurants/me/menu-items", body: input });
   return vaptApiRequest<MenuItemDto>({
     method: "POST",
     route: "/restaurants/me/menu-items",
@@ -35,7 +37,12 @@ export function createMenuItem(input: MenuItemInput): Promise<MenuItemDto> {
   });
 }
 
-export function updateMenuItem(itemId: string, patch: MenuItemPatch): Promise<MenuItemDto> {
+export function updateMenuItem(itemId: string, patch: MenuItemPatch, publication?: CatalogMutationExecutor): Promise<MenuItemDto> {
+  if (publication) return publication.run<MenuItemDto>({ method: "PATCH", route: `/restaurants/me/menu-items/${encodeURIComponent(itemId)}`, body: patch }, async () => {
+    const item = (await listOwnedMenuItems()).find(value => value.id === itemId);
+    if (!item) throw new Error("Item publicado, mas não foi possível recarregar seus dados.");
+    return item;
+  });
   return vaptApiRequest<MenuItemDto>({
     method: "PATCH",
     route: `/restaurants/me/menu-items/${encodeURIComponent(itemId)}`,
@@ -43,7 +50,8 @@ export function updateMenuItem(itemId: string, patch: MenuItemPatch): Promise<Me
   });
 }
 
-export function deleteMenuItem(itemId: string): Promise<void> {
+export function deleteMenuItem(itemId: string, publication?: CatalogMutationExecutor): Promise<void> {
+  if (publication) return publication.run<void>({ method: "DELETE", route: `/restaurants/me/menu-items/${encodeURIComponent(itemId)}` }, async () => { await listOwnedMenuItems(); });
   return vaptApiRequest<void>({
     method: "DELETE",
     route: `/restaurants/me/menu-items/${encodeURIComponent(itemId)}`,

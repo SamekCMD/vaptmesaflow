@@ -21,6 +21,10 @@ import { vaptApiRequest } from "@/lib/vapt-api-client";
 import { orderClient, readStoredOrderAccess, saveStoredOrderAccess, type StoredOrderAccess } from "@/lib/order-client";
 import { ENV } from "@/lib/env";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
+import { useLocation, useNavigate } from "react-router-dom";
+import { usePublicCatalog } from "@/hooks/use-public-catalog";
+import { useCatalogAvailabilityClock } from "@/hooks/use-catalog-availability-clock";
+import { isCatalogWithinHours } from "@/lib/catalog/availability";
 
 function normalizeFontFamily(value: string): RestaurantConfig["fontFamily"] {
   return value === "classic" || value === "rounded" ? value : "modern";
@@ -45,21 +49,7 @@ function mapCatalogItems(items: PublicCatalogDto["items"]): PublicMenuItem[] {
 }
 
 function isWithinTimeRange(from: string | null | undefined, until: string | null | undefined): boolean {
-  if (!from && !until) return true;
-  const now = new Date();
-  const mins = now.getHours() * 60 + now.getMinutes();
-  const parse = (t: string) => {
-    const [h, m] = t.split(":").map(Number);
-    return h * 60 + (m || 0);
-  };
-  if (from && until) {
-    const f = parse(from);
-    const u = parse(until);
-    return f <= u ? mins >= f && mins <= u : mins >= f || mins <= u;
-  }
-  if (from) return mins >= parse(from);
-  if (until) return mins <= parse(until);
-  return true;
+  return isCatalogWithinHours(from, until);
 }
 
 function formatTimeRange(from: string | null | undefined, until: string | null | undefined): string {
@@ -72,17 +62,21 @@ function formatTimeRange(from: string | null | undefined, until: string | null |
 
 const PublicMenu = () => {
   const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate(); const location = useLocation();
+  const published = usePublicCatalog(slug ?? "");
   const [searchParams] = useSearchParams();
   const tableNumber = searchParams.get("table") || searchParams.get("mesa") || "";
 
   const [restaurant, setRestaurant] = useState<RestaurantConfig | null>(null);
   const [items, setItems] = useState<PublicMenuItem[]>([]);
+  useCatalogAvailabilityClock(items, ENV.publicCatalogEventsEnabled);
   const [paymentMode, setPaymentMode] = useState<"open_tab" | "prepaid">("open_tab");
   const [maxPendingOrders, setMaxPendingOrders] = useState(3);
   const [activeCategory, setActiveCategory] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<PublicMenuItem | null>(null);
+  const selectedItemRef = useRef(selectedItem); selectedItemRef.current = selectedItem;
   const [productDrawerOpen, setProductDrawerOpen] = useState(false);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
   const [myOrdersOpen, setMyOrdersOpen] = useState(false);
@@ -93,6 +87,9 @@ const PublicMenu = () => {
   const [hasPlacedOrder, setHasPlacedOrder] = useState(false);
 
   const cart = useCart();
+  const cartItemsRef = useRef(cart.items); cartItemsRef.current = cart.items;
+  const clearCart = cart.clearCart;
+  const catalogTenant = useRef<string | null>(null);
   const prevItemsRef = useRef<Map<string | number, boolean>>(new Map());
   const itemNamesRef = useRef<Map<string | number, string>>(new Map());
   const readyNotifiedRef = useRef<Set<string>>(new Set());
@@ -103,6 +100,7 @@ const PublicMenu = () => {
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   useEffect(() => {
+    if (ENV.publicCatalogEventsEnabled) return;
     const fetchData = async () => {
       if (!slug) {
         setError("URL inválida");
@@ -186,7 +184,7 @@ const PublicMenu = () => {
   }, [slug, tableNumber]);
 
   useEffect(() => {
-    if (!slug) return;
+    if (!slug || ENV.publicCatalogEventsEnabled) return;
     const interval = setInterval(async () => {
       const catalog = await vaptApiRequest<PublicCatalogDto>({
         method: "GET",
@@ -235,6 +233,63 @@ const PublicMenu = () => {
     return () => clearInterval(interval);
   }, [slug, cart.items]);
 
+  useEffect(() => {
+    if (!ENV.publicCatalogEventsEnabled) return;
+    const catalog = published.state?.catalog;
+    if (!catalog) {
+      setLoading(!currentRestaurantRef.current && published.status === "loading");
+      if (!currentRestaurantRef.current && published.status === "unavailable") setError("Erro ao carregar o cardápio");
+      return;
+    }
+    const row = catalog.restaurant; const sameTenant = catalogTenant.current === row.id;
+    if (catalogTenant.current && !sameTenant) {
+      clearCart(); setSelectedItem(null); setProductDrawerOpen(false); setOrderDrawerOpen(false); setMyOrdersOpen(false);
+      setTableSessionId(null); setTableSessionOrderAccess(null); setHasPlacedOrder(false); setHasReadyOrder(false);
+      readyNotifiedRef.current.clear(); readyPrimedRef.current = false; setActiveCategory("");
+      prevItemsRef.current.clear(); itemNamesRef.current.clear();
+    }
+    catalogTenant.current = row.id;
+    const next = mapCatalogItems(catalog.items);
+    if (selectedItemRef.current) {
+      const fresh = next.find(item => item.id === selectedItemRef.current?.id);
+      setSelectedItem(fresh?.available ? fresh : null);
+      if (!fresh?.available) setProductDrawerOpen(false);
+    }
+    if (sameTenant) {
+      const ids = new Set(next.filter(item => item.available).map(item => item.id));
+      for (const [id, wasAvailable] of prevItemsRef.current) if (wasAvailable && !ids.has(id)) {
+        const inCart = cartItemsRef.current.some(value => value.item.id === id);
+        toast({ title: inCart ? "Item indisponível no pedido" : `"${itemNamesRef.current.get(id) || "Um item"}" ficou indisponível`,
+          description: inCart ? "O item saiu do cardápio. Revise o pedido antes de confirmar." : "Este item não está disponível no momento.", variant: inCart ? "destructive" : undefined });
+      }
+    }
+    prevItemsRef.current = new Map(next.map(item => [item.id, item.available]));
+    itemNamesRef.current = new Map(next.map(item => [item.id, item.name]));
+    setRestaurant({ id: row.id, name: row.name, slug: row.slug, logoUrl: row.logoUrl || "", primaryColor: row.primaryColor || "#0ea573",
+      secondaryColor: row.secondaryColor || "#1e293b", fontFamily: normalizeFontFamily(row.fontFamily), activeModules: { menu: true, kds: true, metrics: true } });
+    setPaymentMode(row.paymentMode); setMaxPendingOrders(row.maxPendingOrders); setItems(next); setError(null); setLoading(false);
+    setActiveCategory(current => next.some(item => item.available && item.category === current) ? current : next.find(item => item.available)?.category ?? "");
+    if (row.slug !== slug) navigate(`/menu/${encodeURIComponent(row.slug)}${location.search}`, { replace: true });
+  }, [published.state, published.status, slug, location.search, navigate, clearCart]);
+
+  useEffect(() => {
+    if (!ENV.publicCatalogEventsEnabled || !restaurant?.id) return;
+    let cancelled = false;
+    const restore = async () => {
+      const stored = paymentMode === "open_tab" && tableNumber ? localStorage.getItem(`table_session_${restaurant.id}_${tableNumber}`) : null;
+      setTableSessionId(stored); setTableSessionOrderAccess(null); setHasPlacedOrder(!!stored);
+      if (!stored) return;
+      const accesses = await Promise.all(readStoredOrderAccess(restaurant.id).map(async access => {
+        const order = await orderClient.get(access.orderId, access.publicToken).catch(() => null);
+        return order?.tableSessionId === stored ? access : null;
+      }));
+      if (!cancelled) setTableSessionOrderAccess(accesses.find((value): value is StoredOrderAccess => value !== null) ?? null);
+    };
+    void restore(); return () => { cancelled = true; };
+  }, [restaurant?.id, paymentMode, tableNumber]);
+
+  const orderingEnabled = !ENV.publicCatalogEventsEnabled || (!!published.state && published.state.catalog.restaurant.id === restaurant?.id && published.state.catalog.restaurant.localEnabled);
+
   const categories = useMemo(() => Array.from(new Set(items.filter((i) => i.available).map((i) => i.category))), [items]);
   const availableItems = useMemo(() => items.filter((i) => i.available), [items]);
   useEffect(() => {
@@ -259,16 +314,17 @@ const PublicMenu = () => {
     readyPrimedRef.current = false;
     setHasReadyOrder(false);
   }, [restaurant?.id]);
+  const currentRestaurantId = restaurant?.id;
   const getCurrentOrderAccesses = useCallback(() => {
-    if (!restaurant) return [];
+    if (!currentRestaurantId) return [];
     try {
       const currentSessionIds = new Set<string>(JSON.parse(sessionStorage.getItem("vapt_current_order_ids") || "[]"));
-      return readStoredOrderAccess(restaurant.id).slice(0, 24).filter(access => currentSessionIds.has(access.orderId));
+      return readStoredOrderAccess(currentRestaurantId).slice(0, 24).filter(access => currentSessionIds.has(access.orderId));
     } catch { return []; }
-  }, [restaurant?.id]);
+  }, [currentRestaurantId]);
   const checkReadyOrders = useCallback(async () => {
-      if (!restaurant) return;
-      const isCurrent = () => mountedRef.current && currentRestaurantRef.current === restaurant.id;
+      if (!currentRestaurantId) return;
+      const isCurrent = () => mountedRef.current && currentRestaurantRef.current === currentRestaurantId;
       const accesses = getCurrentOrderAccesses();
       if (accesses.length === 0) {
         if (isCurrent()) { setHasReadyOrder(false); readyPrimedRef.current = true; }
@@ -294,7 +350,7 @@ const PublicMenu = () => {
         readyNotifiedRef.current.add(order.orderId);
       });
       readyPrimedRef.current = true;
-  }, [restaurant?.id, getCurrentOrderAccesses]);
+  }, [currentRestaurantId, getCurrentOrderAccesses]);
   const currentOrderAccesses = getCurrentOrderAccesses();
   useRealtimeRefresh({ scopes: currentOrderAccesses.map(access => ({ mode: "order", orderId: access.orderId, token: access.publicToken })), topics: ["orders"],
     enabled: ENV.realtimeEnabled, active: !!restaurant && currentOrderAccesses.length > 0,
@@ -323,6 +379,7 @@ const PublicMenu = () => {
   }, [restaurant]);
 
   const openProduct = (item: PublicMenuItem) => {
+    if (!orderingEnabled) return;
     setSelectedItem(item);
     setProductDrawerOpen(true);
   };
@@ -356,6 +413,11 @@ const PublicMenu = () => {
           <Button variant="outline" className="h-11 min-w-[136px] justify-between rounded-xl border-border bg-card px-4 text-sm" onClick={() => { setActiveTab("orders"); setMyOrdersOpen(true); setHasReadyOrder(false); }}><span className="flex items-center gap-2"><ClipboardList className="h-4 w-4" />Pedidos</span>{hasReadyOrder && <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: primaryColor }} />}</Button>
         </div>
       </header>
+
+      {!orderingEnabled && <p role="status" className="mx-auto max-w-4xl px-4 py-3 text-sm text-muted-foreground">Novos pedidos na mesa estão pausados.</p>}
+      {ENV.publicCatalogEventsEnabled && published.status !== "ready" && <div role="status" className="mx-auto flex max-w-4xl flex-wrap items-center gap-3 px-4 py-3 text-sm text-muted-foreground">
+        <span>Exibindo a última versão recebida. A conexão com o cardápio está sendo restabelecida.</span><Button type="button" variant="outline" onClick={published.refresh}>Atualizar cardápio</Button>
+      </div>}
 
       <main className="mx-auto max-w-4xl px-4 pb-32 pt-6 sm:px-6 lg:pb-24">
         <section className="mb-6">
@@ -407,16 +469,25 @@ const PublicMenu = () => {
 
           <nav aria-label="Categorias do cardápio" className="sticky top-[72px] z-20 -mx-1 overflow-x-auto px-1 pb-4" style={{ scrollbarWidth: "none" }}><div className="flex gap-2">{categories.map((cat) => { const isActive = activeCategory === cat; return <button key={cat} type="button" aria-pressed={isActive} onClick={() => { setActiveCategory(cat); setActiveTab("menu"); }} className="whitespace-nowrap rounded-full border px-4 py-2.5 text-sm font-medium transition-colors" style={{ backgroundColor: isActive ? `${primaryColor}16` : "hsl(var(--card))", borderColor: isActive ? `${primaryColor}55` : "hsl(var(--border))", color: isActive ? primaryColor : "hsl(var(--foreground))" }}>{cat}</button>; })}</div></nav>
 
+          <fieldset disabled={!orderingEnabled} className="min-w-0">
           <div className="space-y-3"><AnimatePresence mode="popLayout">{filteredItems.map((item, index) => { const inTime = isWithinTimeRange(item.availableFrom, item.availableUntil); const isAvailable = item.available && inTime; return <motion.button key={item.id} type="button" layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.16, delay: index * 0.015 }} className="grid w-full gap-4 rounded-[20px] border border-border bg-card p-4 text-left transition-colors md:grid-cols-[88px_minmax(0,1fr)_auto]" onClick={() => isAvailable && openProduct(item)} disabled={!isAvailable}><div className="relative h-20 overflow-hidden rounded-xl md:h-full" style={{ backgroundColor: `${secondaryColor}14` }}>{item.imageUrl ? <img src={item.imageUrl} alt={item.name} className={`h-full w-full object-cover ${isAvailable ? "" : "opacity-45"}`} /> : <div className="flex h-full w-full items-center justify-center"><UtensilsCrossed className="h-5 w-5 text-muted-foreground" /></div>}</div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className={`text-base font-semibold ${isAvailable ? "text-foreground" : "text-muted-foreground"}`}>{item.name}</h3>{item.badge && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}>{item.badge}</span>}{!isAvailable && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground" style={{ backgroundColor: `${secondaryColor}14` }}>{!item.available ? "Indisponível" : formatTimeRange(item.availableFrom, item.availableUntil)}</span>}</div>{item.description && <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{item.description}</p>}<div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">{item.prepTimeMinutes && <span className="inline-flex items-center gap-1.5"><Clock className="h-4 w-4" />{item.prepTimeMinutes} min</span>}<span className="mono text-base font-medium" style={{ color: isAvailable ? primaryColor : "hsl(var(--muted-foreground))" }}>R$ {item.price.toFixed(2).replace(".", ",")}</span></div></div><div className="flex items-center justify-between gap-3 md:flex-col md:items-end md:justify-center"><span className="text-sm text-muted-foreground">{isAvailable ? "Ver detalhes" : "Indisponível"}</span>{isAvailable && <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border" style={{ borderColor: `${primaryColor}33`, color: primaryColor, backgroundColor: `${primaryColor}10` }}><Plus className="h-4 w-4" /></span>}</div></motion.button>; })}</AnimatePresence>
             {filteredItems.length === 0 && <div className="rounded-[24px] border border-dashed border-border bg-card px-6 py-12 text-center"><p className="text-base font-medium text-foreground">Nada disponível nessa categoria agora.</p><p className="mt-2 text-sm text-muted-foreground">Troque de categoria ou fale com a equipe se quiser confirmar a disponibilidade.</p></div>}
           </div>
+          </fieldset>
         </section>
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6"><div className="mx-auto grid max-w-4xl gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"><Button variant="outline" className="h-11 rounded-xl border-border bg-card text-sm font-semibold" onClick={() => { setActiveTab("orders"); setMyOrdersOpen(true); setHasReadyOrder(false); }} aria-current={activeTab === "orders" ? "page" : undefined}><ClipboardList className="mr-2 h-4 w-4" />{hasReadyOrder ? "Pedido pronto" : "Acompanhar pedidos"}</Button><Button className="h-11 rounded-xl text-sm font-semibold" style={{ backgroundColor: primaryColor }} onClick={() => setOrderDrawerOpen(true)} aria-current={activeTab === "menu" ? "page" : undefined}><ShoppingBag className="mr-2 h-4 w-4" />{cart.totalItems > 0 ? `Revisar pedido • ${cart.totalItems} ${cart.totalItems === 1 ? "item" : "itens"}` : "Montar pedido"}</Button></div></div>
 
-      <ProductDrawer item={selectedItem} open={productDrawerOpen} onClose={() => setProductDrawerOpen(false)} onAdd={cart.addItem} primaryColor={restaurant.primaryColor} />
+      <ProductDrawer item={selectedItem} open={productDrawerOpen && orderingEnabled} onClose={() => setProductDrawerOpen(false)} onAdd={(item, quantity, notes) => {
+        const fresh = items.find(value => value.id === item.id);
+        if (!orderingEnabled || !fresh?.available || !isWithinTimeRange(fresh.availableFrom, fresh.availableUntil)) {
+          setProductDrawerOpen(false); setSelectedItem(null); return;
+        }
+        cart.addItem(fresh, quantity, notes);
+      }} primaryColor={restaurant.primaryColor} />
       <OrderSummaryDrawer
+        orderingEnabled={orderingEnabled}
         open={orderDrawerOpen}
         onClose={() => setOrderDrawerOpen(false)}
         items={cart.items}

@@ -6,6 +6,12 @@ const receipt: CommandReceipt = { operationId: "11111111-1111-4111-8111-11111111
   phase: "committed", version: "12", committed: true, retryable: true };
 afterEach(cleanup);
 describe("owner publication feedback", () => {
+  it("lost response is uncertain, not accepted or published; only manual verification is offered", () => {
+    render(<CatalogPublicationStatus receipt={null} authenticated busy={false} onCheck={() => {}} onRetry={() => {}} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Confirmação pendente");
+    expect(screen.getByRole("button", { name: "Verificar publicação" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Tentar publicação novamente" })).not.toBeInTheDocument();
+  });
   it("ownerSeesCommittedNotReady: only user actions read/retry, never labels accepted as published", () => {
     const check = vi.fn(); const retry = vi.fn();
     const view = render(<CatalogPublicationStatus receipt={receipt} authenticated busy={false} onCheck={check} onRetry={retry} />);

@@ -2,7 +2,8 @@ import { z } from "zod";
 import { ENV } from "@/lib/env";
 import { VaptApiClientError, vaptApiRequest } from "@/lib/vapt-api-client";
 import { compareVersion, type CommandOutcome, type CommandReceipt } from "./catalog/contracts";
-export type CatalogMutationInput = { operationId: string; route: string; method: "POST" | "PATCH" | "DELETE"; body?: unknown };
+export type CatalogMutationInput = { operationId: string; route: string; method: "POST" | "PATCH" | "DELETE"; body?: unknown; signal?: AbortSignal };
+export type CatalogMutationExecutor = { run<T>(input: Omit<CatalogMutationInput, "operationId">, reload?: () => Promise<T>): Promise<T> };
 const revision = z.string().refine(value => { try { compareVersion(value, "1"); return true; } catch { return false; } });
 const receiptSchema = z.object({ operationId: z.string().uuid(), restaurantId: z.string().uuid(),
   phase: z.enum(["accepted", "committed", "projected", "ready", "blocked"]), version: revision.nullable(), committed: z.boolean(), retryable: z.boolean(),
@@ -37,16 +38,17 @@ export async function runCatalogMutation<T>(input: CatalogMutationInput): Promis
   enabled(); const operationId = id(input.operationId);
   if (!validRoute(input)) throw new VaptApiClientError("invalid_catalog_route", "Operação de catálogo inválida.", 400);
   const response = await vaptApiRequest<unknown>({ method: input.method, route: input.route, ...(input.body === undefined ? {} : { body: input.body }),
+    ...(input.signal ? { signal: input.signal, timeoutMs: 15_000 } : {}),
     requireAuth: true, headers: { "X-Vapt-Catalog-Protocol": "1", "Idempotency-Key": operationId } });
   if (!response || typeof response !== "object" || Array.isArray(response) || Object.keys(response).some(key => !["receipt", "result"].includes(key)) || !("receipt" in response)) throw protocolError();
   const parsed = receipt(response.receipt, operationId);
   return { receipt: parsed, ...("result" in response ? { result: response.result as T } : {}) };
 }
-export async function getCatalogOperation(operationId: string): Promise<CommandReceipt> {
+export async function getCatalogOperation(operationId: string, signal?: AbortSignal): Promise<CommandReceipt> {
   enabled(); const key = id(operationId);
-  return receipt(await vaptApiRequest<unknown>({ method: "GET", route: `/restaurants/me/catalog-operations/${key}`, requireAuth: true }), key);
+  return receipt(await vaptApiRequest<unknown>({ method: "GET", route: `/restaurants/me/catalog-operations/${key}`, requireAuth: true, ...(signal ? { signal } : {}) }), key);
 }
-export async function retryCatalogOperation(operationId: string): Promise<CommandReceipt> {
+export async function retryCatalogOperation(operationId: string, signal?: AbortSignal): Promise<CommandReceipt> {
   enabled(); const key = id(operationId);
-  return receipt(await vaptApiRequest<unknown>({ method: "POST", route: `/restaurants/me/catalog-operations/${key}/retry`, requireAuth: true, body: {} }), key);
+  return receipt(await vaptApiRequest<unknown>({ method: "POST", route: `/restaurants/me/catalog-operations/${key}/retry`, requireAuth: true, body: {}, ...(signal ? { signal, timeoutMs: 15_000 } : {}) }), key);
 }
