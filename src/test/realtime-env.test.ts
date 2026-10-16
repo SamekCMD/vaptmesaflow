@@ -22,3 +22,14 @@ describe("frontend realtime opt-in", () => {
     expect((ENV as { realtimeEnabled?: boolean }).realtimeEnabled).toBe(true);
   });
 });
+
+describe("public catalog events opt-in is independent of private realtime", () => {
+  it.each([undefined, "false", "TRUE", "1", " true "])("defaults disabled for %s", async value => {
+    vi.stubEnv("VITE_PUBLIC_CATALOG_EVENTS_ENABLED", value); vi.stubEnv("VITE_REALTIME_ENABLED", "true"); vi.resetModules();
+    const { ENV } = await import("@/lib/env"); expect((ENV as { publicCatalogEventsEnabled?: boolean }).publicCatalogEventsEnabled).toBe(false);
+  });
+  it("enables only for literal true", async () => {
+    vi.stubEnv("VITE_PUBLIC_CATALOG_EVENTS_ENABLED", "true"); vi.resetModules();
+    const { ENV } = await import("@/lib/env"); expect((ENV as { publicCatalogEventsEnabled?: boolean }).publicCatalogEventsEnabled).toBe(true);
+  });
+});

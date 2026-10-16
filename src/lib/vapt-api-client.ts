@@ -3,6 +3,7 @@ import { ENV } from "@/lib/env";
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
 export type VaptApiRequestOptions = {
+  apiBaseUrl?: string;
   method?: HttpMethod;
   route: string;
   headers?: Record<string, string>;
@@ -27,8 +28,9 @@ export class VaptApiClientError extends Error {
 function buildUrl(
   route: string,
   query?: VaptApiRequestOptions["query"],
+  apiBaseUrl = ENV.vaptApiBaseUrl,
 ): string {
-  const base = ENV.vaptApiBaseUrl.replace(/\/$/, "");
+  const base = apiBaseUrl.replace(/\/$/, "");
   const path = route.replace(/^\//, "");
   const search = new URLSearchParams();
   Object.entries(query ?? {}).forEach(([key, value]) => {
@@ -65,6 +67,7 @@ function abortable<T>(operation: () => Promise<T>, signal: AbortSignal): Promise
 }
 
 export async function vaptApiRequest<T>({
+  apiBaseUrl,
   method = "POST",
   route,
   headers = {},
@@ -79,7 +82,7 @@ export async function vaptApiRequest<T>({
   if (signal?.aborted) abort(); else signal?.addEventListener("abort", abort, { once: true });
   const timer = timeoutMs === undefined ? undefined : setTimeout(() => controller.abort(new DOMException("Request deadline exceeded", "TimeoutError")), timeoutMs);
   try {
-    const response = await abortable(() => fetch(buildUrl(route, query), {
+    const response = await abortable(() => fetch(buildUrl(route, query, apiBaseUrl), {
       method,
       credentials: requireAuth ? "include" : "omit",
       headers: {
