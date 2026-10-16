@@ -68,3 +68,13 @@ Clientes sem opt-in mantêm DTO/201/204 quando a operação está ready; pendên
 2. Nenhum caminho ativo de domínio ou imagem sem cobertura; evidência de Node/Coolify e consumidores reais antes do corte.
 3. Bootstrap e recursos remotos confirmados no gate próprio, inclusive privacidade real do R2 e CPU1000ms; sem novo plano pago para executar testes.
 4. Nenhuma flag ligada por este documento. Rollback do reader não desliga o executor de operações aceitas.
+
+## Checkpoint local — 16/10/2026
+
+Etapas6/7 implementadas localmente, commits API`24f40c1` e frontend`bfdec54`: GET público versionado/legado pelo R2 com no-store, canal público isolado com hibernação e controlador compartilhado sem polling de catálogo. O teste workerd provou upgrade101, ping/pong automático, reconstrução após eviction e sinal com versão acima de2**53, sem Hyperdrive nem criação de serviços SQL/auth. Teste de10 abas com relógio simulado por1h manteve somente a leitura inicial por aba. Isso não mede redução real da fatura nem estabelece teto monetário.
+
+Etapa8 **parcial**: cliente autenticado opt-in e componente de feedback distinguem aceitação, gravação pendente, bloqueio e publicação. Status/retry são manuais, preservam operationId; resultado ausente não é inventado. Avisos reutilizam Alert/Button e o padrão visual existente. Ainda falta ligar esses consumidores às páginas, remover o intervalo8s do fluxo ativado, tratar regras/slug/carrinho e converter a sequência publicação→limpeza de imagem. Portanto **não ativar flags nem declarar polling eliminado no site atual**.
+
+Evidência: API660/660 unitários e6/6 testes workerd locais; frontend240/240 em50arquivos, build local e ESLint dos arquivos alterados verdes. O comando legado `npm run typecheck` não verifica o projeto referenciado da aplicação: a checagem direta `tsc --noEmit -p tsconfig.app.json` encontra22 diagnósticos já reproduzidos na base HEAD, sem novos diagnósticos nos arquivos de catálogo. Esse gate completo continua vermelho; não confundir bundle gerado com tipos integralmente corretos.
+
+Integração PostgreSQL real, CPU8MiB, privacidade R2, cobertura de writers ativos e revisão final continuam pendentes. Nenhum deploy, migração SQL remota, push/main, recurso ou assinatura foi criado neste checkpoint.
