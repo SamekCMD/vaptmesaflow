@@ -119,6 +119,8 @@ Checkpoint17/10: integração PostgreSQL18.6 real em cluster descartável loopba
 
 ### Task 5: Admissão autenticada e fechamento de todos os writers
 
+Checkpoint17/10 posterior: adicionada prova PostgreSQL real das corridas imagem/SQL ao entry de integraçãoT2, com helper de testes `src/worker/catalog/image-service.pg-test-support.ts` emA. Exclusão e associação testadas nas duas ordens, snapshots atual/anterior preservam imagens, logout concorre sob row lock real; sem filaJS compartilhada. SQLite de quota real, armazenamento/projeção controlados — não é prova de R2 remoto nem composição integral doDO. Dez testes PG totais aprovados, sem mudança da lógica de produção. Cobertura dos writers/clientes realmente ativos continua pendente; não concluirT5 apenas por essa prova.
+
 **Files:** A create `src/worker/catalog/{writer,writer.test}.ts`; modify `src/worker/routes/restaurant.ts`, `src/worker/http.ts`, `src/worker/app.ts`, `src/worker/environment.ts`; F create `docs/infra-migration-public-catalog-writers.md`. A usar `AuthRuntime` e services existentes, sem cache novo de sessão.
 
 **Interfaces:** `submitCatalogMutation(context, mutation): Promise<CommandOutcome<unknown>>`; `requireCatalogActor(context): Promise<CatalogActor>` resolve sessão vigente e extrai apenas userId/sessionId/expiry, sem persistir headers. `PUBLIC_CATALOG_WRITER_ENABLED` false por padrão; desligada preserva API legada. Novo cliente manda `X-Vapt-Catalog-Protocol: 1` e `Idempotency-Key: UUID`; opt-in permite envelope T1. Sem opt-in mantém DTO/201/204 legado se ready, mas202 explícito se pendente — nunca sucesso falso. Chaves legadas ausentes são geradas no servidor, sem promessa de dedup de nova requisição sem chave. Converter todos os clientes ativos antes da ativação.
