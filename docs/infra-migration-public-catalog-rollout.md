@@ -1,6 +1,15 @@
 # Catálogo por eventos — ativação e rollback
 
-Estado em16/10/2026: telas integradas e testadas localmente; implantação **pendente**, nenhuma flag ativada. Código salvo em branches de infraestrutura, não na main. Referências: [plano aprovado](infra-migration-public-catalog-event-driven-plan.md), [writers](infra-migration-public-catalog-writers.md), [consolidação](infra-migration-branch-integration.md). Prova API: `docs/public-catalog-runtime-verification.md` no repositório `vapt-api`.
+Estado em17/10/2026: telas integradas e testadas localmente; separação do armazenamento aprovada e preparada no código/configuração. Implantação **pendente**, nenhuma flag ativada. Código salvo em branches de infraestrutura, não na main. Referências: [plano aprovado](infra-migration-public-catalog-event-driven-plan.md), [writers](infra-migration-public-catalog-writers.md), [consolidação](infra-migration-branch-integration.md). Prova API: `docs/public-catalog-runtime-verification.md` no repositório `vapt-api`.
+
+## Armazenamento aprovado — somente preparação local
+
+| Ambiente | Imagens existentes: `R2_BUCKET` | Snapshots privados: `PUBLIC_CATALOG_BUCKET` |
+| --- | --- | --- |
+| Preview | `vapt-assets-preview` | `vapt-catalog-preview` (candidato, não criado) |
+| Production | `vapt-assets-production` | `vapt-catalog-production` (candidato, não criado) |
+
+O novo binding atende GET público/legado, registro do socket, projeção/recuperação e verificação das referências retidas antes de limpar imagens. Ausência/incompletude retorna503, sem usar imagens ou SQL como fallback. Upload, inventário e exclusão física de imagens continuam no binding antigo. Não há novo token S3, URL pública, domínio, CORS ou alteração de ACL; os dois buckets privados ainda precisam ser criados e ter privacidade confirmada no gate remoto autorizado. Não presumir privacidade pelo nome ou pelo teste local. Aprovação atual não libera criação, deploy, bootstrap ou ativação.
 
 ## Flags separadas
 
@@ -16,7 +25,7 @@ Ambas as flags frontend são false por padrão. Builds normais de produção, in
 ## Antes de qualquer implantação
 
 1. PostgreSQL/journal/grants reais aprovados no banco isolado; não usar credencial remota como fallback. Cota indisponível não autoriza upgrade pago.
-2. Prova de privacidade dos objetos R2, não apenas existência do binding: leitura remota em16/10 confirmou `r2.dev` público no bucket preview, desligado em production e zero custom domains em ambos. **O desenho de bucket compartilhado está bloqueado no preview.** Solicitado ajuste para buckets privados de snapshots separados por ambiente; aguardar aprovação, sem quebrar imagens nem criar recursos por inferência. [Acesso público R2](https://developers.cloudflare.com/r2/buckets/public-buckets/) expõe os objetos do bucket, não apenas as imagens.
+2. Prova de privacidade dos objetos R2, não apenas existência do binding: leitura remota em16/10 confirmou `r2.dev` público no bucket de imagens preview, desligado em production e zero custom domains em ambos. Compartilhar esse bucket com snapshots foi descartado; o usuário aprovou a separação acima em17/10. Criação/readback de `r2.dev` e custom domains dos novos buckets continuam pendentes no gate remoto, sem alterar os buckets de imagens. [Acesso público R2](https://developers.cloudflare.com/r2/buckets/public-buckets/) expõe os objetos do bucket, não apenas as imagens.
 3. Inventário completo de writers e consumidores ativos usando protocolo compatível. CRUD/imagens, onboarding, canais, marca e rebuild incluídos.
 4. Gate CPU8MiB com medição CPU suportada; teste funcional e tempo de parede não substituem esse gate. Preservar1000ms.
 5. Qualidade/revisão final e deploy definitivo com migrações append-only. Os scripts/configs legados não podem substituir os novos bindings após registro da classe; falta concluir esse gate antes do cutover.

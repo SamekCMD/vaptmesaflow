@@ -26,7 +26,7 @@ Referência: [pesquisa](D:/Projetos/vaptmesaflow/docs/infra-migration-query-redu
 | Commit SQL e envio best-effort para WebSocket |Simples, mas crash entre commit e aviso pode perder publicação|Não usar como única garantia|
 | Comando durável antes da mutação, projeçãoR2 e canal público separado |Trabalho só quando necessário, com recuperação sem varredura SQL vazia|Recomendada neste desenho|
 
-A terceira opção reaproveita Workers Paid e buckets R2 existentes. Propõe **uma nova classe/namespace SQLite Durable Object, `PublicCatalogCoordinator`**, isolada do `RestaurantRealtime` privado, na mesma API. Há novas operações/armazenamento faturáveis, não assinatura nova nem custo zero. Não cria Redis, CDC, outro banco, outra Queue, domínio ou serviço externo. A namespace só será criada no gate remoto posterior.
+A terceira opção reaproveita Workers Paid. Ajuste aprovado pelo usuário em17/10/2026: snapshots terão dois buckets R2 privados exclusivos, candidatos `vapt-catalog-preview` e `vapt-catalog-production`, pelo binding `PUBLIC_CATALOG_BUCKET`. Os buckets existentes de imagens continuam em `R2_BUCKET`, sem alteração de URL/ACL. Aprovação atual cobre código/configuração; criação e ativação remotas permanecem no gate posterior. Propõe **uma nova classe/namespace SQLite Durable Object, `PublicCatalogCoordinator`**, isolada do `RestaurantRealtime` privado, na mesma API. Há novas operações/armazenamento faturáveis, não assinatura nova nem custo zero. Não cria Redis, CDC, outro banco, outra Queue, domínio ou serviço externo. A namespace só será criada no gate remoto posterior.
 
 ## 4. Componentes e responsabilidades
 
@@ -64,7 +64,7 @@ Máximo100 intenções pendentes por restaurante, uma aplicação SQL por vez; s
 
 ### 4.3 Snapshot e roteamento noR2 privado
 
-Usar prefixo reservado de catálogo, separado das imagens, com isolamento por ambiente/restaurante/revisão. Não tornar bucket público nem usar URLr2.dev como publicação. Cada snapshot contém **somente `PublicCatalogDto`**, esquema explícito e revisão; excluir owner, sessão, CNPJ, assinatura, emails privados, tokens e payload de comando.
+Usar prefixo reservado de catálogo no bucket privado exclusivo `PUBLIC_CATALOG_BUCKET`, separado fisicamente de `R2_BUCKET` das imagens, com isolamento por ambiente/restaurante/revisão. Reader, registro/sinal, executor e verificação de referências retidas usam exclusivamente esse binding. Se ele estiver ausente/incompleto, falhar fechado503, sem fallback para imagens ou SQL. Configguards rejeitam ausência, alias ao bucket de imagens e cruzamento preview/production. Não tornar bucket público nem usar URLr2.dev como publicação; nenhum novo token S3, domínio ou CORS público é necessário para o acesso por binding. Cada snapshot contém **somente `PublicCatalogDto`**, esquema explícito e revisão; excluir owner, sessão, CNPJ, assinatura, emails privados, tokens e payload de comando.
 
 Snapshots são imutáveis por revisão. Um manifesto identifica a revisão pronta de cada restaurante e o mapeamento do slug. Atualizar manifests por escrita condicional/CAS e revisão; um retry antigo não pode substituir versão nova. Não assumir transação entre múltiplos objetosR2. Ordem: objeto íntegro→mapeamentos confirmados→estado `ready`→sinal. Respostas com falha ou revisão ainda não pronta não são cacheadas como sucesso.
 
