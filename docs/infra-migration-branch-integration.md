@@ -1,6 +1,6 @@
 # Consolidação da migração — situação e integração
 
-Checkpoint local: 16/10/2026. Este documento organiza a execução já aprovada; não autoriza merge, push, deploy, nova contratação ou cancelamento de serviço. Referências: [plano principal](infra-migration-plan.md), [plano do catálogo](infra-migration-public-catalog-event-driven-plan.md) e [inventário de writers](infra-migration-public-catalog-writers.md).
+Checkpoint local: 17/10/2026. Este documento organiza a execução já aprovada; não autoriza merge, push, deploy, nova contratação ou cancelamento de serviço. Referências: [plano principal](infra-migration-plan.md), [plano do catálogo](infra-migration-public-catalog-event-driven-plan.md) e [inventário de writers](infra-migration-public-catalog-writers.md).
 
 ## Quanto falta
 
@@ -8,9 +8,9 @@ O plano principal continua na **Etapa 13**, consolidação/validação do destin
 
 O desvio de redução de consultas tem dez tarefas. No início desta continuação, cinco estavam formalmente concluídas localmente (1, 3, 4, 6 e 7); 2, 5 e 8 tinham implementação parcial, e 9/10 ainda não estavam encerradas. Isso não representa percentual de migração concluída nem redução financeira já medida. O checkpoint atualizado fica no inventário de writers.
 
-Atualização desta continuação: **6/10 concluídas localmente**, incluindo a tarefa8 (`e7647be`, suíte final281/281). As quatro ainda abertas são2(prova PostgreSQL real),5(cobertura dos writers ativos),9(gates finais de runtime/deploy/CPU/privacidade) e10(bootstrap/ativação controlada). A tarefa9 avançou com293 testes frontend,660 API,29 workerd e25 guards aprovados no checkpoint16/10, mas não está encerrada. Em17/10 o usuário aprovou separar snapshots privados por ambiente: código/configuração usam `PUBLIC_CATALOG_BUCKET`, sem criar recursos nem alterar os buckets de imagens. Privacidade/readback remotos continuam pendentes. Nenhum número significa produção já ativada.
+Atualização desta continuação: **7/10 concluídas localmente**, incluindo a tarefa2, agora validada em PostgreSQL18.6 real e descartável: sete testes, ambos os grants009 aplicados sem edição, sem Neon ou serviço Windows. API663/663 e build aprovados. As três ainda abertas são5(cobertura dos writers ativos),9(gates finais de runtime/deploy/CPU/privacidade) e10(bootstrap/ativação controlada). A tarefa9 avançou com293 testes frontend,29 workerd e35 guards aprovados nos checkpoints anteriores, mas não está encerrada. Em17/10 o usuário aprovou separar snapshots privados por ambiente: código/configuração usam `PUBLIC_CATALOG_BUCKET`, sem criar recursos nem alterar os buckets de imagens. Privacidade/readback remotos continuam pendentes. Nenhum número significa produção já ativada.
 
-Restam como gates do desvio: prova PostgreSQL real do journal; validação final de runtime, CPU, deploy/rollback e privacidade; bootstrap controlado; comprovação de que os writers ativos usam o protocolo; revisão final e ativação controlada. Integração local das telas/imagens foi concluída na tarefa8. Testes locais não substituem os gates remotos.
+Restam como gates do desvio: validação final de runtime, CPU, deploy/rollback e privacidade; bootstrap controlado; comprovação de que os writers ativos usam o protocolo; revisão final e ativação controlada. A prova PostgreSQL local do journal está concluída, sem certificar Hyperdrive ou permissões remotas. Integração local das telas/imagens foi concluída na tarefa8. Testes locais não substituem os gates remotos.
 
 Depois retomamos os gates ainda abertos da Etapa 13, incluindo a consolidação/reteste do billing e a verificação conjunta do produto. As etapas finais são:
 
