@@ -33,6 +33,18 @@ Ambas as flags frontend são false por padrão. Builds normais de produção, in
 
 ## Ordem pretendida após os gates
 
+### Bootstrap local preparado — não executar apply neste checkpoint
+
+No repositório API, `node --import tsx scripts/bootstrap-public-catalog.ts --environment preview --restaurant-id <UUID>` é dry-run por padrão: zero leitura de sessão, zero HTTP e zero escrita. Aceita um restaurante por execução; outros donos exigem sessões/execuções separadas. Slug, URL arbitrária, ambiente ausente e argumentos duplicados são rejeitados antes de qualquer requisição.
+
+`--apply` exige também `--operation-id <UUID preservado>`, `--confirm-project-id dawn-morning-27332079`, `--confirm-branch-id br-rough-dew-b6ydeygb` no preview (production usa `br-odd-term-b6j2n9ms`), `--confirm-writer-coverage` e `--confirm-readiness`. As confirmações são **reconhecimento explícito do operador**, não prova automática de que o banco, CPU, privacidade, revisão ou readback passaram. Não fornecê-las até haver evidência real e autorização do gate; o script não altera flags nem contrata/provisiona recursos.
+
+A sessão do dono chega somente em memória/entrada padrão protegida, JSON com uma única propriedade `cookie`, sem eco, arquivo, variável de ambiente, argumento de processo ou chat. Não usar receitas de shell que gravem a sessão no histórico/log. O CLI não abre login nem obtém API key. Entrada até8KiB, cookie até4KiB sem caracteres de controle; respostas até64KiB e requests com deadline15s/redirect proibido.
+
+Após confirmar o dono em `GET /restaurants/me`, envia uma única chamada autenticada `POST /restaurants/me/catalog/rebuild`, protocolo1/body{} e a chave preservada. Só retorna ambiente/contagens e recibo estrito do mesmo restaurante/operação; ignora resultado privado. `postRequests:1` significa chamada feita, não gravação SQL: `accepted`, `committed`, `ready` e `blocked` continuam distintos. Resposta perdida/erro após POST resulta em confirmação pendente com a chave, sem retry/polling automático. Investigar manualmente antes de qualquer repetição explícita. Nunca trocar a chave para escapar de uma resposta incerta.
+
+Teste `npm run test:catalog-bootstrap` usa transporte sintético e CLI real apenas em dry-run/entrada inválida. Não prova deduplicação PostgreSQL ou bootstrap remoto. Implementado localmente; implantação/execução real pendentes. Os gates abaixo continuam obrigatórios.
+
 Preview existente: schema/grants → API com flagsfalse e readback → bootstrap explícito autenticado para alvos aprovados → writer com recuperação provada → reader/frontend canário. Production reutiliza código/testes, mas tem recursos/credenciais próprios; repetir os gates, não reimplementar as funcionalidades. Sem main/DNS/StripeLive/aposentadoria por inferência.
 
 Medir SQL por publicação/visita, operações R2/DO/Workers, pendências, erros e alarmes vazios. Meta de navegação estável sem GET de catálogo não significa zero requests nem fatura zero. Orçamento confortável US$10–15 e capacidade pessoal US$20 não são teto técnico do provedor.

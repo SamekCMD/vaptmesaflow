@@ -183,6 +183,8 @@ Decisão de armazenamento revisada e confirmada pelo usuário em15/10: **100 MiB
 
 ### Task 10: Bootstrap controlado e gate remoto separado
 
+Checkpoint local17/10: cliente preparado, execução real ainda bloqueada. Além de `--apply`, exigir `--operation-id`, confirmações explícitas de projeto/branch, `--confirm-writer-coverage` e `--confirm-readiness`. São reconhecimentos do operador, não verificações automáticas dos provedores. Uma sessão owner em memória/stdin protegido por execução, nenhum arquivo/env/argumento de credencial, um GET autenticado de conferência e um POST rebuild, sem polling/retry. Saída só contagens/recibo; `postRequests:1` não significa gravação SQL. Credencial até4KiB, entrada8KiB, resposta64KiB, deadline15s por request e redirect proibido. Testes26/26 usam HTTP sintético e CLI real dry-run/entradas inválidas, não provam PostgreSQL ou bootstrap remoto. T9/PG/privacidade/CPU/revisão continuam gates antes de apply.
+
 **Files:** A create `scripts/bootstrap-public-catalog.ts`, `scripts/bootstrap-public-catalog.test.mjs`; F update inventory/rollout docs; nenhum deploy ou SQL remoto antes das condições abaixo.
 
 **Interfaces:** `bootstrap-public-catalog` recebe ambiente e lista explícita de restaurantes aprovados; dry-run padrão; apply exige `--apply` e confirmação de projeto/branch pelo operador, nunca URL com senha em argumento logado. Executa `rebuild` de T1 pelo executor administrativo interno, com snapshot/journal versionado, não por endpoint público anônimo. Scripts validam origem/ambiente, sem ProductionURL por fallback.
