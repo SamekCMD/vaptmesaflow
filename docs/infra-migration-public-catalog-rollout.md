@@ -1,15 +1,15 @@
 # Catálogo por eventos — ativação e rollback
 
-Estado em17/10/2026: telas integradas e testadas localmente; separação do armazenamento aprovada e preparada no código/configuração. Implantação **pendente**, nenhuma flag ativada. Código salvo em branches de infraestrutura, não na main. Referências: [plano aprovado](infra-migration-public-catalog-event-driven-plan.md), [writers](infra-migration-public-catalog-writers.md), [consolidação](infra-migration-branch-integration.md). Prova API: `docs/public-catalog-runtime-verification.md` no repositório `vapt-api`.
+Estado em17/10/2026: telas integradas e testadas localmente; os dois buckets privados de catálogo foram criados e conferidos após autorização específica. Implantação **pendente**, nenhuma flag ativada. Código salvo em branches de infraestrutura, não na main. Referências: [plano aprovado](infra-migration-public-catalog-event-driven-plan.md), [writers](infra-migration-public-catalog-writers.md), [consolidação](infra-migration-branch-integration.md). Provas API: `docs/public-catalog-runtime-verification.md` e `docs/public-catalog-r2-privacy-verification.md` no repositório `vapt-api`.
 
-## Armazenamento aprovado — somente preparação local
+## Armazenamento criado — implantação ainda pendente
 
 | Ambiente | Imagens existentes: `R2_BUCKET` | Snapshots privados: `PUBLIC_CATALOG_BUCKET` |
 | --- | --- | --- |
-| Preview | `vapt-assets-preview` | `vapt-catalog-preview` (candidato, não criado) |
-| Production | `vapt-assets-production` | `vapt-catalog-production` (candidato, não criado) |
+| Preview | `vapt-assets-preview` | `vapt-catalog-preview` (criado, r2.dev desativado, sem domínio) |
+| Production | `vapt-assets-production` | `vapt-catalog-production` (criado, r2.dev desativado, sem domínio) |
 
-O novo binding atende GET público/legado, registro do socket, projeção/recuperação e verificação das referências retidas antes de limpar imagens. Ausência/incompletude retorna503, sem usar imagens ou SQL como fallback. Upload, inventário e exclusão física de imagens continuam no binding antigo. Não há novo token S3, URL pública, domínio, CORS ou alteração de ACL; os dois buckets privados ainda precisam ser criados e ter privacidade confirmada no gate remoto autorizado. Não presumir privacidade pelo nome ou pelo teste local. Aprovação atual não libera criação, deploy, bootstrap ou ativação.
+O novo binding atende GET público/legado, registro do socket, projeção/recuperação e verificação das referências retidas antes de limpar imagens. Ausência/incompletude retorna503, sem usar imagens ou SQL como fallback. Upload, inventário e exclusão física de imagens continuam no binding antigo. Autorização posterior em17/10 liberou somente criação e readback dos dois recursos: Standard/ENAM, zero objetos/bytes reportados e nenhum acesso público r2.dev/custom domain. Criados às19:01:27.327Z (preview) e19:01:30.140Z (production). Nenhum token S3, URL pública, domínio, CORS ou ACL de imagens alterado. Os bindings candidatos continuam sem implantação; a autorização não libera deploy, namespace, schema, bootstrap ou ativação. Revalidar privacidade no cutover, sem presumi-la pelo nome.
 
 ## Flags separadas
 
@@ -25,7 +25,7 @@ Ambas as flags frontend são false por padrão. Builds normais de produção, in
 ## Antes de qualquer implantação
 
 1. PostgreSQL/journal/grants reais aprovados no banco isolado; não usar credencial remota como fallback. Cota indisponível não autoriza upgrade pago.
-2. Prova de privacidade dos objetos R2, não apenas existência do binding: leitura remota em16/10 confirmou `r2.dev` público no bucket de imagens preview, desligado em production e zero custom domains em ambos. Compartilhar esse bucket com snapshots foi descartado; o usuário aprovou a separação acima em17/10. Criação/readback de `r2.dev` e custom domains dos novos buckets continuam pendentes no gate remoto, sem alterar os buckets de imagens. [Acesso público R2](https://developers.cloudflare.com/r2/buckets/public-buckets/) expõe os objetos do bucket, não apenas as imagens.
+2. Privacidade dos recursos R2 confirmada por readback em17/10: `r2.dev` desativado e zero custom domains em ambos os novos buckets. Nenhum objeto gravado. Imagens preservam o estado anterior (preview r2.dev público, production desligado, zero custom domains). Confirmar novamente no cutover e conferir o binding realmente implantado; esses passos ainda não aconteceram. [Acesso público R2](https://developers.cloudflare.com/r2/buckets/public-buckets/) expõe os objetos do bucket, não apenas as imagens.
 3. Inventário completo de writers e consumidores ativos usando protocolo compatível. CRUD/imagens, onboarding, canais, marca e rebuild incluídos.
 4. Gate CPU8MiB com medição CPU suportada; teste funcional e tempo de parede não substituem esse gate. Preservar1000ms.
 5. Qualidade/revisão final e deploy definitivo com migrações append-only. Os três aliases antigos de deploy da API e os três do frontend agora falham antes de chamar Wrangler, sem opção de bypass; os builds legados continuam só como regressão. No frontend isso impede publicar involuntariamente um cliente com writer legado após cutover. O novo `build:worker-catalog-production` da API valida a candidata e fixa dry-run, sem encaminhar argumentos que permitam desativá-lo. Checks offline disponíveis para ambas as candidatas. Publicação/readback/rollback de versão compatível continuam pendentes antes do cutover; o bloqueio não controla chamadas diretas ao provedor e não afeta os serviços já publicados.
