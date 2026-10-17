@@ -60,7 +60,7 @@ Execução **direta/inline**, já escolhida pelo usuário. Não criar agentes po
 | F `src/lib/catalog-mutations.ts`; `src/lib/menu-items.ts`, `restaurants.ts` | Recibo/idempotência opt-in e consulta manual de publicação |
 | F `src/components/menu/CatalogPublicationStatus.tsx`; páginas existentes | Feedback de gravação/publicação e integração sem redesenho visual |
 | A `src/worker/catalog.workerd.ts`, `catalog-test-fixture.ts`; `wrangler.worker-catalog-test.jsonc` | R2/SQLite/WebSocket reais locais com SQL instrumentado/injetado |
-| A `scripts/verify-catalog-config.mjs`, `scripts/bootstrap-public-catalog.ts` | Guard de rollout e bootstrap administrativo controlado |
+| A `scripts/verify-catalog-config.mjs`, `scripts/catalog-operator.mjs`, `scripts/bootstrap-public-catalog.ts` | Guard de rollout, operador offline/build sem deploy e bootstrap administrativo controlado |
 | F `docs/infra-migration-public-catalog-writers.md`, `docs/infra-migration-public-catalog-rollout.md` | Inventário fechado de writers, gates e rollback |
 
 Novos arquivos menores por responsabilidade, sem remodelar módulos privados. Tests `.test.ts` ao lado dos módulos API; React/controller em `src/test/`. A tarefa que introduz uma dependência define seu tipo concreto e o exporta; não introduzir interfaces sem consumidor.
@@ -170,6 +170,8 @@ Decisão de armazenamento revisada e confirmada pelo usuário em15/10: **100 MiB
 - [ ] Reexecutar novos testes e existentes `npm test -- src/test/menu-management.test.tsx src/test/menu-items-api.test.ts src/test/menu-image-storage.test.ts src/test/public-order-realtime.test.tsx src/test/public-menu-rating.test.tsx`; commit F `feat: refresh public menus on published catalog changes`.
 
 ### Task 9: Prova local R2/SQLite/hibernação e guard de implantação
+
+Checkpoint17/10 posterior: aliases antigos de publicação da API (public/realtime/observability) e frontend (preview/production/realtime) bloqueados antes de Wrangler; builds legados mantidos só para regressão. Operador API faz checks offline das duas candidatas e bundle production com dry-run fixo/sem overrides.51 guards/operador API,18 guards frontend e113 scripts de regressão aprovados; CI preparado, não executado remotamente. `wrangler preview` instalado não tem dry-run equivalente, portanto check estrutural não é prova dos bindings do Preview nomeado. Publicação/readback/rollback remoto, CPU e demais gates continuam pendentes; não concluir tarefa9 por esse checkpoint.
 
 **Delta aprovado17/10/2026 — armazenamento separado (somente código/configuração):** adicionar `PUBLIC_CATALOG_BUCKET` aos tipos e trocar origem das projeções de reader/coordenador para esse binding, sem fallback. Manter `R2_BUCKET` e configuração de imagens intactos. Candidatas apontam para `vapt-catalog-preview` e `vapt-catalog-production`, ainda não criados. TDD: GET/legado/socket funcionam com bucket de imagens indisponível; binding de catálogo ausente retorna503 sem serviços/DO; guard rejeita alias, ausência e cross-env; workerd usa dois buckets locais e confirma imagens sem snapshots e catálogo sem imagens. Referências retidas para limpeza continuam vindo da projeção privada. Atualizar fixtures, spec/runbook e ledger, rodar unitários/build/guards/workerd. Nenhuma criação, ACL, credencial, deploy ou flag remota nesta execução.
 

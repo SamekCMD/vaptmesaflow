@@ -76,6 +76,9 @@ export function checkProductionBundle(code) {
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   try {
     const command = process.argv[2];
+    // Keep legacy deployment aliases inert until paired API/frontend catalog
+    // rollout and rollback gates are implemented and explicitly cleared.
+    if (command === '--deploy-catalog-blocked' && process.argv.length === 3) throw new Error('catalog_deployment_blocked');
     if (!['--check', '--build', '--verify-artifact', '--check-realtime', '--build-realtime', '--verify-realtime-artifact'].includes(command) || process.argv.length !== 3) throw Error();
     const realtime = command.includes('realtime') ? 'enabled' : 'disabled';
     const isBuild = command === '--build' || command === '--build-realtime';
@@ -98,8 +101,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
       if (!checkProductionArtifact(JSON.parse(readFileSync(proofPath, 'utf8')), artifactSha256, realtime).ok) throw Error();
       console.log(JSON.stringify({ ok: true, realtime: realtime === 'enabled', jsFiles: files.length, artifactSha256, noPublication: true }));
     } else console.log(JSON.stringify({ ok: true, noPublication: true }));
-  } catch {
-    console.log(JSON.stringify({ ok: false, failures: ['Production build/configuration verification failed'], noPublication: true }));
+  } catch (error) {
+    const blocked = error instanceof Error && error.message === 'catalog_deployment_blocked';
+    console.log(JSON.stringify({ ok: false, ...(blocked ? { code: 'catalog_deployment_blocked' } : {}),
+      failures: [blocked ? 'Catalog rollout gate is not open' : 'Production build/configuration verification failed'], noPublication: true }));
     process.exitCode = 1;
   }
 }

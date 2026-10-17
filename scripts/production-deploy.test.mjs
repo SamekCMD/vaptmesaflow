@@ -206,3 +206,26 @@ test('artifact verification rejects disabled, stale or malformed build proof for
   }
   assert.equal(check(proof, hash, 'synthetic-secret').ok, false);
 });
+
+test('catalog deployment gate fails before artifact reads, builds or publication with a fixed safe code', () => {
+  const result = spawnSync(process.execPath, [fileURLToPath(new URL('./production-deploy.mjs', import.meta.url)), '--deploy-catalog-blocked'],
+    { encoding: 'utf8', timeout: 10_000, env: { ...process.env, CLOUDFLARE_API_TOKEN: 'synthetic-never-publish' } });
+  assert.equal(result.status, 1);
+  const report = JSON.parse(result.stdout.trim());
+  assert.equal(report.code, 'catalog_deployment_blocked');
+  assert.equal(report.noPublication, true);
+  assert.doesNotMatch(result.stdout + result.stderr, /synthetic-never-publish|wrangler [0-9]/i);
+});
+
+test('all frontend deployment aliases invoke the catalog block rather than publishing legacy reader/writer artifacts', () => {
+  const scripts = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).scripts;
+  const aliases = Object.keys(scripts).filter(name => name.startsWith('deploy:'));
+  assert.deepEqual(aliases.sort(), ['deploy:preview', 'deploy:production', 'deploy:production-realtime']);
+  for (const name of aliases) {
+    // Never run the former live command while demonstrating the missing guard.
+    assert.equal(scripts[name], 'node scripts/production-deploy.mjs --deploy-catalog-blocked');
+    const result = spawnSync(process.execPath, scripts[name].split(' ').slice(1), { encoding: 'utf8', timeout: 10_000 });
+    assert.equal(result.status, 1);
+    assert.equal(JSON.parse(result.stdout.trim()).code, 'catalog_deployment_blocked');
+  }
+});
