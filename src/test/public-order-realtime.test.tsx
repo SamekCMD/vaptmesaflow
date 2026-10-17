@@ -61,7 +61,7 @@ describe("public order realtime", () => {
   it("resyncs only current authorized orders, notifies ready once, and retains catalog polling", async () => {
     localStorage.setItem(`orders_${restaurantId}`, JSON.stringify([{ orderId, publicToken }, { orderId: otherOrderId, publicToken: "another-synthetic-token" }]));
     vi.useFakeTimers();
-    let view: ReturnType<typeof render>;
+    let view!: ReturnType<typeof render>;
     await act(async () => { view = render(<MemoryRouter initialEntries={["/menu/vapt-bistro?table=1"]}><Routes>
       <Route path="/menu/:slug" element={<PublicMenu />} />
     </Routes></MemoryRouter>); });

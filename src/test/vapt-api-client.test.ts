@@ -73,7 +73,7 @@ describe("vaptApiRequest", () => {
     await expect(vaptApiRequest({
       method: "GET",
       route: "/restaurants/me",
-    })).rejects.toEqual(expect.objectContaining<VaptApiClientError>({
+    })).rejects.toEqual(expect.objectContaining<Partial<VaptApiClientError>>({
       code: "unauthorized",
       message: "Sessão inválida. Faça login novamente.",
       status: 401,

@@ -99,7 +99,7 @@ describe("menu image R2 client", () => {
       restaurantId,
       itemId,
       image: new Blob(["jpeg-bytes"], { type: "image/jpeg" }),
-    })).rejects.toEqual(expect.objectContaining<VaptApiClientError>({
+    })).rejects.toEqual(expect.objectContaining<Partial<VaptApiClientError>>({
       code: "storage_not_configured",
     }));
     expect(vaptApiRequest).not.toHaveBeenCalled();
@@ -148,7 +148,7 @@ describe("menu image R2 client", () => {
       restaurantId,
       itemId,
       image: new Blob(["jpeg-bytes"], { type: "image/jpeg" }),
-    })).rejects.toEqual(expect.objectContaining<VaptApiClientError>({
+    })).rejects.toEqual(expect.objectContaining<Partial<VaptApiClientError>>({
       code: "storage_upload_failed",
     }));
   });

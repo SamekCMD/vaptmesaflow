@@ -142,14 +142,17 @@ describe("sessão e operações do Better Auth", () => {
     });
     const { result } = renderHook(() => useAuth(), { wrapper });
 
-    let operationError: Error | null = null;
+    const operationErrors: Error[] = [];
     await act(async () => {
-      ({ error: operationError } = await result.current.signIn(
+      const { error } = await result.current.signIn(
         "gestor@vapt.test",
         "senha-segura",
-      ));
+      );
+      if (error) operationErrors.push(error);
     });
 
+    expect(operationErrors).toHaveLength(1);
+    const [operationError] = operationErrors;
     expect(operationError).toBeInstanceOf(Error);
     expect(operationError?.message).toBe("Não foi possível concluir a operação.");
     expect(operationError?.message).not.toContain("database");

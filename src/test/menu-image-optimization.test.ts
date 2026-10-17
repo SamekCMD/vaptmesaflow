@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { optimizeMenuImage, type DecodedMenuImage } from "@/lib/menu-image-optimization";
 
 function codec(width = 2400, height = 1200, encode = (_w: number, _h: number, type: string, _q?: number) => new Blob([new Uint8Array(200_000)], { type })) {
-  const decoded: DecodedMenuImage = { width, height, encode: vi.fn(async (...args) => encode(...args)), close: vi.fn() };
+  const decoded: DecodedMenuImage = { width, height, encode: vi.fn(async (...args: Parameters<DecodedMenuImage["encode"]>) => encode(...args)), close: vi.fn() };
   return { decoded, decode: vi.fn(async () => decoded) };
 }
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });

@@ -24,7 +24,7 @@ describe("criação pública de pedidos", () => {
   it("envia somente referências de catálogo e nunca envia preço ou status", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       orderId: "20000000-0000-0000-0000-000000000001",
-      displayId: 42,
+      displayId: "42",
       restaurantId: "30000000-0000-0000-0000-000000000001",
       tableSessionId: null,
       totalPrice: "51.80",
@@ -45,6 +45,7 @@ describe("criação pública de pedidos", () => {
         street: "Rua Um",
         number: "42",
         neighborhood: "Centro",
+        paymentMode: "on_delivery",
       },
     }, "order-attempt-0001");
 

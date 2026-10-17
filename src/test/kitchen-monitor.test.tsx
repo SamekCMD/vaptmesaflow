@@ -3,11 +3,14 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "@/hooks/use-toast";
+import type { subscribeRealtime } from "@/lib/realtime/client";
+import type { RealtimeEnvelope } from "@/lib/realtime/contracts";
 import { listKitchenOrders, updateKitchenOrderStatus } from "@/lib/kitchen";
 import KitchenMonitor from "@/pages/dashboard/KitchenMonitor";
 
 const { authUser } = vi.hoisted(() => ({ authUser: { id: "owner-1" } }));
-const realtime = vi.hoisted(() => ({ consumers: [] as Array<{ scope: any; signal: (value: any) => void; state: (value: any) => void }> }));
+type RealtimeConsumer = { scope: Parameters<typeof subscribeRealtime>[0]; signal: Parameters<typeof subscribeRealtime>[1]; state: Parameters<typeof subscribeRealtime>[2] };
+const realtime = vi.hoisted(() => ({ consumers: [] as RealtimeConsumer[] }));
 vi.mock("@/lib/env", async original => ({ ENV: { ...(await original<typeof import("@/lib/env")>()).ENV, realtimeEnabled: true } }));
 vi.mock("@/lib/restaurants", () => ({ fetchOwnedRestaurant: async () => ({ id: "10000000-0000-4000-8000-000000000001" }) }));
 vi.mock("@/lib/realtime/client", () => ({ subscribeRealtime: (scope, signal, state) => {
@@ -155,12 +158,12 @@ describe("kitchen monitor API cutover", () => {
     vi.useFakeTimers();
     vi.mocked(listKitchenOrders).mockResolvedValue([pendingOrder, { ...pendingOrder, id: "30000000-0000-4000-8000-000000000002", displayId: "43" }]);
     const initial = vi.mocked(listKitchenOrders).mock.calls.length;
-    const event = { version: 1, eventId: pendingOrder.id, entityId: pendingOrder.id, sequence: 1, topic: "orders", reason: "created" };
+    const event: RealtimeEnvelope = { version: 1, eventId: pendingOrder.id, entityId: pendingOrder.id, sequence: 1, topic: "orders", reason: "created" };
     act(() => { realtime.consumers[0].signal(event); realtime.consumers[0].signal(event); });
     await act(async () => { await vi.advanceTimersByTimeAsync(250); });
     expect(screen.getByText("#43")).toBeInTheDocument(); expect(listKitchenOrders).toHaveBeenCalledTimes(initial + 1);
     act(() => realtime.consumers[0].signal(event)); await act(async () => { await vi.advanceTimersByTimeAsync(250); });
-    expect(vi.mocked(toast).mock.calls.filter(([value]) => value.title.includes("novo(s)")).length).toBe(1);
+    expect(vi.mocked(toast).mock.calls.filter(([value]) => value.title?.includes("novo(s)")).length).toBe(1);
     view.unmount(); expect(realtime.consumers).toHaveLength(0); expect(vi.getTimerCount()).toBe(0);
   });
 });

@@ -43,7 +43,7 @@ export type MenuItemDto = {
   imageUrl: string | null;
   availableFrom: string | null;
   availableUntil: string | null;
-  badge: string | null;
+  badge: "destaque" | "promocao" | "novo" | null;
   isChefSuggestion: boolean;
   prepTimeMinutes: number | null;
   createdAt: string;

@@ -44,7 +44,7 @@ import {
 
 type MenuItem = MenuItemDto;
 type Variation = MenuVariationInput;
-type MenuBadge = MenuItemInput["badge"] | "none";
+type MenuBadge = NonNullable<MenuItemInput["badge"]> | "none";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Tente novamente.";
@@ -219,7 +219,7 @@ const MenuManagement = () => {
   };
 
   const handleDelete = async (item: MenuItem) => {
-    if (!user || publication.blocked || saving) return;
+    if (!user || !restaurantId || publication.blocked || saving) return;
     setSaving(true);
     try {
       // The legacy endpoint still authorizes through the existing item and uses

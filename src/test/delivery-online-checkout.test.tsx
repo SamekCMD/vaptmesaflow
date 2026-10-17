@@ -83,7 +83,7 @@ describe("checkout online do delivery", () => {
     }));
     vi.mocked(orderClient.create).mockResolvedValue({
       orderId: "20000000-0000-4000-8000-000000000001",
-      displayId: 42,
+      displayId: "42",
       restaurantId: restaurant.id,
       tableSessionId: null,
       totalPrice: "23.00",
@@ -94,7 +94,7 @@ describe("checkout online do delivery", () => {
     });
     vi.mocked(orderClient.get).mockResolvedValue({
       orderId: "20000000-0000-4000-8000-000000000001",
-      displayId: 42,
+      displayId: "42",
       restaurantId: restaurant.id,
       tableSessionId: null,
       totalPrice: "23.00",
