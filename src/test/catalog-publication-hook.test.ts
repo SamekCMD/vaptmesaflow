@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
 import { getCatalogOperation, retryCatalogOperation, runCatalogMutation } from "@/lib/catalog-mutations";
 import type { CommandReceipt } from "@/lib/catalog/contracts";
+import { VaptApiClientError } from "@/lib/vapt-api-client";
 const env = vi.hoisted(() => ({ publicCatalogEventsEnabled: true, publicCatalogWriterEnabled: false }));
 vi.mock("@/lib/env", () => ({ ENV: env }));
 vi.mock("@/lib/catalog-mutations", () => ({ runCatalogMutation: vi.fn(), getCatalogOperation: vi.fn(), retryCatalogOperation: vi.fn() }));
@@ -11,6 +12,50 @@ const receipt = (operationId: string, phase: CommandReceipt["phase"] = "committe
 beforeEach(() => { vi.resetAllMocks(); env.publicCatalogEventsEnabled = true; env.publicCatalogWriterEnabled = false; });
 afterEach(cleanup);
 describe("owner publication lifecycle", () => {
+  it.each(["create", "private-patch"])("explicitly replays %s after verified not-admitted404 using the same frozen action and key", async kind => {
+    const published = vi.fn();
+    vi.mocked(runCatalogMutation).mockRejectedValueOnce(new Error("Request lost before admission"))
+      .mockImplementationOnce(async input => ({ receipt: { ...receipt(input.operationId, "ready"), version: kind === "private-patch" ? null : "12" } }));
+    const { result, unmount } = renderHook(() => useCatalogPublication("owner", published));
+    const body = kind === "create" ? { name: "Original item" } : { cnpj: "synthetic-private-value" };
+    await act(async () => { await expect(result.current.run({ method: kind === "create" ? "POST" : "PATCH", route: kind === "create" ? "/restaurants/me/menu-items" : "/restaurants/me", body })).rejects.toThrow(); });
+    const operationId = result.current.operationId;
+    body.name = "Different edited value";
+    vi.mocked(getCatalogOperation).mockRejectedValue(new VaptApiClientError("catalog_operation_not_found", "Not found", 404));
+    await act(async () => { await result.current.check(); });
+    expect(result.current.canReplay).toBe(true);
+    expect(runCatalogMutation).toHaveBeenCalledOnce();
+    await act(async () => { await result.current.retry(); });
+    expect(runCatalogMutation).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(runCatalogMutation).mock.calls[1]![0].operationId).toBe(operationId);
+    expect(vi.mocked(runCatalogMutation).mock.calls[1]![0].body).toEqual(kind === "create" ? { name: "Original item" } : { cnpj: "synthetic-private-value" });
+    expect(result.current.blocked).toBe(false); expect(published).toHaveBeenCalledOnce();
+    expect(retryCatalogOperation).not.toHaveBeenCalled(); unmount();
+  });
+  it("same-action recovery is discarded at logout and never becomes an automatic resend", async () => {
+    vi.mocked(runCatalogMutation).mockRejectedValue(new Error("Request lost"));
+    vi.mocked(getCatalogOperation).mockRejectedValue(new VaptApiClientError("catalog_operation_not_found", "Not found", 404));
+    const { result, rerender } = renderHook(({ owner }) => useCatalogPublication(owner), { initialProps: { owner: "owner" as string | undefined } });
+    await act(async () => { await expect(result.current.run({ method: "POST", route: "/onboarding", body: {} })).rejects.toThrow(); await result.current.check(); });
+    expect(result.current.canReplay).toBe(true);
+    rerender({ owner: undefined });
+    await act(async () => { await result.current.retry(); });
+    expect(result.current.canReplay).toBe(false); expect(runCatalogMutation).toHaveBeenCalledOnce();
+  });
+  it("retains an uncertain payload only in memory for at most24h, without polling or automatic replay", async () => {
+    vi.useFakeTimers();
+    vi.mocked(runCatalogMutation).mockRejectedValue(new Error("Request lost"));
+    vi.mocked(getCatalogOperation).mockRejectedValue(new VaptApiClientError("catalog_operation_not_found", "Not found", 404));
+    const { result, unmount } = renderHook(() => useCatalogPublication("owner"));
+    try {
+      await act(async () => { await expect(result.current.run({ method: "POST", route: "/onboarding", body: {} })).rejects.toThrow(); await result.current.check(); });
+      expect(result.current.canReplay).toBe(true);
+      await act(async () => { await vi.advanceTimersByTimeAsync(86_400_000); });
+      expect(result.current.canReplay).toBe(false);
+      await act(async () => { await result.current.retry(); });
+      expect(runCatalogMutation).toHaveBeenCalledOnce(); expect(getCatalogOperation).toHaveBeenCalledOnce();
+    } finally { unmount(); vi.useRealTimers(); }
+  });
   it("reader rollback keeps accepted operations locked and manually recoverable", async () => {
     env.publicCatalogEventsEnabled = false; env.publicCatalogWriterEnabled = true;
     vi.mocked(runCatalogMutation).mockImplementation(async input => ({ receipt: receipt(input.operationId) }));

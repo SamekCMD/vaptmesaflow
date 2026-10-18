@@ -1,11 +1,12 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PublicDelivery from "@/pages/delivery/PublicDelivery";
 import { vaptApiRequest } from "@/lib/vapt-api-client";
 import { catalogState } from "./public-catalog-fixture";
 import type { PublicCatalogView } from "@/lib/catalog/controller";
 import { orderClient } from "@/lib/order-client";
+import { paymentClient } from "@/lib/payment-client";
 const events = vi.hoisted(() => ({ view: null as PublicCatalogView | null, refresh: vi.fn() }));
 vi.mock("@/hooks/use-public-catalog", () => ({ usePublicCatalog: () => ({ ...events.view, refresh: events.refresh }) }));
 vi.mock("@/lib/env", async original => ({ ENV: { ...(await original<typeof import("@/lib/env")>()).ENV, publicCatalogEventsEnabled: true } }));
@@ -16,11 +17,40 @@ function state(version = "11") {
     category: "Pratos", available: true, imageUrl: null, availableFrom: null, availableUntil: null, badge: null, isChefSuggestion: false, prepTimeMinutes: 15,
     createdAt: "2026-10-16T00:00:00Z", updatedAt: "2026-10-16T00:00:00Z", variations: [] }]; return value;
 }
-function Location() { const location = useLocation(); return <output aria-label="Endereço atual">{location.pathname}</output>; }
+function Location() { const location = useLocation(); const navigate = useNavigate(); return <><output aria-label="Endereço atual">{location.pathname}</output><button onClick={() => navigate("/delivery/other-bistro")}>Outro restaurante</button></>; }
 const page = () => <MemoryRouter initialEntries={["/delivery/bistro"]}><Location /><Routes><Route path="/delivery/:slug" element={<PublicDelivery />} /></Routes></MemoryRouter>;
 beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); sessionStorage.clear(); events.view = { state: state(), status: "ready", errorCode: null }; vi.mocked(vaptApiRequest).mockResolvedValue(state().catalog); });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 describe("delivery published catalog integration", () => {
+  it("blocks payment with a stale cart price instead of silently ordering at the new price", async () => {
+    const restaurantId = state().catalog.restaurant.id;
+    localStorage.setItem(`vapt_delivery_address_${restaurantId}`, JSON.stringify({ customerName: "Teste", phone: "11999999999", street: "Rua Teste", number: "1", neighborhood: "Centro" }));
+    const create = vi.spyOn(orderClient, "create").mockRejectedValue(new Error("Must review changed price first"));
+    const view = render(page()); await screen.findByText("Prato do dia"); fireEvent.click(screen.getByRole("button", { name: "Adicionar" }));
+    const next = state("12"); next.catalog.items[0]!.price = "30.00";
+    events.view = { state: next, status: "ready", errorCode: null }; view.rerender(page());
+    const pay = screen.getByRole("button", { name: "Continuar para pagamento online" });
+    expect(pay).toBeDisabled(); fireEvent.click(pay); expect(create).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(/Revise o carrinho/);
+    expect(screen.queryByText("Seu carrinho está vazio.")).not.toBeInTheDocument();
+  });
+  it("invalidates old checkout immediately while the next restaurant is still loading", async () => {
+    const restaurantId = state().catalog.restaurant.id;
+    localStorage.setItem(`vapt_delivery_address_${restaurantId}`, JSON.stringify({ customerName: "Teste", phone: "11999999999", street: "Rua Teste", number: "1", neighborhood: "Centro" }));
+    let resolve!: (value: never) => void;
+    vi.spyOn(orderClient, "create").mockImplementation(() => new Promise(done => { resolve = done; }));
+    const hosted = vi.spyOn(paymentClient, "startHosted").mockRejectedValue(new Error("Must not begin old payment"));
+    render(page()); await screen.findByText("Prato do dia"); fireEvent.click(screen.getByRole("button", { name: "Adicionar" }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continuar para pagamento online" })); });
+    events.view = { state: null, status: "loading", errorCode: null };
+    fireEvent.click(screen.getByRole("button", { name: "Outro restaurante" }));
+    await act(async () => { resolve({ restaurantId, orderId: "66666666-6666-4666-8666-666666666666", publicToken: "synthetic-public-token-long-enough", displayId: "41", status: "waiting_payment", totalPrice: "23.50" } as never); });
+    expect(hosted).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Endereço atual")).toHaveTextContent("/delivery/other-bistro");
+    events.view = { state: null, status: "unavailable", errorCode: "not_found" };
+    fireEvent.click(screen.getByRole("button", { name: "Outro restaurante" }));
+    expect(screen.queryByText("Prato do dia")).not.toBeInTheDocument();
+  });
   it("updates full restaurant/item data and canonical slug without resetting cart or fetching legacy DTO", async () => {
     const view = render(page()); await screen.findByText("Prato do dia"); expect(vaptApiRequest).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Adicionar" }));

@@ -23,6 +23,7 @@ import { ENV } from "@/lib/env";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { useLocation, useNavigate } from "react-router-dom";
 import { usePublicCatalog } from "@/hooks/use-public-catalog";
+import { catalogCartReviewMessage, staleCatalogCartItems } from "@/lib/catalog/cart-review";
 import { useCatalogAvailabilityClock } from "@/hooks/use-catalog-availability-clock";
 import { isCatalogWithinHours } from "@/lib/catalog/availability";
 
@@ -64,6 +65,13 @@ const PublicMenu = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate(); const location = useLocation();
   const published = usePublicCatalog(slug ?? "");
+  const navigation = useRef({ slug, canonicalSlug: slug, epoch: 0 });
+  if (navigation.current.slug !== slug) {
+    if (navigation.current.canonicalSlug !== slug) navigation.current.epoch++;
+    navigation.current.slug = slug;
+  }
+  if (published.state) navigation.current.canonicalSlug = published.state.catalog.restaurant.slug;
+  const navigationCurrent = !ENV.publicCatalogEventsEnabled || navigation.current.canonicalSlug === slug;
   const [searchParams] = useSearchParams();
   const tableNumber = searchParams.get("table") || searchParams.get("mesa") || "";
 
@@ -95,7 +103,7 @@ const PublicMenu = () => {
   const readyNotifiedRef = useRef<Set<string>>(new Set());
   const readyPrimedRef = useRef(false);
   const currentRestaurantRef = useRef(restaurant?.id);
-  currentRestaurantRef.current = restaurant?.id;
+  currentRestaurantRef.current = navigationCurrent ? restaurant?.id : undefined;
   const mountedRef = useRef(true);
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
@@ -237,6 +245,7 @@ const PublicMenu = () => {
     if (!ENV.publicCatalogEventsEnabled) return;
     const catalog = published.state?.catalog;
     if (!catalog) {
+      if (!navigationCurrent) setRestaurant(null);
       setLoading(!currentRestaurantRef.current && published.status === "loading");
       if (!currentRestaurantRef.current && published.status === "unavailable") setError("Erro ao carregar o cardápio");
       return;
@@ -270,7 +279,7 @@ const PublicMenu = () => {
     setPaymentMode(row.paymentMode); setMaxPendingOrders(row.maxPendingOrders); setItems(next); setError(null); setLoading(false);
     setActiveCategory(current => next.some(item => item.available && item.category === current) ? current : next.find(item => item.available)?.category ?? "");
     if (row.slug !== slug) navigate(`/menu/${encodeURIComponent(row.slug)}${location.search}`, { replace: true });
-  }, [published.state, published.status, slug, location.search, navigate, clearCart]);
+  }, [published.state, published.status, slug, location.search, navigate, clearCart, navigationCurrent]);
 
   useEffect(() => {
     if (!ENV.publicCatalogEventsEnabled || !restaurant?.id) return;
@@ -289,6 +298,7 @@ const PublicMenu = () => {
   }, [restaurant?.id, paymentMode, tableNumber]);
 
   const orderingEnabled = !ENV.publicCatalogEventsEnabled || (!!published.state && published.state.catalog.restaurant.id === restaurant?.id && published.state.catalog.restaurant.localEnabled);
+  const cartNeedsReview = ENV.publicCatalogEventsEnabled && staleCatalogCartItems(cart.items, items).length > 0;
 
   const categories = useMemo(() => Array.from(new Set(items.filter((i) => i.available).map((i) => i.category))), [items]);
   const availableItems = useMemo(() => items.filter((i) => i.available), [items]);
@@ -487,7 +497,9 @@ const PublicMenu = () => {
         cart.addItem(fresh, quantity, notes);
       }} primaryColor={restaurant.primaryColor} />
       <OrderSummaryDrawer
-        orderingEnabled={orderingEnabled}
+        navigationEpoch={navigation.current.epoch}
+        orderingEnabled={orderingEnabled && !cartNeedsReview}
+        reviewMessage={cartNeedsReview ? catalogCartReviewMessage : undefined}
         open={orderDrawerOpen}
         onClose={() => setOrderDrawerOpen(false)}
         items={cart.items}

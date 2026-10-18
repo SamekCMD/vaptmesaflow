@@ -26,8 +26,9 @@ export function createPublicCatalogTransport(options: CatalogResourceOptions): C
     !(base.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(base.hostname)))) throw new Error("Invalid catalog API base");
   const slug = slugSchema.parse(options.slug); const apiBaseUrl = base.toString().replace(/\/+$/, "");
   return {
-    async read(signal) {
-      const result = await vaptApiRequest<unknown>({ apiBaseUrl, method: "GET", route: `/public/restaurants/${slug}/catalog-state`, requireAuth: false, signal });
+    async read(signal, canonicalSlug = slug) {
+      const targetSlug = slugSchema.parse(canonicalSlug);
+      const result = await vaptApiRequest<unknown>({ apiBaseUrl, method: "GET", route: `/public/restaurants/${targetSlug}/catalog-state`, requireAuth: false, signal });
       // Required keys are enforced at runtime. The existing non-strict TS
       // configuration otherwise infers Zod object properties as optional.
       const state = publicStateSchema.parse(result) as CatalogState;

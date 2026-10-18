@@ -6,6 +6,12 @@ const receipt: CommandReceipt = { operationId: "11111111-1111-4111-8111-11111111
   phase: "committed", version: "12", committed: true, retryable: true };
 afterEach(cleanup);
 describe("owner publication feedback", () => {
+  it("offers an explicit same-action resend only after status verifies the admission was not found", () => {
+    const retry = vi.fn();
+    render(<CatalogPublicationStatus receipt={null} authenticated busy={false} canReplay onCheck={() => {}} onRetry={retry} />);
+    fireEvent.click(screen.getByRole("button", { name: "Reenviar a mesma ação" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
   it("lost response is uncertain, not accepted or published; only manual verification is offered", () => {
     render(<CatalogPublicationStatus receipt={null} authenticated busy={false} onCheck={() => {}} onRetry={() => {}} />);
     expect(screen.getByRole("status")).toHaveTextContent("Confirmação pendente");

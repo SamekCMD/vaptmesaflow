@@ -1,9 +1,37 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPublicCatalogTransport } from "@/lib/catalog/client";
+import { createPublicCatalogRegistry } from "@/lib/catalog/controller";
 import { catalogRestaurantId, catalogState } from "./public-catalog-fixture";
 
 afterEach(() => { vi.unstubAllGlobals(); });
 describe("public catalog network boundary", () => {
+  it("follows a canonical slug signal after the original URL is tombstoned, without changing tenant", async () => {
+    const sockets: Array<{ onmessage: ((event: { data: string }) => void) | null }> = [];
+    vi.stubGlobal("WebSocket", class {
+      onopen = null; onclose = null; onerror = null; onmessage = null;
+      constructor() { sockets.push(this); } close() {} send() {}
+    });
+    let originalReads = 0;
+    const fetch = vi.fn(async (url: string) => {
+      if (url.endsWith("/old-bistro/catalog-state")) return ++originalReads === 1
+        ? new Response(JSON.stringify(catalogState("11", "old-bistro"))) : new Response("{}", { status: 404 });
+      if (url.endsWith("/new-bistro/catalog-state")) return new Response(JSON.stringify(catalogState("12", "new-bistro")));
+      throw new Error("Unexpected public route");
+    });
+    vi.stubGlobal("fetch", fetch);
+    const registry = createPublicCatalogRegistry({ active: () => true, watch: () => () => {}, transport: createPublicCatalogTransport });
+    const handle = registry.acquire({ apiBaseUrl: "https://api.test", slug: "old-bistro" });
+    try {
+      await vi.waitFor(() => expect(sockets).toHaveLength(1));
+      sockets[0]!.onmessage?.({ data: JSON.stringify({ protocol: "vapt.catalog.v1", type: "ready", version: "11", canonicalSlug: "old-bistro" }) });
+      sockets[0]!.onmessage?.({ data: JSON.stringify({ protocol: "vapt.catalog.v1", type: "catalog_changed", version: "12", canonicalSlug: "new-bistro" }) });
+      await vi.waitFor(() => expect(handle.getSnapshot().state?.version).toBe("12"));
+      expect(handle.getSnapshot().state?.catalog.restaurant).toMatchObject({ id: catalogRestaurantId, slug: "new-bistro" });
+      expect(handle.getSnapshot().status).toBe("ready");
+      expect(originalReads).toBe(1);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    } finally { handle.release(); }
+  });
   it("reads the requested API base with omitted credentials, an abortable GET and no private ticket", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(catalogState()), { status: 200 })); vi.stubGlobal("fetch", fetch);
     const controller = new AbortController();

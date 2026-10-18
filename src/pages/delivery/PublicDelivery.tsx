@@ -25,6 +25,7 @@ import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { usePublicCatalog } from "@/hooks/use-public-catalog";
 import { useCatalogAvailabilityClock } from "@/hooks/use-catalog-availability-clock";
 import { isCatalogWithinHours } from "@/lib/catalog/availability";
+import { catalogCartReviewMessage, staleCatalogCartItems } from "@/lib/catalog/cart-review";
 
 type DeliveryMenuItem = {
   availableFrom?: string | null;
@@ -36,6 +37,7 @@ type DeliveryMenuItem = {
   category: string;
   imageUrl: string | null;
   available: boolean;
+  variations?: PublicCatalogDto["items"][number]["variations"];
 };
 
 type CartItem = {
@@ -141,6 +143,13 @@ const PublicDelivery = () => {
   const navigate = useNavigate(); const location = useLocation();
   const published = usePublicCatalog(slug ?? "");
   const catalogTenant = useRef<string | null>(null);
+  const navigation = useRef({ slug, canonicalSlug: slug, epoch: 0 });
+  if (navigation.current.slug !== slug) {
+    if (navigation.current.canonicalSlug !== slug) navigation.current.epoch++;
+    navigation.current.slug = slug;
+  }
+  if (published.state) navigation.current.canonicalSlug = published.state.catalog.restaurant.slug;
+  const navigationCurrent = !ENV.publicCatalogEventsEnabled || navigation.current.canonicalSlug === slug;
   const [loading, setLoading] = useState(true);
   const [restaurant, setRestaurant] = useState<PublicRestaurantDto | null>(null);
   const [items, setItems] = useState<DeliveryMenuItem[]>([]);
@@ -165,9 +174,9 @@ const PublicDelivery = () => {
     neighborhood: "",
   });
   const idempotencyKeyRef = useRef<string | null>(null);
-  const submitFlightRef = useRef<{ restaurantId: string } | null>(null);
+  const submitFlightRef = useRef<{ restaurantId: string; epoch: number } | null>(null);
   const currentOrderRef = useRef({ restaurantId: restaurant?.id, orderId: lastOrderId, publicToken: lastOrderToken });
-  currentOrderRef.current = { restaurantId: restaurant?.id, orderId: lastOrderId, publicToken: lastOrderToken };
+  currentOrderRef.current = { restaurantId: navigationCurrent ? restaurant?.id : undefined, orderId: lastOrderId, publicToken: lastOrderToken };
   const mountedRef = useRef(true);
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
@@ -226,7 +235,7 @@ const PublicDelivery = () => {
   useEffect(() => {
     if (!ENV.publicCatalogEventsEnabled) return;
     const catalog = published.state?.catalog;
-    if (!catalog) { setLoading(published.status === "loading"); return; }
+    if (!catalog) { if (!navigationCurrent) setRestaurant(null); setLoading(published.status === "loading"); return; }
     if (catalogTenant.current && catalogTenant.current !== catalog.restaurant.id) {
       setCart({}); setLastOrderCode(null); setLastOrderId(null); setLastOrderToken(null); setLastOrderStatus(null);
       setRecentOrders([]); setPendingCheckout(null); setSavedAddress(null); setActiveCategory("");
@@ -238,7 +247,7 @@ const PublicDelivery = () => {
     setActiveCategory(current => catalog.items.some(item => item.category === current) ? current : catalog.items[0]?.category ?? "");
     setLoading(false);
     if (catalog.restaurant.slug !== slug) navigate(`/delivery/${encodeURIComponent(catalog.restaurant.slug)}${location.search}`, { replace: true });
-  }, [published.state, published.status, slug, navigate, location.search]);
+  }, [published.state, published.status, slug, navigate, location.search, navigationCurrent]);
 
   const orderingEnabled = !ENV.publicCatalogEventsEnabled || (!!published.state && published.state.catalog.restaurant.id === restaurant?.id && published.state.catalog.restaurant.deliveryEnabled);
 
@@ -330,6 +339,7 @@ const PublicDelivery = () => {
   const categories = useMemo(() => Array.from(new Set(items.map((item) => item.category))), [items]);
   const filteredItems = useMemo(() => items.filter((item) => item.category === activeCategory), [items, activeCategory]);
   const cartItems = useMemo(() => Object.values(cart), [cart]);
+  const cartNeedsReview = ENV.publicCatalogEventsEnabled && staleCatalogCartItems(cartItems, items).length > 0;
   const cartTotal = useMemo(() => cartItems.reduce((acc, current) => acc + current.item.price * current.quantity, 0), [cartItems]);
   const cartItemsCount = useMemo(() => cartItems.reduce((acc, current) => acc + current.quantity, 0), [cartItems]);
   const primaryColor = restaurant?.primaryColor || DEFAULT_PRIMARY;
@@ -398,6 +408,10 @@ const PublicDelivery = () => {
   };
 
   const validateCheckout = () => {
+    if (cartNeedsReview) {
+      toast({ title: "Revise o carrinho", description: catalogCartReviewMessage, variant: "destructive" });
+      return false;
+    }
     if (cartItems.length === 0) {
       toast({ title: "Carrinho vazio", description: "Adicione ao menos 1 item.", variant: "destructive" });
       return false;
@@ -419,8 +433,8 @@ const PublicDelivery = () => {
   const submitOrder = async (paymentMode: DeliveryPaymentMode) => {
     if (!restaurant || submitting || submitFlightRef.current || !orderingEnabled) return;
     if (!validateCheckout() || !savedAddress) return;
-    const flight = { restaurantId: restaurant.id }; submitFlightRef.current = flight;
-    const isCurrent = () => mountedRef.current && submitFlightRef.current === flight && currentOrderRef.current.restaurantId === restaurant.id;
+    const flight = { restaurantId: restaurant.id, epoch: navigation.current.epoch }; submitFlightRef.current = flight;
+    const isCurrent = () => mountedRef.current && submitFlightRef.current === flight && navigation.current.epoch === flight.epoch && currentOrderRef.current.restaurantId === restaurant.id;
     setSubmitting(true);
 
     try {
@@ -574,6 +588,7 @@ const PublicDelivery = () => {
   return (
     <div className="min-h-screen overflow-x-hidden bg-background pb-24 lg:pb-10" style={{ fontFamily: fontFamilyMap[fontFamily] }}>
       {!orderingEnabled && <p role="status" className="mx-auto max-w-6xl px-4 py-3 text-sm text-muted-foreground">Novos pedidos de delivery estão pausados.</p>}
+      {cartNeedsReview && <p role="alert" className="mx-auto max-w-6xl px-4 py-3 text-sm text-destructive">{catalogCartReviewMessage}</p>}
       {ENV.publicCatalogEventsEnabled && published.status !== "ready" && <div role="status" className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3 text-sm text-muted-foreground">
         <span>Exibindo a última versão recebida. Verifique a conexão para atualizar o cardápio.</span><Button type="button" variant="outline" onClick={published.refresh}>Atualizar cardápio</Button>
       </div>}
@@ -704,10 +719,10 @@ const PublicDelivery = () => {
             </div>
 
             <div className="mt-5 hidden grid-cols-1 gap-2 lg:grid">
-              <Button type="button" className="h-11 w-full rounded-xl text-sm font-semibold" style={{ backgroundColor: primaryColor }} onClick={() => submitOrder("online")} disabled={submitting || !orderingEnabled}>
+              <Button type="button" className="h-11 w-full rounded-xl text-sm font-semibold" style={{ backgroundColor: primaryColor }} onClick={() => submitOrder("online")} disabled={submitting || !orderingEnabled || cartNeedsReview}>
                 {submitting ? "Abrindo pagamento..." : "Pagar online"}
               </Button>
-              <Button type="button" variant="outline" className="h-11 w-full rounded-xl text-sm font-semibold" onClick={() => submitOrder("on_delivery")} disabled={submitting || !orderingEnabled}>
+              <Button type="button" variant="outline" className="h-11 w-full rounded-xl text-sm font-semibold" onClick={() => submitOrder("on_delivery")} disabled={submitting || !orderingEnabled || cartNeedsReview}>
                 Pagar na entrega
               </Button>
               <p className="text-center text-[11px] leading-4 text-muted-foreground">No pagamento online, o pedido só entra em preparo após a confirmação.</p>
@@ -775,10 +790,10 @@ const PublicDelivery = () => {
             <p className="truncate text-xs text-muted-foreground">{cartItemsCount} itens</p>
             <p className="truncate text-sm font-semibold text-foreground">Total: R$ {cartTotal.toFixed(2).replace(".", ",")}</p>
           </div>
-          <Button type="button" variant="outline" className="h-11 shrink-0 rounded-xl px-3 text-xs font-semibold" aria-label="Pagar na entrega" onClick={() => submitOrder("on_delivery")} disabled={submitting || !orderingEnabled}>
+          <Button type="button" variant="outline" className="h-11 shrink-0 rounded-xl px-3 text-xs font-semibold" aria-label="Pagar na entrega" onClick={() => submitOrder("on_delivery")} disabled={submitting || !orderingEnabled || cartNeedsReview}>
             Na entrega
           </Button>
-          <Button type="button" className="h-11 min-w-[128px] shrink-0 rounded-xl px-4 text-sm font-semibold" aria-label="Continuar para pagamento online" style={{ backgroundColor: primaryColor }} onClick={() => submitOrder("online")} disabled={submitting || !orderingEnabled}>
+          <Button type="button" className="h-11 min-w-[128px] shrink-0 rounded-xl px-4 text-sm font-semibold" aria-label="Continuar para pagamento online" style={{ backgroundColor: primaryColor }} onClick={() => submitOrder("online")} disabled={submitting || !orderingEnabled || cartNeedsReview}>
             {submitting ? "Abrindo..." : "Pagar online"}
           </Button>
         </div>

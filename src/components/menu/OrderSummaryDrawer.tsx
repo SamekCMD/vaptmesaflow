@@ -26,6 +26,8 @@ import { parseHostedCheckoutUrl } from "@/lib/hosted-checkout-url";
 import { VaptApiClientError } from "@/lib/vapt-api-client";
 
 interface OrderSummaryDrawerProps {
+  reviewMessage?: string;
+  navigationEpoch?: number;
   orderingEnabled?: boolean;
   open: boolean;
   onClose: () => void;
@@ -46,6 +48,8 @@ interface OrderSummaryDrawerProps {
 }
 
 const OrderSummaryDrawer = ({
+  reviewMessage,
+  navigationEpoch = 0,
   orderingEnabled = true,
   open,
   onClose,
@@ -67,9 +71,11 @@ const OrderSummaryDrawer = ({
   const [sent, setSent] = useState(false);
 
   const idempotencyKeyRef = useRef<string | null>(null);
-  const orderingRef = useRef({ enabled: orderingEnabled, restaurantId, restaurantSlug });
-  orderingRef.current = { enabled: orderingEnabled, restaurantId, restaurantSlug };
-  useEffect(() => { setSending(false); setSent(false); idempotencyKeyRef.current = null; }, [restaurantId]);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const orderingRef = useRef({ enabled: orderingEnabled, restaurantId, restaurantSlug, navigationEpoch });
+  orderingRef.current = { enabled: orderingEnabled, restaurantId, restaurantSlug, navigationEpoch };
+  useEffect(() => { setSending(false); setSent(false); idempotencyKeyRef.current = null; }, [restaurantId, navigationEpoch]);
 
   const checkPendingOrdersLimit = async (): Promise<boolean> => {
     if (paymentMode !== "open_tab" || !restaurantId) return true;
@@ -100,8 +106,8 @@ const OrderSummaryDrawer = ({
   };
 
   const handleSendOrder = async () => {
-    const sameContext = () => orderingRef.current.restaurantId === restaurantId && orderingRef.current.restaurantSlug === restaurantSlug;
-    const sameTenant = () => orderingRef.current.restaurantId === restaurantId;
+    const sameTenant = () => mounted.current && orderingRef.current.navigationEpoch === navigationEpoch && orderingRef.current.restaurantId === restaurantId;
+    const sameContext = () => sameTenant() && orderingRef.current.restaurantSlug === restaurantSlug;
     if (!orderingRef.current.enabled || !sameContext()) return;
     if (!restaurantId || !restaurantSlug) {
       toast({ title: "Erro", description: "Restaurante não identificado.", variant: "destructive" });
@@ -328,6 +334,7 @@ const OrderSummaryDrawer = ({
                       R$ {totalPrice.toFixed(2).replace(".", ",")}
                     </motion.span>
                   </div>
+                  {reviewMessage && <p role="alert" className="text-sm text-destructive">{reviewMessage}</p>}
                   <Button
                     className="w-full h-12 text-sm font-semibold transition-transform active:scale-[0.98]"
                     style={{ backgroundColor: primaryColor }}

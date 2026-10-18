@@ -4,6 +4,8 @@ Checkpoint local: 17/10/2026. Este documento organiza a execução já aprovada;
 
 ## Quanto falta
 
+Atualização18/10: revisão do catálogo encontrou seis problemas importantes; quatro corrigidos/testados localmente nesta primeira parte, dois de ciclo de vida de imagens ainda pendentes. Frontend307/307, typecheck e lint sem erros; quatro avisos anteriores de hooks mantidos. [Parecer e alcance](infra-migration-public-catalog-review.md). Não é aprovação de merge/ativação nem revisão das demais funcionalidades históricas.
+
 O plano principal continua na **Etapa 13**, consolidação/validação do destino. Não é necessário recriar em production todas as funcionalidades desenvolvidas em preview: o código é compartilhado, mas bindings, credenciais, dados e gates são próprios de cada ambiente.
 
 O desvio de redução de consultas tem dez tarefas. No início desta continuação, cinco estavam formalmente concluídas localmente (1, 3, 4, 6 e 7); 2, 5 e 8 tinham implementação parcial, e 9/10 ainda não estavam encerradas. Isso não representa percentual de migração concluída nem redução financeira já medida. O checkpoint atualizado fica no inventário de writers.

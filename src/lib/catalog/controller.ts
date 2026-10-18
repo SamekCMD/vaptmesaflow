@@ -4,11 +4,11 @@ export type CatalogSocket = { onopen: (() => void) | null; onclose: (() => void)
   onmessage: ((event: { data: unknown }) => void) | null; send(value: string): void; close(code?: number): void };
 export type CatalogResource = { subscribe(listener: () => void): () => void; getSnapshot(): PublicCatalogView; refresh(): void; release(): void };
 export type CatalogResourceOptions = { apiBaseUrl: string; slug: string };
-export type CatalogTransport = { read(signal: AbortSignal): Promise<CatalogState>; open(restaurantId: string): CatalogSocket };
+export type CatalogTransport = { read(signal: AbortSignal, canonicalSlug?: string): Promise<CatalogState>; open(restaurantId: string): CatalogSocket };
 type Ports = { environment?: string; active(): boolean; watch(listener: () => void): () => void; transport(options: CatalogResourceOptions): CatalogTransport };
 type Entry = {
   refs: number; view: PublicCatalogView; listeners: Set<() => void>; disposed: boolean; generation: number;
-  transport: CatalogTransport; stopWatch: () => void; request?: AbortController;
+  transport: CatalogTransport; slug: string; stopWatch: () => void; request?: AbortController;
   desired?: string; rereads: number; attempts: number; socketEpoch: number; socket?: CatalogSocket; ready: boolean;
   handshake?: ReturnType<typeof setTimeout>; heartbeat?: ReturnType<typeof setTimeout>; retry?: ReturnType<typeof setTimeout>;
 };
@@ -82,7 +82,10 @@ export function createPublicCatalogRegistry(ports: Ports): { acquire(options: Ca
           clearTimeout(entry.handshake); entry.handshake = undefined; heartbeat(entry, socket, current);
         }
         const advanced = !entry.desired || compareVersion(value.version, entry.desired) > 0;
-        if (advanced) { entry.desired = value.version; entry.rereads = 1; }
+        if (advanced) {
+          entry.desired = value.version; entry.rereads = 1;
+          if (value.canonicalSlug) entry.slug = value.canonicalSlug;
+        }
         if (entry.view.state && compareVersion(value.version, entry.view.state.version) > 0) {
           // A fresh ready also repairs a prior failed read of an already-known
           // target. Duplicate change notifications cannot start a retry loop.
@@ -95,11 +98,13 @@ export function createPublicCatalogRegistry(ports: Ports): { acquire(options: Ca
     if (entry.disposed || !ports.active() || entry.request) return;
     const request = new AbortController(); entry.request = request;
     const generation = entry.generation;
+    const slug = entry.slug;
     const current = () => !entry.disposed && entry.generation === generation && !request.signal.aborted && ports.active();
     let again = false;
     try {
-      const state = await entry.transport.read(request.signal);
+      const state = await entry.transport.read(request.signal, slug);
       if (!current()) return;
+      if (entry.slug !== slug) return; // A rename arrived during the old resource read.
       compareVersion(state.version, "1");
       const previous = entry.view.state;
       if (previous && state.catalog.restaurant.id !== previous.catalog.restaurant.id) throw new Error("Catalog identity changed");
@@ -112,10 +117,10 @@ export function createPublicCatalogRegistry(ports: Ports): { acquire(options: Ca
       }
       open(entry);
     } catch (error) {
-      if (current()) update(entry, { status: "unavailable", errorCode: typeof error === "object" && error !== null && "status" in error && error.status === 404 ? "not_found" : "catalog_unavailable" });
+      if (current() && entry.slug === slug) update(entry, { status: "unavailable", errorCode: typeof error === "object" && error !== null && "status" in error && error.status === 404 ? "not_found" : "catalog_unavailable" });
     } finally {
       if (entry.request === request) entry.request = undefined;
-      if (again && current()) void read(entry);
+      if ((again || entry.slug !== slug) && current()) void read(entry);
     }
   }
   function resume(entry: Entry) {
@@ -131,7 +136,7 @@ export function createPublicCatalogRegistry(ports: Ports): { acquire(options: Ca
     let entry = entries.get(key);
     if (!entry) {
       entry = { refs: 0, view: { state: null, status: "loading", errorCode: null }, listeners: new Set(), disposed: false, generation: 0,
-        transport: ports.transport(options), stopWatch: () => {}, rereads: 1, attempts: 0, socketEpoch: 0, ready: false };
+        transport: ports.transport(options), slug: options.slug, stopWatch: () => {}, rereads: 1, attempts: 0, socketEpoch: 0, ready: false };
       entries.set(key, entry); const value = entry;
       entry.stopWatch = ports.watch(() => resume(value)); resume(entry);
     }
