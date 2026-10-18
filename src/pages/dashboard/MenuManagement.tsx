@@ -21,7 +21,7 @@ import { MenuTableSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { fetchOwnedRestaurant } from "@/lib/restaurants";
-import { deleteMenuImage, uploadMenuImage } from "@/lib/menu-image-storage";
+import { deleteMenuImage, uploadMenuImage, reconcileMenuImages } from "@/lib/menu-image-storage";
 import { catalogWriterEnabled } from "@/lib/catalog/flags";
 import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
 import { CatalogPublicationFeedback } from "@/components/menu/CatalogPublicationStatus";
@@ -76,6 +76,14 @@ const MenuManagement = () => {
   const [newOptionInputs, setNewOptionInputs] = useState<Record<number, string>>({});
   const [prepTimeMinutes, setPrepTimeMinutes] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadLease = useRef<{ file: File; ownerId: string; restaurantId: string; itemId: string; operationId: string } | null>(null);
+  const cleanupIdentity = useRef({ ownerId: user?.id, restaurantId });
+  if (cleanupIdentity.current.ownerId !== user?.id || cleanupIdentity.current.restaurantId !== restaurantId) cleanupIdentity.current = { ownerId: user?.id, restaurantId };
+  const cleanupMounted = useRef(true);
+  useEffect(() => { cleanupMounted.current = true; return () => { cleanupMounted.current = false; }; }, []);
+  const [cleanupResult, setCleanupResult] = useState<string | null>(null);
+  useEffect(() => { setCleanupResult(null); setSaving(false); }, [user?.id, restaurantId]);
+  useEffect(() => () => { uploadLease.current = null; }, [user?.id]);
   const publication = useCatalogPublication(user?.id, async isCurrent => {
     const refreshed = await listOwnedMenuItems(); if (!isCurrent()) return;
     setItems(refreshed); setDialogOpen(false);
@@ -110,6 +118,19 @@ const MenuManagement = () => {
     navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
   };
 
+  const handleImageCleanup = async () => {
+    if (!user || !restaurantId || saving || publication.blocked) return;
+    const identity = cleanupIdentity.current;
+    const isCurrent = () => cleanupMounted.current && cleanupIdentity.current === identity;
+    setSaving(true); setCleanupResult(null);
+    try {
+      const result = await reconcileMenuImages(restaurantId); if (!isCurrent()) return;
+      setCleanupResult(`${result.retired} uploads liberados; ${result.protected} ainda usados pelo catálogo. ${result.checked === 10 ? "Há até 10 verificações por clique; repita para verificar outros uploads." : "Verificação concluída."}`);
+    } catch (error: unknown) {
+      if (isCurrent()) toast({ title: "Limpeza não concluída", description: errorMessage(error), variant: "destructive" });
+    } finally { if (isCurrent()) setSaving(false); }
+  };
+
   const filtered = items.filter(
     (i) =>
       i.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -117,6 +138,7 @@ const MenuManagement = () => {
   );
 
   const resetForm = () => {
+    uploadLease.current = null;
     setForm({ name: "", price: "", category: "" });
     setEditItem(null);
     setImageFile(null);
@@ -164,7 +186,12 @@ const MenuManagement = () => {
         // Once creation is confirmed, a failed upload must resume editing this
         // item, never issue another POST and accidentally create a duplicate.
         if (!editItem) { setEditItem(savedItem); setItems(current => [savedItem, ...current.filter(item => item.id !== savedItem.id)]); }
-        const publicUrl = await uploadMenuImage({ restaurantId, itemId: savedItem.id, image: imageFile });
+        if (catalogWriterEnabled() && (uploadLease.current?.file !== imageFile || uploadLease.current.ownerId !== user.id
+          || uploadLease.current.restaurantId !== restaurantId || uploadLease.current.itemId !== savedItem.id)) {
+          uploadLease.current = { file: imageFile, ownerId: user.id, restaurantId, itemId: savedItem.id, operationId: crypto.randomUUID() };
+        }
+        const publicUrl = await uploadMenuImage({ restaurantId, itemId: savedItem.id, image: imageFile,
+          ...(catalogWriterEnabled() ? { operationId: uploadLease.current!.operationId } : {}) });
         savedItem = catalogWriterEnabled() ? await updateMenuItem(savedItem.id, { imageUrl: publicUrl }, publication)
           : await updateMenuItem(savedItem.id, { imageUrl: publicUrl });
       }
@@ -202,6 +229,7 @@ const MenuManagement = () => {
   };
 
   const handleEdit = (item: MenuItem) => {
+    uploadLease.current = null;
     setEditItem(item);
     setForm({ name: item.name, price: String(item.price), category: item.category });
     setImagePreview(item.imageUrl);
@@ -322,6 +350,11 @@ const MenuManagement = () => {
         <div>
           <h1 className="text-2xl font-bold">Gestão de Cardápio</h1>
           <p className="text-muted-foreground text-sm">{items.length} itens cadastrados</p>
+          {catalogWriterEnabled() && <div className="mt-2 space-y-1">
+            <Button variant="outline" size="sm" disabled={!user || !restaurantId || saving || publication.blocked} onClick={handleImageCleanup}>Limpar uploads antigos</Button>
+            <p className="text-muted-foreground text-xs">Recupere espaço de uploads expirados e sem uso, inclusive envios interrompidos. Imagens das versões atual e anterior são preservadas.</p>
+            {cleanupResult && <p role="status" className="text-sm">{cleanupResult}</p>}
+          </div>}
         </div>
         <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
           <DialogTrigger asChild>

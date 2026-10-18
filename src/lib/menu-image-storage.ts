@@ -122,3 +122,9 @@ export async function deleteMenuImage({
     ...(catalogWriterEnabled() ? { query: { objectKey: imageKey(imageUrl, restaurantId, itemId) } } : {}),
   });
 }
+
+export async function reconcileMenuImages(restaurantId: string): Promise<{ checked: number; retired: number; protected: number }> {
+  requireR2Cutover();
+  if (!catalogWriterEnabled()) throw new VaptApiClientError("catalog_writer_disabled", "Limpeza indisponível neste ambiente.", 503);
+  return vaptApiRequest({ method: "POST", route: `/restaurants/${restaurantId}/menu-images/reconcile` });
+}

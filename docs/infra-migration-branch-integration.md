@@ -4,7 +4,7 @@ Checkpoint local: 17/10/2026. Este documento organiza a execução já aprovada;
 
 ## Quanto falta
 
-Atualização18/10: revisão do catálogo encontrou seis problemas importantes; quatro corrigidos/testados localmente nesta primeira parte, dois de ciclo de vida de imagens ainda pendentes. Frontend307/307, typecheck e lint sem erros; quatro avisos anteriores de hooks mantidos. [Parecer e alcance](infra-migration-public-catalog-review.md). Não é aprovação de merge/ativação nem revisão das demais funcionalidades históricas.
+Atualização18/10: os seis problemas importantes da revisão do catálogo foram corrigidos/testados na passagem única local, incluindo retry da mesma lease e reconciliação manual segura de imagens abandonadas. Frontend313/313, API670/670, PostgreSQL11/11 e workerd29/29; typecheck/builds aprovados, lint frontend sem erros/quatro avisos anteriores. [Parecer, decisões e alcance](infra-migration-public-catalog-review.md). Não é aprovação de merge/ativação nem revisão das demais funcionalidades históricas; os gates remotos de5/9/10 continuam abertos.
 
 O plano principal continua na **Etapa 13**, consolidação/validação do destino. Não é necessário recriar em production todas as funcionalidades desenvolvidas em preview: o código é compartilhado, mas bindings, credenciais, dados e gates são próprios de cada ambiente.
 

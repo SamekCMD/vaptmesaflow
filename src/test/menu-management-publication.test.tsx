@@ -72,4 +72,43 @@ describe.each([true, false])("owner menu receipt and image ordering integration,
     expect(commands[1]!.headers?.["Idempotency-Key"]).not.toBe(commands[0]!.headers?.["Idempotency-Key"]);
     expect(fetch).not.toHaveBeenCalled();
   });
+  it.each(["descriptor", "put"])("reuses the file upload lease after a lost %s response", async failure => {
+    phase = "ready";
+    const original = vi.mocked(vaptApiRequest).getMockImplementation()!;
+    let attempts = 0;
+    vi.mocked(vaptApiRequest).mockImplementation(async options => {
+      if (options.route.endsWith("/image/upload") && attempts++ === 0) {
+        if (failure === "descriptor") throw new Error("Descriptor response lost");
+        return { state: "upload_required", publicUrl: `https://assets.test/${objectKey}`, objectKey,
+          method: "PUT", uploadUrl: "https://storage.test/signed", headers: { "Content-Type": "image/webp", "If-Match": '"fence"' }, expiresInSeconds: 300 } as never;
+      }
+      return original(options);
+    });
+    const view = page(); await screen.findByText("Prato do dia");
+    fireEvent.click(screen.getByRole("button", { name: "Editar Prato do dia" }));
+    vi.stubGlobal("URL", class extends URL { static createObjectURL() { return "blob:synthetic-image"; } });
+    fireEvent.change(view.container.ownerDocument.querySelector('input[type="file"]')!, { target: { files: [new File(["webp"], "image.webp", { type: "image/webp" })] } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Salvar" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Salvar" })).not.toBeInTheDocument());
+    const uploads = vi.mocked(vaptApiRequest).mock.calls.map(([value]) => value).filter(value => value.route.endsWith("/image/upload"));
+    expect(uploads).toHaveLength(2);
+    expect(uploads[0]!.headers?.["Idempotency-Key"]).toBeTruthy();
+    expect(uploads[1]!.headers?.["Idempotency-Key"]).toBe(uploads[0]!.headers?.["Idempotency-Key"]);
+    expect(fetch).toHaveBeenCalledTimes(failure === "put" ? 1 : 0);
+  });
+  it("offers explicit authenticated cleanup after reopening without a remembered image target", async () => {
+    const original = vi.mocked(vaptApiRequest).getMockImplementation()!;
+    vi.mocked(vaptApiRequest).mockImplementation(async options => options.route.endsWith("/menu-images/reconcile")
+      ? { checked: 10, retired: 9, protected: 1 } as never : original(options));
+    const first = page(); await screen.findByText("Prato do dia"); first.unmount();
+    page(); await screen.findByText("Prato do dia");
+    expect(vi.mocked(vaptApiRequest).mock.calls.some(([value]) => value.route.endsWith("/menu-images/reconcile"))).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Limpar uploads antigos" }));
+    await screen.findByText(/9 uploads liberados/);
+    const calls = vi.mocked(vaptApiRequest).mock.calls.map(([value]) => value).filter(value => value.route.endsWith("/menu-images/reconcile"));
+    expect(calls).toHaveLength(1); expect(calls[0]!.method).toBe("POST"); expect(calls[0]!.route).toBe(`/restaurants/${restaurantId}/menu-images/reconcile`);
+    expect(vi.mocked(vaptApiRequest).mock.calls.some(([value]) => value.method === "DELETE")).toBe(false);
+  });
 });
