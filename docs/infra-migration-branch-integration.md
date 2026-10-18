@@ -33,6 +33,8 @@ Não há base para prometer prazo em horas ou um percentual global. Orçamento i
 
 ## Dois repositórios, duas integrações
 
+Conferência posterior18/10: [matriz de reconciliação local](infra-migration-branch-reconciliation.md) registra ancestralidade, três pares de patches equivalentes que não precisam ser reaplicados, famílias divergentes sobrepostas e alterações não commitadas em outros worktrees. Identificada decisão funcional de multi-restaurante/membership versus contrato atual de um restaurante por dono; ainda não resolvida nem implementada. Não integrar/descartar branches ou prometer cobertura total antes dessa reconciliação. [Readback Neon](infra-migration-capacity-readback-2026-10-18.md): Free,114,81CU-h neste ciclo até1Nov, sem evidência de capacidade restaurada; nenhum SQL/upgrade executado.
+
 Frontend: `SamekCMD/vaptmesaflow`, checkout `D:/Projetos/vaptmesaflow`. API: `SamekCMD/vapt-api`, checkout `D:/Projetos/vaptmesaflow/.worktrees/vapt-api-infra-foundation`. Ambos estão em `codex/infra-foundation`, mas possuem históricos, PRs e mains separados. Um commit/push na main **não inclui outras branches automaticamente**.
 
 Snapshot de refs locais em 16/10, sem fetch: as branches abaixo não são ancestrais de `codex/infra-foundation`. Isso não prova que todas as suas alterações estejam ausentes: pode haver cherry-picks, versões substitutas e commits equivalentes.
