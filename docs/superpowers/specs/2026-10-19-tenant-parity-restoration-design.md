@@ -1,8 +1,8 @@
 # Restauração de paridade — organizações, restaurantes e equipe
 
-Data: 19/10/2026. Estado: **especificação aprovada pelo usuário; plano de implementação preparado para revisão; implementação não iniciada**.
+Data: 19/10/2026. Estado: **especificação e plano aprovados; execução local direta em andamento**.
 
-O usuário aprovou prosseguir com a abordagem de port seletivo em 19/10, após a [auditoria funcional](../../infra-migration-functional-parity-audit-2026-10-18.md), e confirmou continuar após receber esta especificação escrita. O [plano detalhado](../plans/2026-10-19-tenant-parity-restoration.md) foi então preparado; sua revisão continua pendente. Nenhuma dessas aprovações autoriza operações remotas.
+O usuário aprovou prosseguir com a abordagem de port seletivo em 19/10, após a [auditoria funcional](../../infra-migration-functional-parity-audit-2026-10-18.md), e confirmou continuar após receber esta especificação e o [plano detalhado](../plans/2026-10-19-tenant-parity-restoration.md). A execução local direta foi iniciada. Nenhuma dessas aprovações autoriza operações remotas.
 
 ## 1. Objetivo e fronteiras
 
@@ -171,6 +171,6 @@ Pronto local exige as entregas A–E com matriz P01–P10 ligada a testes e comm
 - [x] Distinção entre autorização, assinatura SaaS, pagamento de pedidos e publicação preservada.
 - [x] Auto-revisão de escopo, ambiguidade e contradições realizada antes do commit.
 - [x] Usuário aprovou continuar após receber esta especificação escrita em19/10.
-- [ ] Plano detalhado escrito/revisado e método de execução selecionado.
+- [x] Plano detalhado escrito/revisado e execução local direta selecionada/aprovada.
 
-Próximo gate: revisão do plano de implementação escrito. Nenhum checkbox acima declara funcionalidade corrigida.
+Próximo gate de conclusão local: entregas do plano, testes integrados e revisão final. Nenhum checkbox acima declara funcionalidade corrigida.

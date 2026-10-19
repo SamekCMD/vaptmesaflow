@@ -19,7 +19,7 @@
 - Preservar arquivos001–009, dados atuais, chaves externas Stripe, journal/leases e WIPs alheios. Migrations novas numeradas010/011/012, grants posteriores por ambiente; não aplicar baseline Supabase.
 - Não executar branches antigas, reinstalar Supabase/JWKS/n8n/Redis nem investigar DNS/Vercel/Easypanel para restaurar comportamento.
 - Preservar CPU configurada, rate limits, limites de filas/sockets, privacidade de R2, guardas de publicação e logs sem secrets. Sem polling novo ou SQL por visitante público.
-- Execução direta na sessão já é a preferência informada pelo usuário; não abrir novos chats/worktrees em C:. Este plano ainda aguarda revisão, não começou a ser executado.
+- Execução direta na sessão aprovada pelo usuário em19/10 após receber o plano; não abrir novos chats/worktrees em C:. Implementação local em andamento, sem autorização remota implícita.
 - TDD por tarefa, suíte completa relevante antes do checkpoint e commits locais explícitos. Falhas preexistentes também devem ser registradas; não representar teste skipped como PASS.
 
 ## Review Focus
@@ -305,7 +305,7 @@ Implementação será direta na sessão, preservando a preferência já informad
 
 - [x] Spec aprovada pelo usuário antes de elaborar este plano.
 - [x] Auto-revisão de cobertura, tipos/interfaces, testes, foco e proporção realizada.
-- [ ] Usuário revisou/aprovou este plano escrito.
-- [ ] Execução iniciada com baseline novo e ledger próprio.
+- [x] Usuário revisou/aprovou este plano escrito em19/10, solicitando continuar.
+- [x] Execução iniciada com baseline novo e ledger próprio.
 
-Próximo gate: revisão do plano. Até lá, Tasks1–16 não foram executadas e nenhum comportamento foi declarado corrigido.
+Próximo gate de conclusão: completar Tasks1–16 e revisão integrada. Execução local em andamento; nenhum comportamento completo é declarado corrigido por este checklist.
