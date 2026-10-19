@@ -71,8 +71,9 @@ Recomendação para o desenho a validar: reconciliar seletivamente os comportame
 - [x] Inventariar todas as refs locais, famílias divergentes e WIPs sem sobrescrevê-los.
 - [x] Registrar lacunas e fontes, sem declarar paridade completa ou execução de testes inexistente.
 - [x] Abordagem de reconciliação validada pelo usuário em19/10; [especificação escrita](superpowers/specs/2026-10-19-tenant-parity-restoration-design.md) preparada para revisão separada.
-- [ ] Usuário revisou/aprovou a especificação escrita entre schema, API, frontend, billing e catálogo.
-- [ ] Especificar e planejar as entregas compatíveis; incluir testes negativos/concorrência antes do código.
+- [x] Usuário aprovou continuar após receber a especificação escrita em19/10.
+- [x] [Plano de implementação](superpowers/plans/2026-10-19-tenant-parity-restoration.md) preparado com testes negativos/concorrência; ainda não executado.
+- [ ] Usuário revisou/aprovou o plano escrito; execução direta preserva a preferência já informada.
 - [ ] Implementar P01–P10 nos dois repositórios; verificar cada comportamento e a suíte final integrada.
 - [ ] Retestar gates remotos após disponibilidade e autorização próprias; consolidar mains somente depois da paridade verificada.
 
