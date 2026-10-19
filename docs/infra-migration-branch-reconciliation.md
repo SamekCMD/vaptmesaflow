@@ -43,13 +43,15 @@ Decisão de preparação: não repetir cherry-pick ou execução SQL desses patc
 
 Cadeias confirmadas por `merge-base --is-ancestor`: frontend `multitenant-v2 → e2e-regression-cleanup → infrastructure-recovery`; API `jwks-auth-transition → membership-authorization → infrastructure-recovery`. **Não somar30+37+40 nem2+5+6** como trabalhos independentes. Foram usados commits sem merge em `log --right-only --cherry-pick HEAD…branch`; número de commits não é quantidade de funcionalidades ausentes.
 
-## Diferença funcional concreta — decisão antes de integrar
+## Diferença funcional concreta — requisito existente a restaurar
 
 O commit frontend `4299d94` introduz `RestaurantSwitcher`, adição/seleção de restaurantes e entitlement por organização/papel/plano. A branch usa Supabase/RPC para essa autorização. Na API, `72bb04e` introduz autorização por membership. Não basta copiar esses arquivos para a arquitetura atual.
 
 Na candidata examinada, `infra/neon/004_business_constraints.sql` cria `restaurants_owner_id_unique` e documenta **um restaurante por dono**. O frontend usa `GET /restaurants/me`; `findOwnedRestaurant` da API busca `owner_id` com `limit1` e o verificador de acesso compara owner diretamente. O seletor/entitlement da branch antiga não está presente no código atual examinado. A menção a organizations/roles no plano original não prova que a transição de todos esses comportamentos tenha sido concluída.
 
-**Pendente de confirmação do produto:** múltiplos restaurantes por conta e papéis/permissões de equipe continuam requisitos desta entrega? Se sim, precisam de desenho/port para Neon+Better Auth e reconciliação das operações, não reintrodução de JWT/Supabase nem remoção isolada de um índice. Se forem adiados, registrar explicitamente a redução do escopo; não prometer que “todas as funcionalidades das branches entram na main”. Nenhuma dessas alternativas foi implementada nesta inspeção.
+**Requisito existente confirmado pelo usuário em18/10:** preservar múltiplos restaurantes e permissões de equipe. Não é uma nova decisão de produto nem um adiamento aprovado. Em `4299d94`, Starter e Pro permitem1 restaurante e Business até25; a API `72bb04e` define papéis owner/admin/manager/staff e capacidades por operação. O pedido para não preservar UUIDs/contas de teste não autorizou reduzir essas funcionalidades.
+
+A restauração exige port para Neon+Better Auth e reconciliação das operações, não reintrodução de JWT/Supabase nem remoção isolada do índice. **Ainda não implementada nesta candidata.** A [auditoria funcional de18/10](infra-migration-functional-parity-audit-2026-10-18.md) registra também outras lacunas encontradas, separando comportamento existente, requisito ainda incompleto e substituição intencional de infraestrutura.
 
 ## Alterações locais fora dos tips — preservar
 
@@ -63,4 +65,4 @@ Leitura de `git status --porcelain` nos worktrees existentes em D: encontrou, al
 
 Conteúdo não classificado nem modificado; estes arquivos não estão representados somente pelos SHAs acima e precisam ser preservados/reconciliados antes de integração/limpeza. A candidata frontend conserva os dois documentos financeiros alterados e `docs/implementation-references/` anteriores. Outros worktrees D: examinados estavam limpos. Há registros antigos de worktrees em C:, inclusive registros prunable; não foram abertos, movidos, apagados ou podados. Nenhum worktree novo foi criado fora de D:.
 
-Próximo passo: resolver o requisito funcional acima, completar a matriz de comportamento/testes por família e somente então escolher integração seletiva e validá-la. A [capacidade Neon](infra-migration-capacity-readback-2026-10-18.md) continua um gate separado para SQL/bootstrap remotos; nenhuma alteração paga ou tentativa SQL foi usada para destravar esta análise.
+Próximo passo: restaurar os requisitos confirmados por integração seletiva compatível com a arquitetura atual, completar a matriz de comportamento/testes e validá-la antes de main. A [capacidade Neon](infra-migration-capacity-readback-2026-10-18.md) continua um gate separado para SQL/bootstrap remotos; nenhuma alteração paga ou tentativa SQL foi usada para destravar esta análise.
