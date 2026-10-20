@@ -23,7 +23,7 @@ grant insert,update on public.restaurant_activation_progress to vapt_api_product
 -- The old table-level grants would otherwise include new authoritative columns.
 revoke insert,update on public.restaurants from vapt_api_production;
 grant update (name,slug,cnpj,whatsapp,address,phone,hours,description,primary_color,secondary_color,
-  font_family,logo_url,total_tables,payment_mode,max_pending_orders,local_enabled,delivery_enabled,
+  font_family,logo_url,total_tables,max_tables,payment_mode,max_pending_orders,local_enabled,delivery_enabled,
   asaas_api_key,asaas_billing_document,asaas_environment,asaas_setup_status,asaas_webhook_id,
   asaas_webhook_url,asaas_webhook_token,asaas_last_validated_at,asaas_last_error)
 on public.restaurants to vapt_api_production;
