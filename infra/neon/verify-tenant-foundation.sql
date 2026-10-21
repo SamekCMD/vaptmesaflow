@@ -19,10 +19,11 @@ begin
     and tgname='restaurants_organization_capacity' and tgenabled='O') then
     raise exception 'Organization capacity trigger missing';
   end if;
+  -- The immutable contact is an identity, not a substitute for current membership/capability.
+  -- Unverified contacts are parked by the email consumer, not silently reassigned to an admin.
   if exists (select 1 from public.organization_subscriptions s where not exists
-    (select 1 from public.organization_members m where m.organization_id=s.organization_id
-      and m.user_id=s.billing_contact_user_id and m.status='active' and m.role in ('owner','admin'))) then
-    raise exception 'Billing contact is not an active billing manager';
+    (select 1 from better_auth."user" contact where contact.id=s.billing_contact_user_id)) then
+    raise exception 'Billing contact identity missing';
   end if;
 end
 $verify$;
