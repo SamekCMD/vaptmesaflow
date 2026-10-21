@@ -35,10 +35,10 @@ export async function consumeBillingMessage(
     let requested = lease.snapshot;
     if (!requested) {
       try {
-        if (!lease.restaurantName || !lease.planType || !lease.recipientEmail) {
+        if (!lease.organizationName || !lease.planType || !lease.recipientEmail) {
           throw new Error('Missing delivery context');
         }
-        requested = snapshotFor(lease.emailKind, lease.restaurantName, lease.planType, lease.recipientEmail);
+        requested = snapshotFor(lease.emailKind, lease.organizationName, lease.planType, lease.recipientEmail);
       } catch {
         const parked = await repository.markDeadLetter(lease, 'invalid_delivery_context');
         if (parked) logOutcome(lease, 'dead_letter', 'invalid_delivery_context');

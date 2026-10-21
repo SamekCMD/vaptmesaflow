@@ -5,11 +5,12 @@ import type { DeliveryLease, QueryRunner } from './outbox-repository.js';
 import { snapshotFor } from './templates.js';
 
 const id = '8b4cddbe-4598-47a5-92aa-10f0a2ea998e';
+const organizationId='30000000-0000-4000-8000-000000000001';
 const now = new Date('2026-09-28T12:00:00.000Z');
 const snapshot = snapshotFor('subscription_activated', 'Restaurante Teste', 'pro', 'test@example.com');
 const lease: DeliveryLease = {
-  outboxId: id, attemptCount: 1, emailKind: 'subscription_activated', planType: 'pro',
-  restaurantName: 'Restaurante Teste', recipientEmail: 'test@example.com',
+  outboxId: id, organizationId, attemptCount: 1, emailKind: 'subscription_activated', planType: 'pro',
+  organizationName: 'Restaurante Teste', recipientEmail: 'test@example.com',
   snapshot: null, firstSendAttemptAt: null,
 };
 
@@ -43,10 +44,10 @@ test('defers a failed publish without changing delivery state', async () => {
   assert.deepEqual(calls[0]!.params, [id, nextAt.toISOString()]);
 });
 
-test('claims one delivery lease and joins owner email and restaurant name', async () => {
+test('claims an organization delivery lease with the verified billing contact and organization label', async () => {
   const { repository, calls } = recorded([{
-    id, attempt_count: 1, email_kind: 'subscription_activated', plan_type: 'pro',
-    restaurant_name: 'Restaurante Teste', recipient_email: null, owner_email: 'test@example.com',
+    id, organization_id:organizationId, attempt_count: 1, email_kind: 'subscription_activated', plan_type: 'pro',
+    organization_name: 'Restaurante Teste', recipient_email: null, billing_contact_email: 'test@example.com',
     template_alias: null, template_variables: null, first_send_attempt_at: null,
   }]);
   assert.deepEqual(await repository.claimDelivery(id, now), lease);
@@ -96,4 +97,17 @@ test('expired leases return to retry inside 24 hours and park uncertain sends ou
   assert.match(calls[0]!.sql, /interval '24 hours'/i);
   assert.match(calls[0]!.sql, /first_send_attempt_at/i);
   assert.match(calls[0]!.sql, /attempt_count\s*>=\s*8/i);
+});
+
+test('legacy delivery retry preserves the frozen recipient across organization migration',async()=>{
+  const frozen=snapshotFor('subscription_activated','Nome Original','pro','original@example.invalid');
+  const {repository}=recorded([{
+    id,organization_id:organizationId,attempt_count:3,email_kind:'subscription_activated',plan_type:'business',
+    organization_name:'Grupo Renomeado',billing_contact_email:'new-admin@example.invalid',
+    recipient_email:frozen.to,template_alias:frozen.templateAlias,template_variables:frozen.variables,
+    first_send_attempt_at:new Date(now.getTime()-60_000),
+  }]);
+  const claimed=await repository.claimDelivery(id,now);
+  assert.equal(claimed?.organizationId,organizationId);assert.equal(claimed?.snapshot?.to,'original@example.invalid');
+  assert.deepEqual(claimed?.snapshot,frozen);
 });

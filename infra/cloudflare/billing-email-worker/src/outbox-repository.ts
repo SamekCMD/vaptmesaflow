@@ -5,10 +5,11 @@ import type { BillingEmailKind, BillingPlanType, EmailSnapshot } from './contrac
 export type DispatchCandidate = { outboxId: string; correlationId: string };
 export type DeliveryLease = {
   outboxId: string;
+  organizationId: string;
   attemptCount: number;
   emailKind: BillingEmailKind;
   planType: BillingPlanType | null;
-  restaurantName: string | null;
+  organizationName: string | null;
   recipientEmail: string | null;
   snapshot: EmailSnapshot | null;
   firstSendAttemptAt: Date | null;
@@ -46,6 +47,7 @@ function asDate(value: unknown): Date | null {
 
 function asLease(row: Record<string, unknown>): DeliveryLease {
   if (typeof row.id !== 'string'
+    || typeof row.organization_id !== 'string'
     || !Number.isInteger(row.attempt_count)
     || typeof row.email_kind !== 'string'
     || !kinds.has(row.email_kind)) {
@@ -54,8 +56,8 @@ function asLease(row: Record<string, unknown>): DeliveryLease {
   const planType = typeof row.plan_type === 'string' && plans.has(row.plan_type)
     ? row.plan_type as BillingPlanType : null;
   const recipient = typeof row.recipient_email === 'string' ? row.recipient_email
-    : typeof row.owner_email === 'string' ? row.owner_email : null;
-  const restaurantName = typeof row.restaurant_name === 'string' ? row.restaurant_name : null;
+    : typeof row.billing_contact_email === 'string' ? row.billing_contact_email : null;
+  const organizationName = typeof row.organization_name === 'string' ? row.organization_name : null;
   const frozenFields = [row.recipient_email, row.template_alias, row.template_variables];
   const existing = frozenFields.every((value) => value !== null && value !== undefined);
   const empty = frozenFields.every((value) => value === null || value === undefined);
@@ -67,10 +69,11 @@ function asLease(row: Record<string, unknown>): DeliveryLease {
   }) : null;
   return {
     outboxId: row.id,
+    organizationId: row.organization_id,
     attemptCount: row.attempt_count as number,
     emailKind: row.email_kind as BillingEmailKind,
     planType,
-    restaurantName,
+    organizationName,
     recipientEmail: recipient,
     snapshot,
     firstSendAttemptAt: asDate(row.first_send_attempt_at),
@@ -126,15 +129,16 @@ export function buildOutboxRepository(query: QueryRunner): OutboxRepository {
             AND attempt_count < 8
           RETURNING *
         )
-        SELECT claimed.id, claimed.attempt_count, claimed.email_kind,
+        SELECT claimed.id, claimed.organization_id, claimed.attempt_count, claimed.email_kind,
                claimed.payload->>'planType' AS plan_type,
-               restaurant.name AS restaurant_name,
-               claimed.recipient_email, auth.email AS owner_email,
+               organization.name AS organization_name,
+               claimed.recipient_email, CASE WHEN auth."emailVerified" THEN auth.email ELSE NULL END AS billing_contact_email,
                claimed.template_alias, claimed.template_variables,
                claimed.first_send_attempt_at
         FROM claimed
-        JOIN public.restaurants AS restaurant ON restaurant.id = claimed.restaurant_id
-        LEFT JOIN better_auth."user" AS auth ON auth.id = restaurant.owner_id
+        JOIN public.organizations AS organization ON organization.id = claimed.organization_id
+        LEFT JOIN public.organization_subscriptions AS subscription ON subscription.organization_id = claimed.organization_id
+        LEFT JOIN better_auth."user" AS auth ON auth.id = subscription.billing_contact_user_id
       `, [outboxId, now.toISOString()]);
       return rows.length ? asLease(rows[0]!) : null;
     },

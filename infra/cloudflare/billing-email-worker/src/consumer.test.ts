@@ -13,8 +13,8 @@ const frozen = snapshotFor('subscription_activated', 'Nome Original', 'pro', 'or
 
 function lease(overrides: Partial<DeliveryLease> = {}): DeliveryLease {
   return {
-    outboxId: id, attemptCount: 1, emailKind: 'subscription_activated', planType: 'pro',
-    restaurantName: 'Nome Original', recipientEmail: 'original@example.com',
+    outboxId: id, organizationId:'30000000-0000-4000-8000-000000000001', attemptCount: 1, emailKind: 'subscription_activated', planType: 'pro',
+    organizationName: 'Nome Original', recipientEmail: 'original@example.com',
     snapshot: null, firstSendAttemptAt: null, ...overrides,
   };
 }
@@ -44,8 +44,8 @@ test('already-sent or in-flight row is acknowledged without another send', async
   assert.equal(await consumeBillingMessage(message, repo, noSend, now), 'ack');
 });
 
-test('retry uses frozen recipient and variables after owner and restaurant change', async () => {
-  const stored = lease({ snapshot: frozen, restaurantName: 'Nome Novo', recipientEmail: 'new@example.com',
+test('retry uses frozen recipient and variables after billing contact and organization name change', async () => {
+  const stored = lease({ snapshot: frozen, organizationName: 'Nome Novo', recipientEmail: 'new@example.com',
     firstSendAttemptAt: new Date(now.getTime() - 60_000), attemptCount: 2 });
   let request: unknown;
   let sent = false;
@@ -63,7 +63,7 @@ test('retry uses frozen recipient and variables after owner and restaurant chang
   assert.equal(sent, true);
 });
 
-test('first delivery freezes the event plan, owner email and restaurant name before send', async () => {
+test('first delivery freezes the event plan, verified billing contact and organization name before send', async () => {
   let saved: unknown;
   const repo = repository({
     async claimDelivery() { return lease(); },
@@ -136,7 +136,7 @@ test('failure to persist sent status asks Queue to retry', async () => {
   assert.equal(await consumeBillingMessage(message, repo, gateway({ kind: 'sent', resendId: 'accepted' }), now), 'retry');
 });
 
-test('missing owner email is parked without calling Resend', async () => {
+test('missing verified billing contact is parked without calling Resend', async () => {
   let parkedCode: string | undefined;
   const repo = repository({
     async claimDelivery() { return lease({ recipientEmail: null }); },

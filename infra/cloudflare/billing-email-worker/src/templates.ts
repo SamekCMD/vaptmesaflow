@@ -16,7 +16,7 @@ const planLabels: Record<BillingPlanType, string> = {
 
 export function snapshotFor(
   kind: BillingEmailKind,
-  restaurantName: string,
+  organizationName: string,
   planType: BillingPlanType,
   recipientEmail: string,
 ): EmailSnapshot {
@@ -24,7 +24,7 @@ export function snapshotFor(
     to: recipientEmail,
     templateAlias: aliases[kind],
     variables: {
-      RESTAURANT_NAME: restaurantName,
+      RESTAURANT_NAME: organizationName,
       PLAN_NAME: planLabels[planType],
       BILLING_URL,
     },

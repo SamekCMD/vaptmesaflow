@@ -17,6 +17,7 @@ export type EmailSnapshot = {
   to: string;
   templateAlias: string;
   variables: {
+    // Published template contract: this label now carries the organization name.
     RESTAURANT_NAME: string;
     PLAN_NAME: string;
     BILLING_URL: string;
