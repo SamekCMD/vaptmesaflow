@@ -41,7 +41,7 @@ const OnboardingPage = () => {
     const completed = GUIDE_MODULES.reduce((acc, module) => ({ ...acc, [module]: true }), {} as Record<(typeof GUIDE_MODULES)[number], boolean>);
     saveGuideProgress(completed); toast({ title: "Restaurante criado com sucesso!" }); setSetupComplete(true);
   };
-  const publication = useCatalogPublication(user?.id, async isCurrent => {
+  const publication = useCatalogPublication(null, async isCurrent => {
     const restaurant = await fetchOwnedRestaurant(); if (restaurant && isCurrent()) finishSetup();
   });
 

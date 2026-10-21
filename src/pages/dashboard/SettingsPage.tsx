@@ -16,7 +16,8 @@ import CurrentPaymentMethodsCard from "@/components/payments/CurrentPaymentMetho
 import MercadoPagoSettingsCard from "@/components/payments/MercadoPagoSettingsCard";
 import { ENV } from "@/lib/env";
 import { catalogWriterEnabled } from "@/lib/catalog/flags";
-import { fetchOwnedRestaurant, updateOwnedRestaurant } from "@/lib/restaurants";
+import { fetchRestaurant, updateRestaurant } from "@/lib/restaurants";
+import { useCurrentRestaurant } from "@/features/restaurants/current-restaurant";
 import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
 import { CatalogPublicationFeedback } from "@/components/menu/CatalogPublicationStatus";
 import {
@@ -59,13 +60,13 @@ const SettingsPage = () => {
   });
   const [accountErrors, setAccountErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const {scope}=useCurrentRestaurant();
+  const restaurantId=scope?.restaurantId??null;
   const [saving, setSaving] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
   const [savingAccount, setSavingAccount] = useState(false);
-  const publication = useCatalogPublication(user?.id, async isCurrent => {
-    const data = await fetchOwnedRestaurant(); if (!data || !isCurrent()) return;
-    setRestaurantId(data.id);
+  const publication = useCatalogPublication(scope, async isCurrent => {
+    const data = await fetchRestaurant(restaurantId!); if (!isCurrent()) return;
     setForm({ name: data.name, address: data.address || "", phone: data.phone || "", hours: data.hours || "", description: data.description || "", max_tables: data.maxTables || 20 });
     setPaymentForm({ payment_mode: data.paymentMode, max_pending_orders: data.maxPendingOrders || 3 });
     setChannelsForm({ local_enabled: data.localEnabled, delivery_enabled: data.deliveryEnabled });
@@ -73,13 +74,12 @@ const SettingsPage = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user) return;
+      if (!user || !restaurantId) {setLoading(false);return;}
 
       try {
-        const data = await fetchOwnedRestaurant();
+        const data = await fetchRestaurant(restaurantId);
 
         if (data) {
-          setRestaurantId(data.id);
           setForm({
             name: data.name,
             address: data.address || "",
@@ -120,7 +120,7 @@ const SettingsPage = () => {
     };
 
     fetchData();
-  }, [user]);
+  }, [user,restaurantId]);
 
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("settings");
@@ -143,7 +143,7 @@ const SettingsPage = () => {
         maxTables: form.max_tables,
         deliveryEnabled: channelsForm.delivery_enabled,
       };
-      if (catalogWriterEnabled()) await updateOwnedRestaurant(patch, publication); else await updateOwnedRestaurant(patch);
+      if (catalogWriterEnabled()) await updateRestaurant(restaurantId,patch, publication); else await updateRestaurant(restaurantId,patch);
       toast({ title: "Configurações salvas", description: "As alterações foram aplicadas com sucesso." });
     } catch (error: unknown) {
       if (isCatalogPublicationDeferred(error)) return;
@@ -162,7 +162,7 @@ const SettingsPage = () => {
         paymentMode: paymentForm.payment_mode,
         maxPendingOrders: paymentForm.max_pending_orders,
       };
-      if (catalogWriterEnabled()) await updateOwnedRestaurant(patch, publication); else await updateOwnedRestaurant(patch);
+      if (catalogWriterEnabled()) await updateRestaurant(restaurantId,patch, publication); else await updateRestaurant(restaurantId,patch);
 
       toast({ title: "Fluxo de pagamento salvo", description: "O novo modo já vale para os próximos pedidos." });
     } catch (error: unknown) {

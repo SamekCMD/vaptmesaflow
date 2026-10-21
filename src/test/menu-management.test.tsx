@@ -13,6 +13,7 @@ import MenuManagement from "@/pages/dashboard/MenuManagement";
 
 const { authUser } = vi.hoisted(() => ({ authUser: { id: "owner-1" } }));
 
+vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:authUser.id?{userId:authUser.id,restaurantId:restaurant.id}:null,organizationId:"test-org",restaurant:null,loading:false,error:null})}));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: authUser }),
 }));
@@ -67,7 +68,7 @@ describe("menu management API cutover", () => {
     vi.clearAllMocks();
     vi.mocked(fetchOwnedRestaurant).mockResolvedValue(restaurant);
     vi.mocked(listOwnedMenuItems).mockResolvedValue([existingItem]);
-    vi.mocked(createMenuItem).mockImplementation(async (input) => ({
+    vi.mocked(createMenuItem).mockImplementation(async (_restaurantId,input) => ({
       ...existingItem,
       id: "30000000-0000-4000-8000-000000000002",
       name: input.name,
@@ -83,8 +84,8 @@ describe("menu management API cutover", () => {
     render(<MemoryRouter><MenuManagement /></MemoryRouter>);
 
     expect(await screen.findByText("X-Salada")).toBeInTheDocument();
-    expect(listOwnedMenuItems).toHaveBeenCalledWith();
-    expect(fetchOwnedRestaurant).toHaveBeenCalledWith();
+    expect(listOwnedMenuItems).toHaveBeenCalledWith(restaurant.id);
+    expect(fetchOwnedRestaurant).not.toHaveBeenCalled();
   });
 
   it("creates an item through the camelCase API contract and renders the server response", async () => {
@@ -106,7 +107,7 @@ describe("menu management API cutover", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
 
-    await waitFor(() => expect(createMenuItem).toHaveBeenCalledWith({
+    await waitFor(() => expect(createMenuItem).toHaveBeenCalledWith(restaurant.id,{
       name: "X-Bacon",
       price: "31.50",
       description: null,
@@ -129,14 +130,14 @@ describe("menu management API cutover", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Remover X-Salada" }));
 
-    await waitFor(() => expect(deleteMenuItem).toHaveBeenCalledWith(existingItem.id));
+    await waitFor(() => expect(deleteMenuItem).toHaveBeenCalledWith(restaurant.id,existingItem.id));
     expect(screen.queryByText("X-Salada")).not.toBeInTheDocument();
   });
   it("flag-off legacy image deletion still runs while its item exists", async () => {
     vi.mocked(listOwnedMenuItems).mockResolvedValue([{ ...existingItem, imageUrl: "https://assets.test/legacy.webp" }]);
     render(<MemoryRouter><MenuManagement /></MemoryRouter>); await screen.findByText("X-Salada");
     fireEvent.click(screen.getByRole("button", { name: "Remover X-Salada" }));
-    await waitFor(() => expect(deleteMenuItem).toHaveBeenCalledWith(existingItem.id));
+    await waitFor(() => expect(deleteMenuItem).toHaveBeenCalledWith(restaurant.id,existingItem.id));
     expect(vi.mocked(deleteMenuImage).mock.invocationCallOrder.at(-1)).toBeLessThan(vi.mocked(deleteMenuItem).mock.invocationCallOrder.at(-1)!);
   });
 });

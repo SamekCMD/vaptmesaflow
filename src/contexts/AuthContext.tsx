@@ -2,6 +2,8 @@
 import { createContext, useContext, useLayoutEffect, type ReactNode } from "react";
 import { authClient } from "@/lib/auth-client";
 import { clearOwnerRealtimeScopes, resumeOwnerRealtimeScopes } from "@/lib/realtime/client";
+import {QueryClientContext} from '@tanstack/react-query';
+import {clearPrivateAccountQueries} from '@/features/auth/account-bootstrap-query';
 
 export type VaptUser = {
   id: string;
@@ -92,6 +94,7 @@ const safeAuthResult = async (
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const queryClient=useContext(QueryClientContext);
   const { data, isPending, isRefetching, refetch } = authClient.useSession();
 
   const user: VaptUser | null = data?.user
@@ -113,8 +116,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Invalidate the prior identity before pending admissions can create sockets.
   useLayoutEffect(() => {
     if (user?.id && session?.id) resumeOwnerRealtimeScopes(user.id);
-    return () => clearOwnerRealtimeScopes();
-  }, [user?.id, session?.id]);
+    return () => {clearOwnerRealtimeScopes();if(user?.id)clearPrivateAccountQueries(queryClient,user.id);};
+  }, [user?.id, session?.id,queryClient]);
 
   const signUp = (
     email: string,
@@ -149,6 +152,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     clearOwnerRealtimeScopes();
+    clearPrivateAccountQueries(queryClient);
     try {
       const { error } = await authClient.signOut();
       if (error) throw new AuthOperationError(error);

@@ -28,10 +28,28 @@ vi.mock("@/lib/auth-client", () => ({
 }));
 
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
 
 const wrapper = ({ children }: { children: ReactNode }) => (
   <AuthProvider>{children}</AuthProvider>
 );
+
+it('logout removes private query data and pending reads without clearing public catalog or cart context',async()=>{
+  const client=new QueryClient({defaultOptions:{queries:{retry:false}}});
+  client.setQueryData(['vapt-private','user-1','account-bootstrap',null],{private:true});
+  client.setQueryData(['vapt-private','old-user','restaurant','org','rest'],{oldPrivate:true});
+  client.setQueryData(['public-catalog','some-slug'],{public:true});
+  client.setQueryData(['cart','some-slug'],{items:['public-cart']});
+  mocks.useSession.mockReturnValue({data:{user:{id:'user-1',name:'Teste',email:'test@example.invalid'},session:{id:'session-1',userId:'user-1',expiresAt:'2030-01-01'}},
+    isPending:false,isRefetching:false,refetch:mocks.refetch});
+  mocks.signOut.mockResolvedValue({error:null});mocks.refetch.mockResolvedValue(undefined);
+  const scopedWrapper=({children}:{children:ReactNode})=><QueryClientProvider client={client}><AuthProvider>{children}</AuthProvider></QueryClientProvider>;
+  const {result,unmount}=renderHook(()=>useAuth(),{wrapper:scopedWrapper});
+  await act(async()=>{await result.current.signOut();});
+  expect(client.getQueriesData({queryKey:['vapt-private']})).toEqual([]);
+  expect(client.getQueryData(['public-catalog','some-slug'])).toEqual({public:true});
+  expect(client.getQueryData(['cart','some-slug'])).toEqual({items:['public-cart']});unmount();client.clear();
+});
 
 describe("sessão e operações do Better Auth", () => {
   beforeEach(() => {

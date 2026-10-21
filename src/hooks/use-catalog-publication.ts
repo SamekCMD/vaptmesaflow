@@ -9,7 +9,10 @@ class PublicationDeferred extends Error { constructor() { super("Verifique a pub
 export function isCatalogPublicationDeferred(error: unknown): boolean { return error instanceof PublicationDeferred; }
 type State = { ownerId?: string; operationId: string | null; receipt: CommandReceipt | null; busy: boolean; uncertain: boolean; canReplay: boolean; error: string | null };
 const empty = (ownerId?: string): State => ({ ownerId, operationId: null, receipt: null, busy: false, uncertain: false, canReplay: false, error: null });
-export function useCatalogPublication(ownerId?: string, onPublished?: (isCurrent: () => boolean) => void | Promise<void>) {
+export type CatalogPublicationIdentity={userId:string;restaurantId:string};
+export function useCatalogPublication(identity:CatalogPublicationIdentity|null, onPublished?: (isCurrent: () => boolean) => void | Promise<void>) {
+  const restaurantId=identity?.restaurantId.toLowerCase();
+  const ownerId=identity?identity.userId.toLowerCase()+":"+restaurantId:undefined;
   const [state, setState] = useState(() => empty(ownerId));
   const latest = useRef(state); const owner = useRef(ownerId); owner.current = ownerId;
   const mounted = useRef(true); const generation = useRef(0); const pending = useRef<AbortController>();
@@ -27,6 +30,8 @@ export function useCatalogPublication(ownerId?: string, onPublished?: (isCurrent
     && !(value.receipt?.phase === "blocked" && !value.receipt.committed && !value.receipt.retryable));
   async function run<T>(input: Omit<CatalogMutationInput, "operationId">, reload?: () => Promise<T>): Promise<T> {
     if (!active() || !catalogWriterEnabled() || blocked(latest.current)) throw new PublicationDeferred();
+    const prefix=restaurantId?"/restaurants/"+restaurantId:"";
+    if(input.route!==prefix&&!input.route.startsWith(prefix+"/"))throw new VaptApiClientError("invalid_catalog_scope","Seleção de restaurante inválida.",400);
     const epoch = generation.current; const current = () => active() && generation.current === epoch;
     const controller = new AbortController(); pending.current = controller;
     const operationId = crypto.randomUUID();
@@ -65,7 +70,7 @@ export function useCatalogPublication(ownerId?: string, onPublished?: (isCurrent
     }
   }
   async function control(action: "check" | "retry"): Promise<void> {
-    const value = latest.current;
+    const value = latest.current.ownerId===ownerId?latest.current:empty(ownerId);
     const saved = replay.current;
     const resend = action === "retry" && value.canReplay && saved?.operationId === value.operationId && saved.expiresAt > Date.now();
     if (!active() || !catalogWriterEnabled() || value.busy || !value.operationId || (action === "retry" && !value.receipt?.retryable && !resend)) return;
@@ -74,7 +79,7 @@ export function useCatalogPublication(ownerId?: string, onPublished?: (isCurrent
     try {
       const receipt = resend
         ? (await runCatalogMutation({ ...saved!.input, operationId: value.operationId, signal: controller.signal })).receipt
-        : await (action === "check" ? getCatalogOperation : retryCatalogOperation)(value.operationId, controller.signal);
+        : await (action === "check" ? getCatalogOperation : retryCatalogOperation)(restaurantId!,value.operationId, controller.signal);
       if (!current()) return;
       clearReplay();
       update({ ...latest.current, receipt, uncertain: false, canReplay: false, busy: true, error: null });

@@ -1,3 +1,4 @@
+export type RestaurantScope={userId:string;restaurantId:string};
 export type RestaurantDto = {
   id: string;
   name: string;
@@ -13,7 +14,7 @@ export type RestaurantDto = {
   fontFamily: string;
   logoUrl: string | null;
   planType: "starter" | "pro" | "business";
-  planStatus: "trialing" | "active" | "expired" | "cancelled";
+  planStatus: "trialing" | "active" | "past_due" | "incomplete" | "unpaid" | "paused" | "expired" | "cancelled";
   trialEndsAt: string | null;
   totalTables: number;
   maxTables: number;

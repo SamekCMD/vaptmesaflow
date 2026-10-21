@@ -1,3 +1,4 @@
+import {useCurrentRestaurant} from "@/features/restaurants/current-restaurant";
 import { useState, useEffect } from "react";
 import {
   Dialog,
@@ -64,6 +65,8 @@ const formatCents = (value: bigint): string => {
 };
 
 const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSessionModalProps) => {
+  const {scope}=useCurrentRestaurant();
+  const restaurantId=scope?.restaurantId;
   const [orders, setOrders] = useState<TableSessionOrderDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -73,20 +76,20 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
   const [transferring, setTransferring] = useState(false);
 
   useEffect(() => {
-    if (!open || !session) return;
+    if (!open || !session || !restaurantId) return;
     setLoading(true);
     setSplitBy(1);
     setNewTableNumber("");
     setPaymentDialogOpen(false);
-  }, [open, session?.id]);
+  }, [open, session?.id,restaurantId]);
 
   useEffect(() => {
-    if (!open || !session) return;
+    if (!open || !session || !restaurantId) return;
     const controller = new AbortController();
     let active = true;
     const fetchOrders = async () => {
       try {
-        const detail = await getTableSession(session.id, controller.signal);
+        const detail = await getTableSession(restaurantId!,session.id, controller.signal);
         if (active) setOrders(detail.orders);
       } catch {
         if (active) {
@@ -99,9 +102,9 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
     };
     void fetchOrders();
     return () => { active = false; controller.abort(); };
-  }, [open, session]);
+  }, [open, session,restaurantId]);
 
-  if (!session) return null;
+  if (!session || !restaurantId) return null;
 
   const totalCents = orders.reduce((sum, order) => sum + toCents(order.totalPrice), 0n);
   const divisor = BigInt(Math.max(1, splitBy));
@@ -110,7 +113,7 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
   const closeSessionAfterPayment = async () => {
     setClosing(true);
     try {
-      await closeTableSession(session.id);
+      await closeTableSession(restaurantId!,session.id);
 
       toast({ title: "Conta finalizada ✅", description: `Mesa ${session.tableNumber} está livre.` });
       await onSessionClosed();
@@ -138,7 +141,7 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
     if (!newTableNumber.trim()) return;
     setTransferring(true);
     try {
-      await transferTableSession(session.id, newTableNumber.trim());
+      await transferTableSession(restaurantId!,session.id, newTableNumber.trim());
 
       toast({ title: "Mesa transferida!", description: `Sessão movida para Mesa ${newTableNumber.trim()}.` });
       await onSessionClosed();

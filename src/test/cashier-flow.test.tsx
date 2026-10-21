@@ -29,6 +29,7 @@ vi.mock("@/lib/realtime/client", () => ({ subscribeRealtime: (scope, signal, sta
 } }));
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
+vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:authUser.id?{userId:authUser.id,restaurantId:restaurant.id}:null,organizationId:"test-org",restaurant:restaurant,loading:false,error:null})}));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: authUser }),
 }));
@@ -124,8 +125,8 @@ describe("cashier API cutover", () => {
     render(<MemoryRouter><CashierPage /></MemoryRouter>);
 
     expect(await screen.findByText("1 pedido · R$ 9007199254740993,42")).toBeInTheDocument();
-    expect(listTableSessions).toHaveBeenCalledWith();
-    expect(fetchOwnedRestaurant).toHaveBeenCalledWith();
+    expect(listTableSessions).toHaveBeenCalledWith(restaurant.id);
+    expect(fetchOwnedRestaurant).not.toHaveBeenCalled();
   });
 
   it("loads detail and closes the whole session through one atomic API call", async () => {
@@ -136,10 +137,10 @@ describe("cashier API cutover", () => {
     fireEvent.click(await screen.findByText("Mesa 1"));
 
     expect(await screen.findByText("Pedido #9007199254740993")).toBeInTheDocument();
-    expect(getTableSession).toHaveBeenCalledWith(session.id, expect.any(AbortSignal));
+    expect(getTableSession).toHaveBeenCalledWith(restaurant.id,session.id, expect.any(AbortSignal));
     fireEvent.click(screen.getByRole("button", { name: "Finalizar Conta" }));
 
-    await waitFor(() => expect(closeTableSession).toHaveBeenCalledWith(session.id));
+    await waitFor(() => expect(closeTableSession).toHaveBeenCalledWith(restaurant.id,session.id));
     await waitFor(() => expect(listTableSessions).toHaveBeenCalledTimes(2));
   });
 
@@ -151,7 +152,7 @@ describe("cashier API cutover", () => {
     fireEvent.change(screen.getByPlaceholderText("Nº"), { target: { value: " 2 " } });
     fireEvent.click(screen.getByRole("button", { name: "Transferir" }));
 
-    await waitFor(() => expect(transferTableSession).toHaveBeenCalledWith(session.id, "2"));
+    await waitFor(() => expect(transferTableSession).toHaveBeenCalledWith(restaurant.id,session.id, "2"));
     await waitFor(() => expect(listTableSessions).toHaveBeenCalledTimes(2));
   });
 
@@ -198,7 +199,7 @@ describe("cashier API cutover", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(250); });
     fireEvent.click(screen.getByRole("button", { name: "Finalizar Conta" }));
     await act(async () => {});
-    expect(closeTableSession).toHaveBeenCalledWith(session.id);
+    expect(closeTableSession).toHaveBeenCalledWith(restaurant.id,session.id);
     view.unmount();
   });
 

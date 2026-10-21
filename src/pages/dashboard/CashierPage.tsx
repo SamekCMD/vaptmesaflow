@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import {useCurrentRestaurant} from "@/features/restaurants/current-restaurant";
 import { listTableSessions } from "@/lib/table-sessions";
 import { useAuth } from "@/contexts/AuthContext";
 import { ENV } from "@/lib/env";
@@ -45,6 +45,7 @@ const playBellSound = () => {
 
 const CashierPage = () => {
   const { user } = useAuth();
+  const userId=user?.id;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [totalTables, setTotalTables] = useState(20);
@@ -54,25 +55,16 @@ const CashierPage = () => {
   const [tick, setTick] = useState(0);
   const knownCheckRequestedRef = useRef<Set<string>>(new Set());
   const knownOrderCountRef = useRef<Map<string, number>>(new Map());
-  const currentOwnerRef = useRef(user?.id); currentOwnerRef.current = user?.id;
-  const [ownedScope, setOwnedScope] = useState<{ userId: string; restaurantId: string | null } | null>(null);
+  const currentOwnerRef = useRef(userId); currentOwnerRef.current = userId;
+  const {scope:ownedScope,restaurant}=useCurrentRestaurant();
+  const restaurantId=ownedScope?.restaurantId;
+  const selectedRef=useRef(restaurantId);selectedRef.current=restaurantId;
 
   useEffect(() => {
-    let cancelled = false;
     knownCheckRequestedRef.current.clear(); knownOrderCountRef.current.clear(); setSessions([]);
     setSelectedSession(null); setModalOpen(false);
-    if (!user) return;
-    const fetch = async () => {
-      const data = await fetchOwnedRestaurant().catch(() => null);
-      if (cancelled) return;
-      if (data) {
-        setTotalTables(data.maxTables || data.totalTables || 20);
-      }
-      setOwnedScope({ userId: user.id, restaurantId: data?.id ?? null });
-    };
-    void fetch();
-    return () => { cancelled = true; };
-  }, [user?.id]);
+    setTotalTables(restaurant?.maxTables || restaurant?.totalTables || 20);
+  }, [userId,restaurantId,restaurant?.maxTables,restaurant?.totalTables]);
 
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("cashier");
@@ -88,10 +80,10 @@ const CashierPage = () => {
   }, []);
 
   const fetchSessions = useCallback(async () => {
-    if (!user) return;
+    if (!userId || !restaurantId) return;
     try {
-      const currentSessions = await listTableSessions();
-      if (currentOwnerRef.current !== user.id) return;
+      const currentSessions = await listTableSessions(restaurantId);
+      if (currentOwnerRef.current !== userId || selectedRef.current!==restaurantId) return;
       const currentCheckRequested = new Set(currentSessions.filter((s) => s.status === "check_requested").map((s) => s.id));
       if (knownCheckRequestedRef.current.size > 0) {
         for (const id of currentCheckRequested) {
@@ -128,13 +120,13 @@ const CashierPage = () => {
     } catch {
       toast({ title: "Erro", description: "Não foi possível atualizar as mesas.", variant: "destructive" });
     }
-  }, [user?.id]);
+  }, [userId,restaurantId]);
 
   const requestRefresh = useRealtimeRefresh({
-    scopes: user && ownedScope?.userId === user.id && ownedScope.restaurantId
-      ? [{ mode: "owner", userId: user.id, restaurantId: ownedScope.restaurantId }] : [],
+    scopes: userId && ownedScope?.userId === userId && ownedScope.restaurantId
+      ? [{ mode: "owner", userId: userId, restaurantId: ownedScope.restaurantId }] : [],
     topics: ["table_sessions", "payments", "orders"], enabled: ENV.realtimeEnabled,
-    active: !!user, refresh: fetchSessions, fallbackMs: 5000,
+    active: !!userId && !!restaurantId, refresh: fetchSessions, fallbackMs: 5000,
   });
 
   const handleTableClick = (tableNum: string) => {

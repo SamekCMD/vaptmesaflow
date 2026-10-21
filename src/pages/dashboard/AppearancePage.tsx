@@ -10,14 +10,17 @@ import { fontFamilyLabels, fontFamilyMap, type RestaurantConfig } from "@/lib/re
 import { toast } from "@/hooks/use-toast";
 import { Upload, Smartphone, ExternalLink, Loader2, UtensilsCrossed } from "lucide-react";
 import { AppearanceFormSkeleton } from "@/components/skeletons/DashboardSkeletons";
+import {useCurrentRestaurant} from "@/features/restaurants/current-restaurant";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchOwnedRestaurant, updateOwnedRestaurant } from "@/lib/restaurants";
+import { fetchRestaurant, updateRestaurant } from "@/lib/restaurants";
 import { catalogWriterEnabled } from "@/lib/catalog/flags";
 import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
 import { CatalogPublicationFeedback } from "@/components/menu/CatalogPublicationStatus";
 
 const AppearancePage = () => {
   const { user } = useAuth();
+  const {scope}=useCurrentRestaurant();
+  const restaurantId=scope?.restaurantId;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading] = useState(true);
@@ -39,8 +42,8 @@ const AppearancePage = () => {
     setConfig((prev) => ({ ...prev, ...partial }));
   };
 
-  const publication = useCatalogPublication(user?.id, async isCurrent => {
-    const data = await fetchOwnedRestaurant(); if (!data || !isCurrent()) return;
+  const publication = useCatalogPublication(scope, async isCurrent => {
+    const data = await fetchRestaurant(restaurantId!); if (!data || !isCurrent()) return;
     setConfig(current => ({ ...current, id: data.id, name: data.name, slug: data.slug, logoUrl: data.logoUrl || "",
       primaryColor: data.primaryColor, secondaryColor: data.secondaryColor,
       fontFamily: data.fontFamily === "classic" || data.fontFamily === "rounded" ? data.fontFamily : "modern" }));
@@ -50,9 +53,9 @@ const AppearancePage = () => {
   // Fetch restaurant data
   useEffect(() => {
     const fetch = async () => {
-      if (!user) return;
+      if (!user || !restaurantId) {setLoading(false);return;}
       try {
-        const data = await fetchOwnedRestaurant();
+        const data = await fetchRestaurant(restaurantId!);
 
         if (data) {
           setDeliveryEnabled(data.deliveryEnabled);
@@ -77,7 +80,7 @@ const AppearancePage = () => {
       }
     };
     fetch();
-  }, [user]);
+  }, [user,restaurantId]);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -88,7 +91,7 @@ const AppearancePage = () => {
   };
 
   const handleSave = async () => {
-    if (!user || !config.id || saving || publication.blocked) return;
+    if (!user || !restaurantId || config.id!==restaurantId || saving || publication.blocked) return;
     setSaving(true);
     try {
       const patch = {
@@ -99,7 +102,7 @@ const AppearancePage = () => {
         fontFamily: config.fontFamily,
         logoUrl: config.logoUrl || null,
       };
-      if (catalogWriterEnabled()) await updateOwnedRestaurant(patch, publication); else await updateOwnedRestaurant(patch);
+      if (catalogWriterEnabled()) await updateRestaurant(restaurantId,patch, publication); else await updateRestaurant(restaurantId,patch);
       toast({ title: "Aparencia salva", description: "As alteracoes de marca foram aplicadas." });
     } catch (err: unknown) {
       if (isCatalogPublicationDeferred(err)) return;

@@ -19,6 +19,7 @@ vi.mock("@/lib/realtime/client", () => ({ subscribeRealtime: (scope, signal, sta
 } }));
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
+vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:authUser.id?{userId:authUser.id,restaurantId:"10000000-0000-4000-8000-000000000001"}:null,organizationId:"test-org",restaurant:null,loading:false,error:null})}));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: authUser }),
 }));
@@ -69,7 +70,7 @@ describe("kitchen monitor API cutover", () => {
     expect(await screen.findByText("#42")).toBeInTheDocument();
     expect(screen.getByText(/1x X-Burguer/)).toBeInTheDocument();
     expect(screen.getByText(/Sem cebola/)).toBeInTheDocument();
-    expect(listKitchenOrders).toHaveBeenCalledWith();
+    expect(listKitchenOrders).toHaveBeenCalledWith("10000000-0000-4000-8000-000000000001");
   });
 
   it("advances with the server response instead of writing directly to Supabase", async () => {
@@ -79,7 +80,7 @@ describe("kitchen monitor API cutover", () => {
     fireEvent.click(card);
 
     await waitFor(() => expect(updateKitchenOrderStatus).toHaveBeenCalledWith(
-      pendingOrder.id,
+      "10000000-0000-4000-8000-000000000001",pendingOrder.id,
       "preparing",
     ));
     const updatedCard = await screen.findByRole("button", { name: /#42/ });
@@ -123,7 +124,7 @@ describe("kitchen monitor API cutover", () => {
     expect(screen.getByText("#42")).toBeInTheDocument();
 
     await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
-    expect(updateKitchenOrderStatus).toHaveBeenCalledWith(readyOrder.id, "delivered");
+    expect(updateKitchenOrderStatus).toHaveBeenCalledWith("10000000-0000-4000-8000-000000000001",readyOrder.id, "delivered");
     expect(screen.queryByText("#42")).not.toBeInTheDocument();
 
     view.unmount();

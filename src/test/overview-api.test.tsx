@@ -8,6 +8,7 @@ import Overview from "@/pages/dashboard/Overview";
 
 const { authUser } = vi.hoisted(() => ({ authUser: { id: "owner-1" } }));
 
+vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:authUser.id?{userId:authUser.id,restaurantId:response.restaurant.id}:null,organizationId:"test-org",restaurant:null,loading:false,error:null})}));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: authUser }),
 }));
@@ -57,7 +58,7 @@ const response: OverviewDto = {
 describe("overview API cutover", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(fetchOwnedOverview).mockImplementation(async (period) => ({ ...response, period }));
+    vi.mocked(fetchOwnedOverview).mockImplementation(async (_restaurantId,period) => ({ ...response, period }));
   });
 
   it("loads the owner-scoped server period without Supabase fan-out", async () => {
@@ -65,7 +66,7 @@ describe("overview API cutover", () => {
 
     expect(await screen.findByText("Vapt Burger")).toBeInTheDocument();
     expect(screen.getAllByText("R$ 59,80").length).toBeGreaterThan(0);
-    expect(fetchOwnedOverview).toHaveBeenCalledWith("week");
+    expect(fetchOwnedOverview).toHaveBeenCalledWith(response.restaurant.id,"week");
   });
 
   it("requests a new complete server snapshot when the period changes", async () => {
@@ -74,6 +75,6 @@ describe("overview API cutover", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Hoje" }));
 
-    await waitFor(() => expect(fetchOwnedOverview).toHaveBeenLastCalledWith("day"));
+    await waitFor(() => expect(fetchOwnedOverview).toHaveBeenLastCalledWith(response.restaurant.id,"day"));
   });
 });

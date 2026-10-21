@@ -7,6 +7,7 @@ import OnboardingPage from "@/pages/onboarding/OnboardingPage";
 import { vaptApiRequest } from "@/lib/vapt-api-client";
 import { catalogState } from "./public-catalog-fixture";
 const auth = vi.hoisted(() => ({ user: { id: "owner", name: "Gestor", email: "owner@synthetic.test" }, updateName: vi.fn(), changePassword: vi.fn() }));
+vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:auth.user.id?{userId:auth.user.id,restaurantId:catalogState().catalog.restaurant.id}:null,organizationId:"test-org",restaurant:null,loading:false,error:null})}));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth }));
 vi.mock("@/lib/env", async original => ({ ENV: { ...(await original<typeof import("@/lib/env")>()).ENV, publicCatalogEventsEnabled: true } }));
 vi.mock("@/lib/vapt-api-client", async original => ({ ...(await original<typeof import("@/lib/vapt-api-client")>()), vaptApiRequest: vi.fn() }));
@@ -35,7 +36,7 @@ describe("restaurant writer pages respect publication receipts", () => {
     fireEvent.change(screen.getByLabelText("Nome do Restaurante"), { target: { value: "Bistrô" } }); fireEvent.click(screen.getByRole("button", { name: /Próximo/ }));
     fireEvent.change(screen.getByLabelText("Nome do Prato"), { target: { value: "Prato" } }); fireEvent.change(screen.getByLabelText("Preço (R$)"), { target: { value: "12" } });
     fireEvent.click(screen.getByRole("button", { name: "Finalizar" }));
-    expect(await screen.findByText("Gravada; publicação pendente")).toBeInTheDocument(); expect(screen.queryByText("Operação pronta")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Finalizar" })).toBeDisabled();
+    expect(screen.queryByText("Operação pronta")).not.toBeInTheDocument();
+    expect(vi.mocked(vaptApiRequest).mock.calls.some(([input])=>input.method==="POST")).toBe(false);
   });
 });

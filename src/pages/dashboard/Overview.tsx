@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import {useCurrentRestaurant} from "@/features/restaurants/current-restaurant";
 import { useAuth } from "@/contexts/AuthContext";
 import type {
   OverviewOrderDto,
@@ -191,6 +192,9 @@ export function getOverviewSatisfactionSummary({
 
 const Overview = ({ guideProgress }: OverviewProps) => {
   const { user } = useAuth();
+  const userId=user?.id;
+  const {scope}=useCurrentRestaurant();
+  const restaurantId=scope?.restaurantId;
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -251,12 +255,12 @@ const Overview = ({ guideProgress }: OverviewProps) => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user) return;
+      if (!userId || !restaurantId) {setLoading(false);return;}
 
       try {
         setLoading(true);
 
-        const snapshot = await fetchOwnedOverview(period);
+        const snapshot = await fetchOwnedOverview(restaurantId,period);
         setRestaurant(snapshot.restaurant);
         setOrders(snapshot.orders);
         setFeedbackRecords(snapshot.feedback);
@@ -274,7 +278,7 @@ const Overview = ({ guideProgress }: OverviewProps) => {
     };
 
     fetchData();
-  }, [user, period]);
+  }, [userId, restaurantId, period]);
 
   const completedOrders = useMemo(
     () => orders.filter((o) => ["ready", "delivered"].includes(o.status)),

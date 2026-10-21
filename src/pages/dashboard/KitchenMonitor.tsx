@@ -7,7 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import { KitchenSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useAuth } from "@/contexts/AuthContext";
 import { ENV } from "@/lib/env";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import {useCurrentRestaurant} from "@/features/restaurants/current-restaurant";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import type { KitchenOrderDto } from "@/lib/business-api.types";
 import {
@@ -108,6 +108,7 @@ const errorMessage = (error: unknown) =>
 
 const KitchenMonitor = () => {
   const { user } = useAuth();
+  const userId=user?.id;
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -123,8 +124,10 @@ const KitchenMonitor = () => {
   const ordersRef = useRef<Order[]>([]);
   const archivingOrderIdsRef = useRef<Set<string>>(new Set());
   const mountedRef = useRef(false);
-  const currentOwnerRef = useRef(user?.id); currentOwnerRef.current = user?.id;
-  const [ownedScope, setOwnedScope] = useState<{ userId: string; restaurantId: string | null } | null>(null);
+  const currentOwnerRef = useRef(userId); currentOwnerRef.current = userId;
+  const {scope:ownedScope}=useCurrentRestaurant();
+  const restaurantId=ownedScope?.restaurantId;
+  const selectedRef=useRef(restaurantId);selectedRef.current=restaurantId;
 
   const toggleSound = () => {
     setSoundEnabled((prev) => {
@@ -143,10 +146,10 @@ const KitchenMonitor = () => {
   };
 
   const fetchOrders = useCallback(async () => {
-    if (!user) return;
+    if (!userId || !restaurantId) return;
     try {
-      const fetched = await listKitchenOrders();
-      if (!mountedRef.current || currentOwnerRef.current !== user.id) return;
+      const fetched = await listKitchenOrders(restaurantId);
+      if (!mountedRef.current || (currentOwnerRef.current !== userId || selectedRef.current!==restaurantId)) return;
       if (knownOrderIdsRef.current.size > 0 && soundEnabled) {
         const newOrders = fetched.filter(
           (order) => {
@@ -169,9 +172,9 @@ const KitchenMonitor = () => {
         variant: "destructive",
       });
     } finally {
-      if (mountedRef.current && currentOwnerRef.current === user.id) setLoading(false);
+      if (mountedRef.current && currentOwnerRef.current === userId && selectedRef.current===restaurantId) setLoading(false);
     }
-  }, [soundEnabled, user]);
+  }, [soundEnabled, userId,restaurantId]);
 
   useEffect(() => {
     ordersRef.current = orders;
@@ -191,7 +194,8 @@ const KitchenMonitor = () => {
       for (const order of readyToArchive) {
         archivingOrderIdsRef.current.add(order.id);
         setOrders((current) => current.filter((candidate) => candidate.id !== order.id));
-        void updateKitchenOrderStatus(order.id, "delivered")
+        if (!restaurantId) continue;
+        void updateKitchenOrderStatus(restaurantId,order.id, "delivered")
           .catch((error: unknown) => {
             if (!mountedRef.current) return;
             setOrders((current) => current.some((candidate) => candidate.id === order.id)
@@ -215,32 +219,27 @@ const KitchenMonitor = () => {
       mountedRef.current = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [restaurantId]);
 
   useEffect(() => {
-    let cancelled = false;
     knownOrderIdsRef.current.clear(); ordersRef.current = []; setOrders([]);
-    if (!user) {
+    if (!userId) {
       setLoading(false);
       return;
     }
     setLoading(true);
-    void fetchOwnedRestaurant().catch(() => null).then(restaurant => {
-      if (!cancelled) setOwnedScope({ userId: user.id, restaurantId: restaurant?.id ?? null });
-    });
-    return () => { cancelled = true; };
-  }, [user?.id]);
+  }, [userId,restaurantId]);
 
   const requestRefresh = useRealtimeRefresh({
-    scopes: user && ownedScope?.userId === user.id && ownedScope.restaurantId
-      ? [{ mode: "owner", userId: user.id, restaurantId: ownedScope.restaurantId }] : [],
+    scopes: userId && ownedScope?.userId === userId && ownedScope.restaurantId
+      ? [{ mode: "owner", userId: userId, restaurantId: ownedScope.restaurantId }] : [],
     topics: ["orders", "kitchen"], enabled: ENV.realtimeEnabled,
-    active: !!user && ownedScope?.userId === user.id, refresh: fetchOrders, fallbackMs: 5000,
+    active: !!userId && ownedScope?.userId === userId, refresh: fetchOrders, fallbackMs: 5000,
   });
 
   const advance = async (order: Order) => {
     const next = nextStatus[order.status];
-    if (!next) return;
+    if (!next || !restaurantId) return;
     setUpdatingOrderId(order.id);
     const previousOrder = order;
     setOrders((prev) =>
@@ -249,7 +248,7 @@ const KitchenMonitor = () => {
       ),
     );
     try {
-      const updated = await updateKitchenOrderStatus(order.id, next);
+      const updated = await updateKitchenOrderStatus(restaurantId,order.id, next);
       if (mountedRef.current) {
         setOrders((current) => current.map((candidate) => candidate.id === order.id ? updated : candidate));
       }

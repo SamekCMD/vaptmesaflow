@@ -2,23 +2,24 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import AppearancePage from "@/pages/dashboard/AppearancePage";
-import { fetchOwnedRestaurant, updateOwnedRestaurant } from "@/lib/restaurants";
+import { fetchRestaurant, updateRestaurant } from "@/lib/restaurants";
 
 const { authUser } = vi.hoisted(() => ({ authUser: { id: "owner-1" } }));
 
+vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:authUser.id?{userId:authUser.id,restaurantId:"restaurant-1"}:null,organizationId:"test-org",restaurant:null,loading:false,error:null})}));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: authUser }),
 }));
 
 vi.mock("@/lib/restaurants", () => ({
-  fetchOwnedRestaurant: vi.fn(),
-  updateOwnedRestaurant: vi.fn(),
+  fetchRestaurant: vi.fn(),
+  updateRestaurant: vi.fn(),
 }));
 
 vi.mock("@/hooks/use-toast", () => ({ toast: vi.fn() }));
 
-const mockedFetch = vi.mocked(fetchOwnedRestaurant);
-const mockedUpdate = vi.mocked(updateOwnedRestaurant);
+const mockedFetch = vi.mocked(fetchRestaurant);
+const mockedUpdate = vi.mocked(updateRestaurant);
 
 describe("appearance restaurant API", () => {
   it("loads and saves the authenticated owner's camelCase restaurant", async () => {
@@ -53,11 +54,11 @@ describe("appearance restaurant API", () => {
     render(<AppearancePage />);
 
     const nameInput = await screen.findByDisplayValue("Vapt Bistrô");
-    expect(mockedFetch).toHaveBeenCalledWith();
+    expect(mockedFetch).toHaveBeenCalledWith("restaurant-1");
     fireEvent.change(nameInput, { target: { value: "Vapt Novo" } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar alteracoes" }));
 
-    await waitFor(() => expect(mockedUpdate).toHaveBeenCalledWith({
+    await waitFor(() => expect(mockedUpdate).toHaveBeenCalledWith("restaurant-1",{
       name: "Vapt Novo",
       slug: "vapt-bistro",
       primaryColor: "#0ea573",

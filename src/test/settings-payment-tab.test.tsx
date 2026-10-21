@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SettingsPage from "@/pages/dashboard/SettingsPage";
-import { fetchOwnedRestaurant, updateOwnedRestaurant } from "@/lib/restaurants";
+import { fetchRestaurant, updateRestaurant } from "@/lib/restaurants";
 
 const { authUser, changePassword, updateName } = vi.hoisted(() => ({
   authUser: {
@@ -15,6 +15,7 @@ const { authUser, changePassword, updateName } = vi.hoisted(() => ({
   updateName: vi.fn(),
 }));
 
+vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:authUser.id?{userId:authUser.id,restaurantId:"10000000-0000-4000-8000-000000000001"}:null,organizationId:"test-org",restaurant:null,loading:false,error:null})}));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
     user: authUser,
@@ -24,8 +25,8 @@ vi.mock("@/contexts/AuthContext", () => ({
 }));
 
 vi.mock("@/lib/restaurants", () => ({
-  fetchOwnedRestaurant: vi.fn(),
-  updateOwnedRestaurant: vi.fn(),
+  fetchRestaurant: vi.fn(),
+  updateRestaurant: vi.fn(),
 }));
 
 vi.mock("@/hooks/use-toast", () => ({
@@ -40,8 +41,8 @@ vi.mock("@/components/payments/MercadoPagoSettingsCard", () => ({
   default: () => <div>Mercado Pago de teste</div>,
 }));
 
-const mockedFetchOwnedRestaurant = vi.mocked(fetchOwnedRestaurant);
-const mockedUpdateOwnedRestaurant = vi.mocked(updateOwnedRestaurant);
+const mockedFetchOwnedRestaurant = vi.mocked(fetchRestaurant);
+const mockedUpdateOwnedRestaurant = vi.mocked(updateRestaurant);
 
 describe("aba de pagamentos nas configuracoes", () => {
   beforeEach(() => {
@@ -85,7 +86,7 @@ describe("aba de pagamentos nas configuracoes", () => {
     );
 
     const restaurantTab = await screen.findByRole("tab", { name: "Restaurante" });
-    expect(mockedFetchOwnedRestaurant).toHaveBeenCalledWith();
+    expect(mockedFetchOwnedRestaurant).toHaveBeenCalledWith("10000000-0000-4000-8000-000000000001");
     const paymentsTab = screen.getByRole("tab", { name: "Pagamentos" });
     const accountTab = screen.getByRole("tab", { name: "Conta" });
 
@@ -124,7 +125,7 @@ describe("aba de pagamentos nas configuracoes", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Salvar Alterações" }));
 
-    await waitFor(() => expect(mockedUpdateOwnedRestaurant).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(mockedUpdateOwnedRestaurant).toHaveBeenCalledWith("10000000-0000-4000-8000-000000000001",expect.objectContaining({
       name: "Novo Restaurante",
       address: "Rua Teste, 1",
       maxTables: 20,
@@ -132,7 +133,7 @@ describe("aba de pagamentos nas configuracoes", () => {
     })));
 
     fireEvent.click(screen.getByRole("button", { name: "Salvar fluxo do pedido" }));
-    await waitFor(() => expect(mockedUpdateOwnedRestaurant).toHaveBeenCalledWith({
+    await waitFor(() => expect(mockedUpdateOwnedRestaurant).toHaveBeenCalledWith("10000000-0000-4000-8000-000000000001",{
       paymentMode: "prepaid",
       maxPendingOrders: 3,
     }));

@@ -5,6 +5,7 @@ import MenuManagement from "@/pages/dashboard/MenuManagement";
 import { vaptApiRequest } from "@/lib/vapt-api-client";
 import type { MenuItemDto } from "@/lib/business-api.types";
 const environment = vi.hoisted(() => ({ user: { id: "11111111-1111-4111-8111-111111111111" }, reader: true }));
+vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:environment.user?.id?{userId:environment.user?.id,restaurantId:restaurantId}:null,organizationId:"test-org",restaurant:null,loading:false,error:null})}));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: environment.user }) }));
 vi.mock("@/lib/env", async original => ({ ENV: { ...(await original<typeof import("@/lib/env")>()).ENV, get publicCatalogEventsEnabled() { return environment.reader; }, publicCatalogWriterEnabled: true, menuImageStorageMode: "r2" } }));
 vi.mock("@/lib/vapt-api-client", async original => ({ ...(await original<typeof import("@/lib/vapt-api-client")>()), vaptApiRequest: vi.fn() }));
@@ -21,8 +22,8 @@ const receipt = (operationId: string, value = phase) => ({ operationId, restaura
 beforeEach(() => {
   vi.clearAllMocks(); phase = "committed"; currentItem = item(); published = false; key = "";
   vi.mocked(vaptApiRequest).mockImplementation(async options => {
-    if (options.method === "GET" && options.route === "/restaurants/me") return { id: restaurantId, name: "Bistrô" } as never;
-    if (options.method === "GET" && options.route === "/restaurants/me/menu-items") return [{ ...currentItem, name: published ? "Prato publicado" : currentItem.name }] as never;
+    if (options.method === "GET" && options.route === "/restaurants/22222222-2222-4222-8222-222222222222") return { id: restaurantId, name: "Bistrô" } as never;
+    if (options.method === "GET" && options.route === "/restaurants/22222222-2222-4222-8222-222222222222/menu-items") return [{ ...currentItem, name: published ? "Prato publicado" : currentItem.name }] as never;
     if (options.route.endsWith("/retry")) { published = true; return receipt(key, "ready") as never; }
     if (options.route.endsWith("/image/upload")) return { state: "uploaded", publicUrl: `https://assets.test/${objectKey}`, objectKey } as never;
     if (options.route.endsWith("/image")) return null as never;
@@ -49,14 +50,14 @@ describe.each([true, false])("owner menu receipt and image ordering integration,
     currentItem.imageUrl = `https://assets.test/${objectKey}`;
     page(); await screen.findByText("Prato do dia"); fireEvent.click(screen.getByRole("button", { name: "Remover Prato do dia" }));
     await screen.findByText("Gravada; publicação pendente"); expect(screen.getByText("Prato do dia")).toBeInTheDocument();
-    expect(vi.mocked(vaptApiRequest).mock.calls.filter(([value]) => value.method === "DELETE").map(([value]) => value.route)).toEqual([`/restaurants/me/menu-items/${itemId}`]);
+    expect(vi.mocked(vaptApiRequest).mock.calls.filter(([value]) => value.method === "DELETE").map(([value]) => value.route)).toEqual([`/restaurants/22222222-2222-4222-8222-222222222222/menu-items/${itemId}`]);
   });
   it("deletes the domain first, then asks authenticated cleanup for the exact old object", async () => {
     phase = "ready"; currentItem.imageUrl = `https://assets.test/${objectKey}`;
     page(); await screen.findByText("Prato do dia"); fireEvent.click(screen.getByRole("button", { name: "Remover Prato do dia" }));
     await waitFor(() => expect(screen.queryByText("Prato do dia")).not.toBeInTheDocument());
     const deletes = vi.mocked(vaptApiRequest).mock.calls.filter(([value]) => value.method === "DELETE").map(([value]) => value);
-    expect(deletes.map(value => value.route)).toEqual([`/restaurants/me/menu-items/${itemId}`, `/restaurants/${restaurantId}/menu-items/${itemId}/image`]);
+    expect(deletes.map(value => value.route)).toEqual([`/restaurants/22222222-2222-4222-8222-222222222222/menu-items/${itemId}`, `/restaurants/${restaurantId}/menu-items/${itemId}/image`]);
     expect(deletes[1]!.query).toEqual({ objectKey });
   });
   it("imageSecondPatchUsesNewOperation and uploaded replay sends no replacement PUT", async () => {

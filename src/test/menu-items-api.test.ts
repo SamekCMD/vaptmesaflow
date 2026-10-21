@@ -11,6 +11,7 @@ import { vaptApiRequest } from "@/lib/vapt-api-client";
 
 vi.mock("@/lib/vapt-api-client", () => ({ vaptApiRequest: vi.fn() }));
 
+const restaurantId="22222222-2222-4222-8222-222222222222";
 const mockedRequest = vi.mocked(vaptApiRequest);
 const item = { id: "item-1" } as MenuItemDto;
 
@@ -22,8 +23,8 @@ describe("menu item API client", () => {
 
   it("uses the owner-scoped collection routes", async () => {
     mockedRequest.mockResolvedValueOnce([item]);
-    await listOwnedMenuItems();
-    await createMenuItem({
+    await listOwnedMenuItems(restaurantId);
+    await createMenuItem(restaurantId,{
       name: "X-Burger",
       price: "29.90",
       description: null,
@@ -40,26 +41,26 @@ describe("menu item API client", () => {
 
     expect(mockedRequest).toHaveBeenNthCalledWith(1, {
       method: "GET",
-      route: "/restaurants/me/menu-items",
+      route: "/restaurants/22222222-2222-4222-8222-222222222222/menu-items",
     });
     expect(mockedRequest).toHaveBeenNthCalledWith(2, expect.objectContaining({
       method: "POST",
-      route: "/restaurants/me/menu-items",
+      route: "/restaurants/22222222-2222-4222-8222-222222222222/menu-items",
     }));
   });
 
   it("encodes item ids for patch and delete", async () => {
-    await updateMenuItem("item/with slash", { available: false });
-    await deleteMenuItem("item/with slash");
+    await updateMenuItem(restaurantId,"item/with slash", { available: false });
+    await deleteMenuItem(restaurantId,"item/with slash");
 
     expect(mockedRequest).toHaveBeenNthCalledWith(1, {
       method: "PATCH",
-      route: "/restaurants/me/menu-items/item%2Fwith%20slash",
+      route: "/restaurants/22222222-2222-4222-8222-222222222222/menu-items/item%2Fwith%20slash",
       body: { available: false },
     });
     expect(mockedRequest).toHaveBeenNthCalledWith(2, {
       method: "DELETE",
-      route: "/restaurants/me/menu-items/item%2Fwith%20slash",
+      route: "/restaurants/22222222-2222-4222-8222-222222222222/menu-items/item%2Fwith%20slash",
     });
   });
 });

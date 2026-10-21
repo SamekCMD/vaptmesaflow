@@ -7,8 +7,8 @@ import KitchenMonitor from "@/pages/dashboard/KitchenMonitor";
 
 // Keep KitchenMonitor, listKitchenOrders, the HTTP deadline, hook and queue real.
 // Only local identity/scope and external socket/HTTP transports are controlled.
+vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:{userId:"owner-1",restaurantId:"10000000-0000-4000-8000-000000000001"},organizationId:"test-org",restaurant:null,loading:false,error:null})}));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "owner-1" } }) }));
-vi.mock("@/lib/restaurants", () => ({ fetchOwnedRestaurant: async () => ({ id: "10000000-0000-4000-8000-000000000001" }) }));
 vi.mock("@/lib/env", async original => ({ ENV: { ...(await original<typeof import("@/lib/env")>()).ENV, realtimeEnabled: true } }));
 vi.mock("@/lib/realtime/client", () => ({ subscribeRealtime: (_scope, _signal, state) => {
   state("connected"); return () => {};
@@ -51,7 +51,7 @@ describe("kitchen timeout and visibility characterization (no production network
     let finishLate!: () => void;
     const lateOrders = [{ ...order, displayId: "99" }];
     vi.stubGlobal("fetch", async (url: string, options: RequestInit) => {
-      expect(url).toBe("https://api.test.example.com/restaurants/me/kitchen/orders");
+      expect(url).toBe("https://api.test.example.com/restaurants/10000000-0000-4000-8000-000000000001/kitchen/orders");
       expect(options.method).toBe("GET"); expect(options.credentials).toBe("include");
       calls++;
       if (calls === 2) {

@@ -1,3 +1,4 @@
+import {restaurantRoute} from "@/lib/restaurants";
 import type { MenuItemDto, MenuVariationDto } from "@/lib/business-api.types";
 import { vaptApiRequest } from "@/lib/vapt-api-client";
 import type { CatalogMutationExecutor } from "@/lib/catalog-mutations";
@@ -21,39 +22,39 @@ export type MenuItemInput = {
 
 export type MenuItemPatch = Partial<MenuItemInput>;
 
-export function listOwnedMenuItems(): Promise<MenuItemDto[]> {
+export function listOwnedMenuItems(restaurantId:string): Promise<MenuItemDto[]> {
   return vaptApiRequest<MenuItemDto[]>({
     method: "GET",
-    route: "/restaurants/me/menu-items",
+    route: `${restaurantRoute(restaurantId)}/menu-items`,
   });
 }
 
-export function createMenuItem(input: MenuItemInput, publication?: CatalogMutationExecutor): Promise<MenuItemDto> {
-  if (publication) return publication.run<MenuItemDto>({ method: "POST", route: "/restaurants/me/menu-items", body: input });
+export function createMenuItem(restaurantId:string,input: MenuItemInput, publication?: CatalogMutationExecutor): Promise<MenuItemDto> {
+  if (publication) return publication.run<MenuItemDto>({ method: "POST", route: `${restaurantRoute(restaurantId)}/menu-items`, body: input });
   return vaptApiRequest<MenuItemDto>({
     method: "POST",
-    route: "/restaurants/me/menu-items",
+    route: `${restaurantRoute(restaurantId)}/menu-items`,
     body: input,
   });
 }
 
-export function updateMenuItem(itemId: string, patch: MenuItemPatch, publication?: CatalogMutationExecutor): Promise<MenuItemDto> {
-  if (publication) return publication.run<MenuItemDto>({ method: "PATCH", route: `/restaurants/me/menu-items/${encodeURIComponent(itemId)}`, body: patch }, async () => {
-    const item = (await listOwnedMenuItems()).find(value => value.id === itemId);
+export function updateMenuItem(restaurantId:string,itemId: string, patch: MenuItemPatch, publication?: CatalogMutationExecutor): Promise<MenuItemDto> {
+  if (publication) return publication.run<MenuItemDto>({ method: "PATCH", route: `${restaurantRoute(restaurantId)}/menu-items/${encodeURIComponent(itemId)}`, body: patch }, async () => {
+    const item = (await listOwnedMenuItems(restaurantId)).find(value => value.id === itemId);
     if (!item) throw new Error("Item publicado, mas não foi possível recarregar seus dados.");
     return item;
   });
   return vaptApiRequest<MenuItemDto>({
     method: "PATCH",
-    route: `/restaurants/me/menu-items/${encodeURIComponent(itemId)}`,
+    route: `${restaurantRoute(restaurantId)}/menu-items/${encodeURIComponent(itemId)}`,
     body: patch,
   });
 }
 
-export function deleteMenuItem(itemId: string, publication?: CatalogMutationExecutor): Promise<void> {
-  if (publication) return publication.run<void>({ method: "DELETE", route: `/restaurants/me/menu-items/${encodeURIComponent(itemId)}` }, async () => { await listOwnedMenuItems(); });
+export function deleteMenuItem(restaurantId:string,itemId: string, publication?: CatalogMutationExecutor): Promise<void> {
+  if (publication) return publication.run<void>({ method: "DELETE", route: `${restaurantRoute(restaurantId)}/menu-items/${encodeURIComponent(itemId)}` }, async () => { await listOwnedMenuItems(restaurantId); });
   return vaptApiRequest<void>({
     method: "DELETE",
-    route: `/restaurants/me/menu-items/${encodeURIComponent(itemId)}`,
+    route: `${restaurantRoute(restaurantId)}/menu-items/${encodeURIComponent(itemId)}`,
   });
 }

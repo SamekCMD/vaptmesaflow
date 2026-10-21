@@ -20,7 +20,7 @@ import { toast } from "@/hooks/use-toast";
 import { MenuTableSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { useCurrentRestaurant } from "@/features/restaurants/current-restaurant";
 import { deleteMenuImage, uploadMenuImage, reconcileMenuImages } from "@/lib/menu-image-storage";
 import { catalogWriterEnabled } from "@/lib/catalog/flags";
 import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
@@ -52,6 +52,7 @@ function errorMessage(error: unknown): string {
 
 const MenuManagement = () => {
   const { user } = useAuth();
+  const userId=user?.id;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<MenuItem[]>([]);
@@ -61,7 +62,8 @@ const MenuManagement = () => {
   const [form, setForm] = useState({ name: "", price: "", category: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const {scope} = useCurrentRestaurant();
+  const restaurantId=scope?.restaurantId??null;
 
   // Extended form state
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -77,38 +79,36 @@ const MenuManagement = () => {
   const [prepTimeMinutes, setPrepTimeMinutes] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadLease = useRef<{ file: File; ownerId: string; restaurantId: string; itemId: string; operationId: string } | null>(null);
-  const cleanupIdentity = useRef({ ownerId: user?.id, restaurantId });
-  if (cleanupIdentity.current.ownerId !== user?.id || cleanupIdentity.current.restaurantId !== restaurantId) cleanupIdentity.current = { ownerId: user?.id, restaurantId };
+  const cleanupIdentity = useRef({ ownerId: userId, restaurantId });
+  if (cleanupIdentity.current.ownerId !== userId || cleanupIdentity.current.restaurantId !== restaurantId) cleanupIdentity.current = { ownerId: userId, restaurantId };
   const cleanupMounted = useRef(true);
   useEffect(() => { cleanupMounted.current = true; return () => { cleanupMounted.current = false; }; }, []);
   const [cleanupResult, setCleanupResult] = useState<string | null>(null);
-  useEffect(() => { setCleanupResult(null); setSaving(false); }, [user?.id, restaurantId]);
-  useEffect(() => () => { uploadLease.current = null; }, [user?.id]);
-  const publication = useCatalogPublication(user?.id, async isCurrent => {
-    const refreshed = await listOwnedMenuItems(); if (!isCurrent()) return;
+  useEffect(() => { setCleanupResult(null); setSaving(false); }, [userId, restaurantId]);
+  useEffect(() => () => { uploadLease.current = null; }, [userId]);
+  const publication = useCatalogPublication(scope, async isCurrent => {
+    const refreshed = await listOwnedMenuItems(restaurantId!); if (!isCurrent()) return;
     setItems(refreshed); setDialogOpen(false);
     if (imageFile) toast({ title: "Item publicado", description: "Abra a edição do item para concluir o envio da imagem." });
     resetForm();
   });
 
   useEffect(() => {
+    let active=true;
     const fetchItems = async () => {
-      if (!user) return;
+      if (!userId || !restaurantId) {setItems([]);setLoading(false);return;}
       try {
-        const rest = await fetchOwnedRestaurant();
-
-        if (!rest) { setLoading(false); return; }
-        setRestaurantId(rest.id);
-
-        setItems(await listOwnedMenuItems());
+        const items = await listOwnedMenuItems(restaurantId);
+        if (active) setItems(items);
       } catch (err: unknown) {
         toast({ title: "Erro ao carregar cardápio", description: errorMessage(err), variant: "destructive" });
       } finally {
-        setLoading(false);
+        if(active)setLoading(false);
       }
     };
     fetchItems();
-  }, [user]);
+    return ()=>{active=false;};
+  }, [userId,restaurantId]);
 
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("menu");
@@ -119,7 +119,7 @@ const MenuManagement = () => {
   };
 
   const handleImageCleanup = async () => {
-    if (!user || !restaurantId || saving || publication.blocked) return;
+    if (!userId || !restaurantId || saving || publication.blocked) return;
     const identity = cleanupIdentity.current;
     const isCurrent = () => cleanupMounted.current && cleanupIdentity.current === identity;
     setSaving(true); setCleanupResult(null);
@@ -155,7 +155,7 @@ const MenuManagement = () => {
   };
 
   const handleSave = async () => {
-    if (!user || publication.blocked || saving || !form.name || !form.price || !form.category || !restaurantId) return;
+    if (!userId || publication.blocked || saving || !form.name || !form.price || !form.category || !restaurantId) return;
     setSaving(true);
 
     try {
@@ -174,8 +174,8 @@ const MenuManagement = () => {
         variations,
       };
       let savedItem = editItem
-        ? catalogWriterEnabled() ? await updateMenuItem(editItem.id, input, publication) : await updateMenuItem(editItem.id, input)
-        : catalogWriterEnabled() ? await createMenuItem(input, publication) : await createMenuItem(input);
+        ? catalogWriterEnabled() ? await updateMenuItem(restaurantId,editItem.id, input, publication) : await updateMenuItem(restaurantId,editItem.id, input)
+        : catalogWriterEnabled() ? await createMenuItem(restaurantId,input, publication) : await createMenuItem(restaurantId,input);
 
       if (!catalogWriterEnabled() && removeImage && editItem?.imageUrl) {
         try { await deleteMenuImage({ restaurantId, itemId: editItem.id }); }
@@ -186,14 +186,14 @@ const MenuManagement = () => {
         // Once creation is confirmed, a failed upload must resume editing this
         // item, never issue another POST and accidentally create a duplicate.
         if (!editItem) { setEditItem(savedItem); setItems(current => [savedItem, ...current.filter(item => item.id !== savedItem.id)]); }
-        if (catalogWriterEnabled() && (uploadLease.current?.file !== imageFile || uploadLease.current.ownerId !== user.id
+        if (catalogWriterEnabled() && (uploadLease.current?.file !== imageFile || uploadLease.current.ownerId !== userId
           || uploadLease.current.restaurantId !== restaurantId || uploadLease.current.itemId !== savedItem.id)) {
-          uploadLease.current = { file: imageFile, ownerId: user.id, restaurantId, itemId: savedItem.id, operationId: crypto.randomUUID() };
+          uploadLease.current = { file: imageFile, ownerId: userId, restaurantId, itemId: savedItem.id, operationId: crypto.randomUUID() };
         }
         const publicUrl = await uploadMenuImage({ restaurantId, itemId: savedItem.id, image: imageFile,
           ...(catalogWriterEnabled() ? { operationId: uploadLease.current!.operationId } : {}) });
-        savedItem = catalogWriterEnabled() ? await updateMenuItem(savedItem.id, { imageUrl: publicUrl }, publication)
-          : await updateMenuItem(savedItem.id, { imageUrl: publicUrl });
+        savedItem = catalogWriterEnabled() ? await updateMenuItem(restaurantId,savedItem.id, { imageUrl: publicUrl }, publication)
+          : await updateMenuItem(restaurantId,savedItem.id, { imageUrl: publicUrl });
       }
 
       if (catalogWriterEnabled() && editItem?.imageUrl && (removeImage || imageFile)) {
@@ -247,13 +247,13 @@ const MenuManagement = () => {
   };
 
   const handleDelete = async (item: MenuItem) => {
-    if (!user || !restaurantId || publication.blocked || saving) return;
+    if (!userId || !restaurantId || publication.blocked || saving) return;
     setSaving(true);
     try {
       // The legacy endpoint still authorizes through the existing item and uses
       // a mutable key. Only the versioned protocol can safely retire after ready.
       if (!catalogWriterEnabled() && item.imageUrl) await deleteMenuImage({ restaurantId, itemId: item.id });
-      if (catalogWriterEnabled()) await deleteMenuItem(item.id, publication); else await deleteMenuItem(item.id);
+      if (catalogWriterEnabled()) await deleteMenuItem(restaurantId,item.id, publication); else await deleteMenuItem(restaurantId,item.id);
       setItems((current) => current.filter((i) => i.id !== item.id));
       if (catalogWriterEnabled() && item.imageUrl) {
         try { await deleteMenuImage({ restaurantId, itemId: item.id, imageUrl: item.imageUrl }); }
@@ -351,7 +351,7 @@ const MenuManagement = () => {
           <h1 className="text-2xl font-bold">Gestão de Cardápio</h1>
           <p className="text-muted-foreground text-sm">{items.length} itens cadastrados</p>
           {catalogWriterEnabled() && <div className="mt-2 space-y-1">
-            <Button variant="outline" size="sm" disabled={!user || !restaurantId || saving || publication.blocked} onClick={handleImageCleanup}>Limpar uploads antigos</Button>
+            <Button variant="outline" size="sm" disabled={!userId || !restaurantId || saving || publication.blocked} onClick={handleImageCleanup}>Limpar uploads antigos</Button>
             <p className="text-muted-foreground text-xs">Recupere espaço de uploads expirados e sem uso, inclusive envios interrompidos. Imagens das versões atual e anterior são preservadas.</p>
             {cleanupResult && <p role="status" className="text-sm">{cleanupResult}</p>}
           </div>}
