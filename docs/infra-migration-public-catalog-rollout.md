@@ -1,5 +1,7 @@
 # Catálogo por eventos — ativação e rollback
 
+Atualização posterior22/10: API tenant candidata publicada somente no Preview existente, implantação28`fca1102f-05b4-488e-bc6a-11d1f82e0bd9` (códigoAPI7689ec5), com autorização específica e operação única. Reader/writerfalse, namespaces/CPU1000/segredos/recursos preservados, Access e privacidade do bucket de catálogo/HDpreview conferidos antes/depois. Produção/frontend/consumidor/main não publicados. Não repetir migrations ou `publish-compatible`. Relatório API:`docs/public-catalog-preview-compatible-verification.md`; próximos gates são smoke autenticado e cobertura/compatibilidade dos clientes/consumidor antes de canário/CPU/bootstrap. Referências seguintes à implantação27 descrevem a preparação histórica, não a versão atual.
+
 Último estado22/10: [gate SQL preview concluído](infra-migration-preview-schema-gate-2026-10-22.md), com backup/restore/PG93 e aplicação atômica009–012/quatro grants. Readback e role real limitada aprovados. Production não migrou; Preview Cloudflare permanece implantação27/readerfalse/writerfalse. Não repetir schema no preview nem confundir SQL preparado com código tenant publicado ou CPU/workload certificado. As menções seguintes a schema ausente/capacidade não restaurada são preflight histórico; T5/9/10 e Etapa13 seguem abertos.
 
 ## Readiness22/10 — sem nova implantação
