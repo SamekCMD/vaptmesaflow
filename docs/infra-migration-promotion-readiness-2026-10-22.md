@@ -2,6 +2,29 @@
 
 Continuação da Etapa13 e T5/9/10 do catálogo, após o encerramento local do plano de paridade. Este checkpoint prepara o procedimento; não executa promoção, SQL, flags ou merge.
 
+## Atualização após upgrade feito pelo usuário — 22/10
+
+O usuário informou que contratou Launch. GET autenticado do projeto existente `dawn-morning-27332079` confirmou `owner.subscription_type=launch_v3`, com novo período de consumo `2026-10-22T20:31:28Z` → `2026-11-01T00:00:00Z` e contador aproximado `compute_time_seconds=0`. Isso substitui o bloqueio histórico por franquia Free nesta página, mas não comprova conectividade SQL, fatura zerada ou gates de promoção concluídos.
+
+Readback somente-leitura dos dois endpoints esperados: production `ep-holy-wildflower-b6vtv1dd` e preview `ep-hidden-bird-b673zocn`, ambos `idle`, `disabled=false`, mínimo0,25CU e **máximo8CU**. O máximo anterior era2CU; os defaults do projeto também retornam0,25→8CU. `suspend_timeout_seconds=0` foi preservado no retorno, sem interpretar esse valor bruto como suspensão desabilitada. Histórico configurado21600s.
+
+Não há `quota` personalizada no objeto de projeto ou em `settings`; GET do threshold de gastos da organização retornou `spending_limit_cents=null`. Portanto não foi verificado um bloqueio de consumo nem alerta de gastos configurado. [Alertas de gastos](https://neon.com/docs/introduction/spending-notifications) não interrompem uso; [cotas por projeto](https://neon.com/docs/guides/consumption-limits) são limites de métricas, não teto monetário global, e podem suspender os dois ambientes. A ausência de quota não significa quota zero.
+
+O usuário aprovou explicitamente fixar ambos os endpoints em0,25CU e a cota conjunta60CU-h/mês, ciente da suspensão dos dois ambientes ao atingir a cota, e pediu continuação do plano. Aplicados somente `settings.quota.compute_time_seconds=216000` no projeto e mínimo/máximo0,25CU nos dois endpoints existentes. GETs posteriores confirmaram a cota e ambos0,25→0,25CU, `disabled=false` e `suspend_timeout_seconds=0`. O esquema oficial consultado define0 como default do plano, não como suspensão desabilitada. Nenhum alerta ou default de futuros endpoints foi alterado; o default máximo8CU permanece e não autoriza criar outro endpoint. Quota é compartilhada por todas as branches/computes do projeto, não60CU-h para cada ambiente.
+
+Referência de custo, não fatura/teto:60×[US$0,106/CU-h](https://neon.com/pricing)=US$6,36 de compute. Storage/history, eventuais excedentes e outros provedores são separados; métricas/quota não certificam bloqueio monetário instantâneo. MetaUS$10–15/máximoUS$20 permanece. Não contratar serviços adicionais nem confundir o alerta, ainda ausente, com bloqueio de uso.
+
+## Preflight remoto retomado após os controles
+
+Conexões diretas com TLS verificado, projeto/branch/endpoint/database/role fixos e credenciais apenas em memória. Nos dois ambientes, transações `READ ONLY`, deadlines locais e `ROLLBACK`; conexões encerradas em finally. Nenhuma mutation de domínio/schema foi executada.
+
+- Preview e production: conexão SQL aprovada. `restaurants`, `better_auth.user`, `billing_provider_events`, `billing_email_outbox` e `payment_effect_outbox` contaram0; estados de billing/email vazios e owners órfãos0. Não equivale a afirmar que todo o banco está vazio ou que nunca haverá novos writers.
+- Sete verificações versionadas passaram em cada ambiente: baseline, routines, integrity, Better Auth, Stripe billing, email delivery e ACL da role própria. Ambas as roles sem atributos administrativos; overrides de banco retornaram `statement_timeout=8s` e `lock_timeout=2s`. Isso não é prova das configurações efetivas via Hyperdrive.
+- **Objetos da009 ausentes em ambos:** `public.catalog_publication_operations` não existe. Objetos tenant010–012 pesquisados também ausentes. Portanto não partir da premissa de001–009 já implantadas: preservar001–008, conferir backup/restauração, aplicar009 original e seus grants antes de010–012, primeiro no preview, após autorização própria. Nenhum arquivo histórico foi reescrito.
+- Operador restrito `catalog-preview-inert.mjs inspect` retornou exit0, mesma implantação27 `7b51fca2-207e-4e29-948e-159761b362ea`, preparado/CPU configurada1000ms, workload não verificado e `activationReady=false`. Nenhum deploy/flag/namespace modificado.
+
+Solicitada autorização para backup protegido, restauração em PostgreSQL local descartável e, condicionada às provas, aplicação009–012 com grants somente de preview. Produção, publicação de código e ativação continuam fora desse gate. Não usar a leitura pontual sem pendências como substituto do controle de admissões/drain antes de futuras migrations.
+
 ## Candidatos e CI já conferidos
 
 - F`a4eb545ff6e098ef0c8a7e3552b09d085cb34d40`, [PR#4](https://github.com/SamekCMD/vaptmesaflow/pull/4): [CI push39799968361](https://github.com/SamekCMD/vaptmesaflow/actions/runs/39799968361) e [PR39799976688](https://github.com/SamekCMD/vaptmesaflow/actions/runs/39799976688), completed/success.
@@ -15,8 +38,8 @@ Continuação da Etapa13 e T5/9/10 do catálogo, após o encerramento local do p
 | --- | --- | --- |
 | Paridade funcional/capabilities | 16 tarefas concluídas; revisão independente com dois Important corrigidos; F383/A701/PG92/workerd30 no checkpoint final22/10 | Não comprova o código, schema ou grants em execução |
 | Qualidade/artefatos | Tipos/builds e CI dos SHAs acima aprovados; guards e dry-runs sem publicação | Nenhum artefato novo publicado por este checkpoint |
-| Capacidade Neon | Readback22/10 já registrado nos PRs: free_v3, compute413311s ponderados=114,8086CU-h, ciclo1Oct→1Nov, quota personalizada ausente; dois endpoints esperados idle/disabledfalse/0,25→2CU/suspend_timeout0 | Sem evidência de capacidade restaurada; não executar SQL para reencontrar a cota esgotada, não contratar Paid ou criar projeto substituto |
-| Schema/grants tenant | Migrations010–012 e grants ensaiados em PostgreSQL descartável, incluindo permissões restritas | Backup e aplicação/readback remotos em ordem, sob gate e protocolo de drain; 001–009 intactos |
+| Capacidade Neon | Launch confirmado; cota conjunta216000s/60CU-h e dois endpoints0,25→0,25CU aplicados com aprovação/readback; SQL READ ONLY conectou | Não é teto global de fatura; sem novas cargas por inferência |
+| Schema/grants tenant | Migrations010–012 e grants ensaiados em PostgreSQL descartável; baseline/ACL antiga aprovados nos dois ambientes remotos, objetos009–012 ausentes | Backup/restauração e aplicação/readback de009→012 em ordem, sob gate e protocolo de drain; arquivos históricos intactos |
 | Writers/clientes ativos | Inventário canônico local atualizado; gateways Worker e clientes testados | Confirmar quais versões/processos realmente escrevem, inclusive Node/Coolify; nenhum bypass ativo antes do reader |
 | R2/DO e CPU | Recursos privados preparados historicamente; local workerd/SQLite; CPU configurada1000ms e snapshot limitado8MiB | Readback atual de privacidade/bindings, workload/CPU suportado, publicação e rollback compatível; tempo de parede não é CPU |
 | Bootstrap e canário | CLI estrito, sessão protegida e UUID explícito; dry-run0writes nos dois ambientes | Capacidade, permissões e writer controlado antes de apply; ready/recuperação e reader canário separados |

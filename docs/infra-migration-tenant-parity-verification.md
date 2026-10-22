@@ -49,8 +49,8 @@ Comandos finais obrigatórios: F `npm test`, `npm run typecheck`, `npm run lint`
 ## Integração futura — não executada
 
 1. Usar os SHAs F/A/B pareados e o parecer/correções locais; revisar os WIPs separadamente. Preparar PRs/merge por repositório só após autorização, sem cherry-pick integral das famílias antigas.
-2. Revalidar capacidade do Neon existente. O último readback, de18/10, indicava Free com114,8086CU-h no ciclo até1/11; não houve novo readback remoto nesta etapa. Não contornar com projeto/plano pago.
-3. Backup/restauração ensaiados; conferir migrations001–009 existentes, aplicar apenas010–012 na ordem sob gate. Não editar históricos nem usar o baseline Supabase.
+2. Capacidade revalidada posteriormente22/10: upgrade Launch realizado pelo usuário, cota conjunta60CU-h e ambos os endpoints0,25CU aprovados/aplicados com readback; SQL READ ONLY conectou nos dois ambientes. [Checkpoint atual e limites](infra-migration-promotion-readiness-2026-10-22.md); não criar projeto substituto nem presumir teto global de cobrança.
+3. Backup/restauração ensaiados; conferir baseline001–008. O readback posterior22/10 não encontrou objetos009 nem010–012 nos dois ambientes: aplicar009 original e grants antes de010–012, na ordem e sob gate próprio, primeiro preview. Não editar históricos nem usar o baseline Supabase.
 4. Bloquear admissões incompatíveis e pausar consumidores antigos; drenar claims/comandos duráveis, sem apagar journal, namespace, leases ou assets para simular rollback. Um webhook ainda não aceito deve continuar retentável.
 5. Promover API e consumidor canônicos com schema/grants compatíveis; depois frontend pareado. Readback de roles, Hyperdrive, bindings, CPU, secrets, CORS/cookies e flags por ambiente, sem imprimir credenciais.
 6. Smoke negativo e sintético por ambiente, limpeza verificada; reader/writer continuam false até os gates próprios5/9/10 do catálogo. Bootstrap usa alvo explícito e nunca habilita reader automaticamente.
