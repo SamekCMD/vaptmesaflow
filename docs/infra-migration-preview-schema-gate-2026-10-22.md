@@ -1,5 +1,19 @@
 # Gate SQL preview — 22/10/2026
 
+## Resultado final: gate aprovado concluído
+
+Aplicação **somente no preview** confirmada em`2026-10-22T21:54:51.640Z`:009–012 e quatro grants, uma única transação/uma tentativa. Antes da escrita, quota216000s/0,25CU, Access302 e Preview inerte27/flagsfalse reconfirmados; sob locks ACCESS EXCLUSIVE, as20tabelas/0linhas e o schema coincidiram com o backup. Não havia claim/journal SQL a drenar nessa fotografia vazia; isso não dispensa drain em outro cenário.
+
+Readback em nova conexão aprovou integridade tenant/billing, role sem privilégios administrativos/memberships, quatro rotinas estreitas sem EXECUTE de PUBLIC e grants do journal/sequência. Preview final:30tabelas/0linhas,356colunas/397constraints/91índices/23rotinas não pertencentes a extensão/31ACLs; fingerprint`f2c612bf62309747bd51cd03bc51323d52bacdb37e46927f9a6ec0392d92d0cd`.
+
+Conexão real`vapt_api_preview`: cinco leituras permitidas e dez negações aprovadas (nove42501 e sessão inválidaP0401), com savepoints/ROLLBACK e nenhum dado de domínio persistido. Production apenas READ ONLY antes/depois,20tabelas/0linhas e hash idêntico`32668120f90cf6ab5632c35e83010d2bce2ed7b9be5c68946699d1ad801364a2`. Cloudflare permaneceu na implantação27`7b51fca2-207e-4e29-948e-159761b362ea`, reader/writerfalse; nenhum código tenant foi publicado por aplicar SQL.
+
+Checkpoints salvos antes da escrita:F`058a3594564576361d8e80324a6f1d17fb4a138f`, A`60799eb8b87d3a051d887cf21e9f7dd40f21187c`. F383/A701/PG93 sem skips/buildA0 são provas locais novas, não CI desses commits. Sem push/merge/deploy neste gate.001–009 não foram editadas; a correção mínima na010 ainda não implantada foi ensaiada antes da aplicação.
+
+Removidos apenas seis diretórios próprios de clusters locais descartáveis, após verificar processos encerrados, ausência de postmaster.pid/reparse points e caminhos internos ao gate. Backup e logs preservados; SHA do arquivo idêntico antes/depois. Os clusters podem ser recriados do backup. Runtime/scratch de outros planos intactos.
+
+Não repetir migrations nesse preview. Produção exige gate próprio, sem cópia automática; publicação de API/consumidor/clientes compatíveis, writers ativos, CPU/workload e bootstrap/canário continuam pendentes. Catálogo7/10 e Etapa13 abertos. O restante documenta autorização, ensaios e o checkpoint anterior à escrita; não é uma segunda execução pendente.
+
 ## Autorização e limites
 
 Usuário autorizou backup local protegido, restauração em PostgreSQL descartável e, condicionada às provas, aplicação009–012 e grants versionados **somente no preview**. Alvo fixo: projeto`dawn-morning-27332079`, branch`br-rough-dew-b6ydeygb`, endpoint`ep-hidden-bird-b673zocn`, database`vapt`; conexão direta TLS verificada, nunca Hyperdrive/pooler para export/migration. Produção não é alvo de escrita. Não autoriza deploy, flags, bootstrap de catálogo, DNS/main ou recursos novos.
@@ -36,6 +50,6 @@ Restore do mesmo arquivo e ensaio dos oito SQLs passaram. Ensaio adicional da se
 |012_tenant_onboarding.sql|bcf7ac85ad26d10b906a4495132386bfb78bd3ab3d1c7324a0150e3db52f9e2f|
 |012_worker_preview_onboarding_grants.sql|92de08f476a3f01519d2521144ff773f2f660d5508346af097ba120831f2cf44|
 
-## Situação deste checkpoint
+## Checkpoint anterior à escrita — histórico
 
 Backup/restauração e ensaio local aprovados; aplicação remota ainda não realizada neste checkpoint. Suíte completa F383/383 e A701/701/build0 aprovados após a correção; gate PostgreSQL completo93/93/zero skips passou, incluindo a regressão nova e casos anteriores de concorrência, rollback, roles e outbox. Não houve publicação/flag ou escrita em produção. Guard de aplicação deve reconfirmar quota/identidade, Preview inerte writer/readerfalse, schema e dados iguais ao backup sob locks; divergência/timeout aborta, sem retry automático. Catálogo7/10 e Etapa13 permanecem abertos.

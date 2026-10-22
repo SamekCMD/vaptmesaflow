@@ -1,5 +1,7 @@
 # Promoção pareada — readiness22/10/2026
 
+Atualização final22/10: **[gate SQL preview concluído](infra-migration-preview-schema-gate-2026-10-22.md)**, após autorização específica, backup/restore real e F383/A701/PG93/buildA0.009–012 e quatro grants aplicados atomicamente; readback independente e dez negações pela conexão real limitada aprovados. Preview30tabelas/0linhas; produção20tabelas/0linhas e hash antes/depois idêntico, somente READ ONLY. Nenhum deploy/flag; Preview Cloudflare continua implantação27. As referências abaixo a objetos009–012 ausentes e aplicação pendente descrevem o preflight anterior, não o estado final do preview. Produção continua no schema anterior e exige gate próprio. Não repetir migrations do preview.
+
 Continuação da Etapa13 e T5/9/10 do catálogo, após o encerramento local do plano de paridade. Este checkpoint prepara o procedimento; não executa promoção, SQL, flags ou merge.
 
 ## Atualização após upgrade feito pelo usuário — 22/10

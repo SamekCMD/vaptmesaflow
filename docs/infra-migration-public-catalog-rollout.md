@@ -1,5 +1,7 @@
 # Catálogo por eventos — ativação e rollback
 
+Último estado22/10: [gate SQL preview concluído](infra-migration-preview-schema-gate-2026-10-22.md), com backup/restore/PG93 e aplicação atômica009–012/quatro grants. Readback e role real limitada aprovados. Production não migrou; Preview Cloudflare permanece implantação27/readerfalse/writerfalse. Não repetir schema no preview nem confundir SQL preparado com código tenant publicado ou CPU/workload certificado. As menções seguintes a schema ausente/capacidade não restaurada são preflight histórico; T5/9/10 e Etapa13 seguem abertos.
+
 ## Readiness22/10 — sem nova implantação
 
 O código canônico agora é multi-tenant: restaurante explícito, membership/capability, finalização de draft e quota compartilhada produto/logo. Usar o [inventário atualizado](infra-migration-public-catalog-writers.md) e o [checkpoint de promoção](infra-migration-promotion-readiness-2026-10-22.md); os registros de recursos/versões de17–18/10 abaixo continuam históricos, sem novo readback de Cloudflare nesta continuação.
