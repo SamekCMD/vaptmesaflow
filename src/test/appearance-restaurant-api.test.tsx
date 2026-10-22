@@ -6,7 +6,7 @@ import { fetchRestaurant, updateRestaurant } from "@/lib/restaurants";
 
 const { authUser } = vi.hoisted(() => ({ authUser: { id: "owner-1" } }));
 
-vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:authUser.id?{userId:authUser.id,restaurantId:"restaurant-1"}:null,organizationId:"test-org",restaurant:null,loading:false,error:null})}));
+vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:authUser.id?{userId:authUser.id,restaurantId:"restaurant-1"}:null,organizationId:"test-org",restaurant:{id:"restaurant-1"},capabilities:["restaurant.read","restaurant.operate","restaurant.manage","billing.read","billing.manage"],loading:false,error:null})}));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: authUser }),
 }));
@@ -54,7 +54,7 @@ describe("appearance restaurant API", () => {
     render(<AppearancePage />);
 
     const nameInput = await screen.findByDisplayValue("Vapt Bistrô");
-    expect(mockedFetch).toHaveBeenCalledWith("restaurant-1");
+    expect(mockedFetch).toHaveBeenCalledWith("restaurant-1",expect.any(AbortSignal));
     fireEvent.change(nameInput, { target: { value: "Vapt Novo" } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar alteracoes" }));
 

@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useState } from "react";
+﻿import {withRestaurantScope,useTenantContinuation} from "@/features/restaurants/RestaurantScopeBoundary";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {useCurrentRestaurant} from "@/features/restaurants/current-restaurant";
 import { useAuth } from "@/contexts/AuthContext";
@@ -193,6 +194,7 @@ export function getOverviewSatisfactionSummary({
 const Overview = ({ guideProgress }: OverviewProps) => {
   const { user } = useAuth();
   const userId=user?.id;
+  const capture=useTenantContinuation();
   const {scope}=useCurrentRestaurant();
   const restaurantId=scope?.restaurantId;
   const location = useLocation();
@@ -254,6 +256,8 @@ const Overview = ({ guideProgress }: OverviewProps) => {
   };
 
   useEffect(() => {
+    const continuation=capture();let active=true;
+    const isCurrent=()=>active&&continuation();
     const fetchData = async () => {
       if (!userId || !restaurantId) {setLoading(false);return;}
 
@@ -261,11 +265,13 @@ const Overview = ({ guideProgress }: OverviewProps) => {
         setLoading(true);
 
         const snapshot = await fetchOwnedOverview(restaurantId,period);
+        if(!isCurrent())return;
         setRestaurant(snapshot.restaurant);
         setOrders(snapshot.orders);
         setFeedbackRecords(snapshot.feedback);
         setPeriodStart(new Date(snapshot.periodStart));
       } catch (error: unknown) {
+        if(!isCurrent())return;
         const description = error instanceof Error ? error.message : "Não foi possível carregar os dados.";
         toast({
           title: "Erro ao carregar dados",
@@ -273,12 +279,13 @@ const Overview = ({ guideProgress }: OverviewProps) => {
           variant: "destructive",
         });
       } finally {
-        setLoading(false);
+        if(isCurrent())setLoading(false);
       }
     };
 
     fetchData();
-  }, [userId, restaurantId, period]);
+    return()=>{active=false;};
+  }, [userId, restaurantId, period,capture]);
 
   const completedOrders = useMemo(
     () => orders.filter((o) => ["ready", "delivered"].includes(o.status)),
@@ -851,4 +858,5 @@ const Overview = ({ guideProgress }: OverviewProps) => {
   );
 };
 
-export default Overview;
+const ScopedOverview=withRestaurantScope(Overview,"restaurant.read");
+export default function OverviewRoute(props:OverviewProps){return <ScopedOverview {...props}/>;}

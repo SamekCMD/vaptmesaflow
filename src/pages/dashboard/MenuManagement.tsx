@@ -1,3 +1,4 @@
+import {withRestaurantScope,useTenantContinuation} from "@/features/restaurants/RestaurantScopeBoundary";
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -61,8 +62,10 @@ const MenuManagement = () => {
   const [editItem, setEditItem] = useState<MenuItem | null>(null);
   const [form, setForm] = useState({ name: "", price: "", category: "" });
   const [loading, setLoading] = useState(true);
+  const [loadError,setLoadError]=useState(false);
   const [saving, setSaving] = useState(false);
   const {scope} = useCurrentRestaurant();
+  const capture=useTenantContinuation();
   const restaurantId=scope?.restaurantId??null;
 
   // Extended form state
@@ -101,6 +104,7 @@ const MenuManagement = () => {
         const items = await listOwnedMenuItems(restaurantId);
         if (active) setItems(items);
       } catch (err: unknown) {
+        if(!active)return;setLoadError(true);
         toast({ title: "Erro ao carregar cardápio", description: errorMessage(err), variant: "destructive" });
       } finally {
         if(active)setLoading(false);
@@ -156,6 +160,7 @@ const MenuManagement = () => {
 
   const handleSave = async () => {
     if (!userId || publication.blocked || saving || !form.name || !form.price || !form.category || !restaurantId) return;
+    const isCurrent=capture();if(!isCurrent())return;
     setSaving(true);
 
     try {
@@ -176,12 +181,14 @@ const MenuManagement = () => {
       let savedItem = editItem
         ? catalogWriterEnabled() ? await updateMenuItem(restaurantId,editItem.id, input, publication) : await updateMenuItem(restaurantId,editItem.id, input)
         : catalogWriterEnabled() ? await createMenuItem(restaurantId,input, publication) : await createMenuItem(restaurantId,input);
+      if(!isCurrent())return;
 
       if (!catalogWriterEnabled() && removeImage && editItem?.imageUrl) {
         try { await deleteMenuImage({ restaurantId, itemId: editItem.id }); }
-        catch (error: unknown) { toast({ title: "Item salvo; limpeza da imagem pendente", description: errorMessage(error) }); }
+        catch (error: unknown) { if(isCurrent())toast({ title: "Item salvo; limpeza da imagem pendente", description: errorMessage(error) }); }
       }
 
+      if(!isCurrent())return;
       if (imageFile) {
         // Once creation is confirmed, a failed upload must resume editing this
         // item, never issue another POST and accidentally create a duplicate.
@@ -192,15 +199,18 @@ const MenuManagement = () => {
         }
         const publicUrl = await uploadMenuImage({ restaurantId, itemId: savedItem.id, image: imageFile,
           ...(catalogWriterEnabled() ? { operationId: uploadLease.current!.operationId } : {}) });
+        if(!isCurrent())return;
         savedItem = catalogWriterEnabled() ? await updateMenuItem(restaurantId,savedItem.id, { imageUrl: publicUrl }, publication)
           : await updateMenuItem(restaurantId,savedItem.id, { imageUrl: publicUrl });
+        if(!isCurrent())return;
       }
 
       if (catalogWriterEnabled() && editItem?.imageUrl && (removeImage || imageFile)) {
         try { await deleteMenuImage({ restaurantId, itemId: editItem.id, imageUrl: editItem.imageUrl }); }
-        catch (error: unknown) { toast({ title: "Item salvo; limpeza da imagem pendente", description: errorMessage(error) }); }
+        catch (error: unknown) { if(isCurrent())toast({ title: "Item salvo; limpeza da imagem pendente", description: errorMessage(error) }); }
       }
 
+      if(!isCurrent())return;
       if (editItem) {
         setItems((prev) => prev.map((i) => {
           if (i.id === editItem.id) return savedItem;
@@ -221,10 +231,11 @@ const MenuManagement = () => {
       resetForm();
       setDialogOpen(false);
     } catch (err: unknown) {
+      if(!isCurrent())return;
       if (isCatalogPublicationDeferred(err)) { setDialogOpen(false); return; }
       toast({ title: "Erro ao salvar", description: errorMessage(err), variant: "destructive" });
     } finally {
-      setSaving(false);
+      if(isCurrent())setSaving(false);
     }
   };
 
@@ -248,22 +259,27 @@ const MenuManagement = () => {
 
   const handleDelete = async (item: MenuItem) => {
     if (!userId || !restaurantId || publication.blocked || saving) return;
+    const isCurrent=capture();if(!isCurrent())return;
     setSaving(true);
     try {
       // The legacy endpoint still authorizes through the existing item and uses
       // a mutable key. Only the versioned protocol can safely retire after ready.
       if (!catalogWriterEnabled() && item.imageUrl) await deleteMenuImage({ restaurantId, itemId: item.id });
+      if(!isCurrent())return;
       if (catalogWriterEnabled()) await deleteMenuItem(restaurantId,item.id, publication); else await deleteMenuItem(restaurantId,item.id);
+      if(!isCurrent())return;
       setItems((current) => current.filter((i) => i.id !== item.id));
       if (catalogWriterEnabled() && item.imageUrl) {
         try { await deleteMenuImage({ restaurantId, itemId: item.id, imageUrl: item.imageUrl }); }
-        catch (error: unknown) { toast({ title: "Item removido; limpeza da imagem pendente", description: errorMessage(error) }); }
+        catch (error: unknown) { if(isCurrent())toast({ title: "Item removido; limpeza da imagem pendente", description: errorMessage(error) }); }
       }
+      if(!isCurrent())return;
       toast({ title: "Item removido", description: `"${item.name}" foi removido do cardápio.`, variant: "destructive" });
     } catch (err: unknown) {
+      if(!isCurrent())return;
       if (isCatalogPublicationDeferred(err)) return;
       toast({ title: "Erro ao remover", description: errorMessage(err), variant: "destructive" });
-    } finally { setSaving(false); }
+    } finally { if(isCurrent())setSaving(false); }
   };
 
   const openNew = () => {
@@ -610,4 +626,5 @@ const MenuManagement = () => {
   );
 };
 
-export default MenuManagement;
+const ScopedMenuManagement=withRestaurantScope(MenuManagement,"restaurant.manage");
+export default function MenuManagementRoute(){return <ScopedMenuManagement/>;}

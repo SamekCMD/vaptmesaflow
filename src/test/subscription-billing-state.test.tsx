@@ -8,7 +8,7 @@ const auth = vi.hoisted(() => ({ user: { id: "owner-1" } }));
 const getStatus = vi.hoisted(() => vi.fn());
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth }));
 vi.mock("@/features/auth/use-account-bootstrap",()=>({useAccountBootstrap:()=>({data:{...tenantAccount(),userId:auth.user.id},isPending:false,isError:false})}));
-const wrapper=({children}:{children:ReactNode})=>{
+const Wrapper=({children}:{children:ReactNode})=>{
   const [client]=useState(()=>new QueryClient({defaultOptions:{queries:{retry:false}}}));
   return createElement(QueryClientProvider,{client},children);
 };
@@ -19,7 +19,7 @@ it("uses safe billing snapshot instead of restaurant fallback entitlement", asyn
   getStatus.mockResolvedValue({ planType: "pro", planStatus: "past_due", trialEndsAt: null,
     currentPeriodEnd: "2030-01-01T00:00:00.000Z", cancelAtPeriodEnd: false,
     subscriptionCanceledAt: null, canManageBilling: true, canStartCheckout: false, requiresBillingAction: true });
-  const { result } = renderHook(useSubscription,{wrapper});
+  const { result } = renderHook(useSubscription,{wrapper:Wrapper});
   await waitFor(() => expect(result.current.loading).toBe(false));
   expect(getStatus).toHaveBeenCalledWith(tenantIds.org,expect.any(AbortSignal));
   expect(result.current.planType).toBe("pro"); expect(result.current.planStatus).toBe("past_due");
@@ -32,7 +32,7 @@ it("logout and a different login cannot receive the previous identity's late bil
     planType:"starter",planStatus:"expired",trialEndsAt:null,currentPeriodEnd:null,cancelAtPeriodEnd:false,
     subscriptionCanceledAt:null,canManageBilling:false,canStartCheckout:true,requiresBillingAction:false
   });
-  const {result,rerender}=renderHook(useSubscription,{wrapper});
+  const {result,rerender}=renderHook(useSubscription,{wrapper:Wrapper});
   await waitFor(()=>expect(getStatus).toHaveBeenCalledOnce());
   const oldSignal=getStatus.mock.calls[0][1] as AbortSignal;
   auth.user={id:crypto.randomUUID()};rerender();
@@ -48,13 +48,13 @@ it("keeps a local trial usable without claiming a Stripe billing Customer", asyn
   getStatus.mockResolvedValue({ planType: "starter", planStatus: "trialing", trialEndsAt: "2030-01-01T00:00:00.000Z",
     currentPeriodEnd: null, cancelAtPeriodEnd: false, subscriptionCanceledAt: null,
     canManageBilling: false, canStartCheckout: true, requiresBillingAction: false });
-  const { result } = renderHook(useSubscription,{wrapper});
+  const { result } = renderHook(useSubscription,{wrapper:Wrapper});
   await waitFor(() => expect(result.current.loading).toBe(false));
   expect(result.current.isTrialing).toBe(true); expect(result.current.canManageBilling).toBe(false);
 });
 it("fails closed on billing read failure and never reuses active cached entitlements", async () => {
   getStatus.mockRejectedValue(new Error("provider unavailable"));
-  const { result } = renderHook(useSubscription,{wrapper});
+  const { result } = renderHook(useSubscription,{wrapper:Wrapper});
   await waitFor(() => expect(result.current.loading).toBe(false));
   expect(result.current.isActive).toBe(false); expect(result.current.canManageBilling).toBe(false);
 });

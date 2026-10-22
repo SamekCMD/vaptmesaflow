@@ -1,4 +1,5 @@
-﻿import { useState, useEffect } from "react";
+﻿import {withRestaurantScope,useTenantContinuation} from "@/features/restaurants/RestaurantScopeBoundary";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -60,8 +61,12 @@ const SettingsPage = () => {
   });
   const [accountErrors, setAccountErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const {scope}=useCurrentRestaurant();
+  const [loadError,setLoadError]=useState(false);
+  const [loadAttempt,setLoadAttempt]=useState(0);
+  const {scope,capabilities}=useCurrentRestaurant();
+  const capture=useTenantContinuation();
   const restaurantId=scope?.restaurantId??null;
+  const canEdit=capabilities.includes("restaurant.manage")&&!loading&&!loadError;
   const [saving, setSaving] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
   const [savingAccount, setSavingAccount] = useState(false);
@@ -73,11 +78,14 @@ const SettingsPage = () => {
   });
 
   useEffect(() => {
+    const controller=new AbortController(),isCurrent=capture();
+    setLoading(true);setLoadError(false);
     const fetchData = async () => {
       if (!user || !restaurantId) {setLoading(false);return;}
 
       try {
-        const data = await fetchRestaurant(restaurantId);
+        const data = await fetchRestaurant(restaurantId,controller.signal);
+        if(!isCurrent())return;
 
         if (data) {
           setForm({
@@ -106,6 +114,7 @@ const SettingsPage = () => {
           confirm_password: "",
         });
       } catch (error: unknown) {
+        if(!isCurrent())return;setLoadError(true);
         if (import.meta.env.DEV) console.error("Error fetching restaurant data:", error);
         const description =
           error instanceof Error ? error.message : "Não foi possível carregar as configurações";
@@ -115,12 +124,13 @@ const SettingsPage = () => {
           variant: "destructive",
         });
       } finally {
-        setLoading(false);
+        if(isCurrent())setLoading(false);
       }
     };
 
     fetchData();
-  }, [user,restaurantId]);
+    return()=>controller.abort();
+  }, [user,restaurantId,capture,loadAttempt]);
 
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("settings");
@@ -131,7 +141,8 @@ const SettingsPage = () => {
   };
 
   const handleSave = async () => {
-    if (!user || !restaurantId || saving || publication.blocked) return;
+    if (!user || !restaurantId || !canEdit || saving || publication.blocked) return;
+    const isCurrent=capture();if(!isCurrent())return;
     setSaving(true);
     try {
       const patch = {
@@ -144,18 +155,21 @@ const SettingsPage = () => {
         deliveryEnabled: channelsForm.delivery_enabled,
       };
       if (catalogWriterEnabled()) await updateRestaurant(restaurantId,patch, publication); else await updateRestaurant(restaurantId,patch);
+      if(!isCurrent())return;
       toast({ title: "Configurações salvas", description: "As alterações foram aplicadas com sucesso." });
     } catch (error: unknown) {
+      if(!isCurrent())return;
       if (isCatalogPublicationDeferred(error)) return;
       const description = error instanceof Error ? error.message : "Não foi possível salvar agora.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
-      setSaving(false);
+      if(isCurrent())setSaving(false);
     }
   };
 
   const handleSavePayment = async () => {
-    if (!user || !restaurantId || savingPayment || publication.blocked) return;
+    if (!user || !restaurantId || !canEdit || savingPayment || publication.blocked) return;
+    const isCurrent=capture();if(!isCurrent())return;
     setSavingPayment(true);
     try {
       const patch = {
@@ -163,18 +177,21 @@ const SettingsPage = () => {
         maxPendingOrders: paymentForm.max_pending_orders,
       };
       if (catalogWriterEnabled()) await updateRestaurant(restaurantId,patch, publication); else await updateRestaurant(restaurantId,patch);
+      if(!isCurrent())return;
 
       toast({ title: "Fluxo de pagamento salvo", description: "O novo modo já vale para os próximos pedidos." });
     } catch (error: unknown) {
+      if(!isCurrent())return;
       if (isCatalogPublicationDeferred(error)) return;
       const description = error instanceof Error ? error.message : "Não foi possível salvar agora.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
-      setSavingPayment(false);
+      if(isCurrent())setSavingPayment(false);
     }
   };
 
   const handleSaveName = async () => {
+    const isCurrent=capture();if(!isCurrent())return;
     if (!user) return;
     const name = accountForm.full_name.trim();
     if (name.length < 2) {
@@ -187,18 +204,21 @@ const SettingsPage = () => {
     try {
       if (name !== user.name) {
         const { error } = await updateName(name);
+        if(!isCurrent())return;
         if (error) throw error;
       }
       toast({ title: "Nome atualizado", description: "Sua conta foi atualizada." });
     } catch (error: unknown) {
+      if(!isCurrent())return;
       const description = error instanceof Error ? error.message : "Não foi possível salvar agora.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
-      setSavingAccount(false);
+      if(isCurrent())setSavingAccount(false);
     }
   };
 
   const handleChangePassword = async () => {
+    const isCurrent=capture();if(!isCurrent())return;
     const errors: Record<string, string> = {};
     if (!accountForm.current_password) {
       errors.currentPassword = "Informe sua senha atual";
@@ -221,6 +241,7 @@ const SettingsPage = () => {
         accountForm.current_password,
         accountForm.new_password,
       );
+      if(!isCurrent())return;
       if (error) throw error;
       setAccountForm((previous) => ({
         ...previous,
@@ -230,13 +251,15 @@ const SettingsPage = () => {
       }));
       toast({ title: "Senha atualizada", description: "Use a nova senha no próximo acesso." });
     } catch (error: unknown) {
+      if(!isCurrent())return;
       const description = error instanceof Error ? error.message : "Não foi possível salvar agora.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
-      setSavingAccount(false);
+      if(isCurrent())setSavingAccount(false);
     }
   };
 
+  if(loadError)return <div className="space-y-3"><p role="alert">Não foi possível carregar o restaurante. Tente novamente.</p><Button onClick={()=>setLoadAttempt(value=>value+1)}>Tentar novamente</Button></div>;
   if (loading) {
     return <SettingsFormSkeleton />;
   }
@@ -283,6 +306,7 @@ const SettingsPage = () => {
         </TabsList>
 
         <TabsContent value="restaurant" className="pt-6 space-y-6">
+          <fieldset disabled={!canEdit} className="space-y-6">
           {/* Restaurant Info Card */}
           <Card>
             <CardHeader>
@@ -447,14 +471,17 @@ const SettingsPage = () => {
               </Button>
             </CardContent>
           </Card>
+          </fieldset>
         </TabsContent>
 
         <TabsContent value="payments" className="space-y-6 pt-6">
           <CurrentPaymentMethodsCard />
 
-          {restaurantId && (
+          {restaurantId && capabilities.includes("billing.read") && (
             <MercadoPagoSettingsCard
               restaurantId={restaurantId}
+              canRead={capabilities.includes("billing.read")}
+              canManage={capabilities.includes("billing.manage")}
               environment={ENV.paymentEnvironment}
             />
           )}
@@ -543,6 +570,7 @@ const SettingsPage = () => {
   );
 };
 
-export default SettingsPage;
+const ScopedSettingsPage=withRestaurantScope(SettingsPage,"restaurant.read");
+export default function SettingsPageRoute(){return <ScopedSettingsPage/>;}
 
 

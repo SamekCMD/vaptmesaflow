@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import {useBoundContinuation} from "@/features/restaurants/tenant-continuation";
+import { useEffect,useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Check, X } from "lucide-react";
@@ -15,9 +16,11 @@ const PricingPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { planType, planStatus, organizationId, canManageBilling, canStartCheckout, loading, billingError } = useSubscription();
+  const capture=useBoundContinuation((user?.id??"")+":"+organizationId);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestInFlight = useRef(false);
+  useEffect(()=>{requestInFlight.current=false;setPending(false);setError(null);},[user?.id,organizationId]);
   const managed = canManageBilling && !canStartCheckout;
 
   const handleSubscribe = async (planId?: BillingPlanType) => {
@@ -33,16 +36,20 @@ const PricingPage = () => {
     }
 
     if (requestInFlight.current || loading || (!canManageBilling&&!canStartCheckout)) return;
+    const isCurrent=capture();if(!isCurrent())return;
     requestInFlight.current = true; setPending(true); setError(null);
     try {
       const result = managed || !planId
         ? await billingClient.createPortal(organizationId)
         : await billingClient.createCheckout({ organizationId, planType: planId });
-      redirectToBilling(result.url);
+      if(isCurrent())redirectToBilling(result.url);
     } catch {
+      if(!isCurrent())return;
       setError("Não foi possível abrir a cobrança. Tente novamente.");
     } finally {
-      requestInFlight.current = false; setPending(false);
+      if(isCurrent()){
+        requestInFlight.current = false; setPending(false);
+      }
     }
   };
 

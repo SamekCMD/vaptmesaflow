@@ -1,3 +1,4 @@
+import {withRestaurantScope,useTenantContinuation} from "@/features/restaurants/RestaurantScopeBoundary";
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,10 +21,13 @@ import { CatalogPublicationFeedback } from "@/components/menu/CatalogPublication
 const AppearancePage = () => {
   const { user } = useAuth();
   const {scope}=useCurrentRestaurant();
+  const capture=useTenantContinuation();
   const restaurantId=scope?.restaurantId;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading] = useState(true);
+  const [loadError,setLoadError]=useState(false);
+  const [loadAttempt,setLoadAttempt]=useState(0);
   const [saving, setSaving] = useState(false);
   const [logoPreview, setLogoPreview] = useState("");
   const [deliveryEnabled, setDeliveryEnabled] = useState(false);
@@ -43,7 +47,7 @@ const AppearancePage = () => {
   };
 
   const publication = useCatalogPublication(scope, async isCurrent => {
-    const data = await fetchRestaurant(restaurantId!); if (!data || !isCurrent()) return;
+    const data = await fetchRestaurant(restaurantId!); if (!isCurrent()) return;
     setConfig(current => ({ ...current, id: data.id, name: data.name, slug: data.slug, logoUrl: data.logoUrl || "",
       primaryColor: data.primaryColor, secondaryColor: data.secondaryColor,
       fontFamily: data.fontFamily === "classic" || data.fontFamily === "rounded" ? data.fontFamily : "modern" }));
@@ -52,10 +56,13 @@ const AppearancePage = () => {
 
   // Fetch restaurant data
   useEffect(() => {
+    const controller=new AbortController(),isCurrent=capture();
+    setLoading(true);setLoadError(false);
     const fetch = async () => {
       if (!user || !restaurantId) {setLoading(false);return;}
       try {
-        const data = await fetchRestaurant(restaurantId!);
+        const data = await fetchRestaurant(restaurantId!,controller.signal);
+        if(!isCurrent())return;
 
         if (data) {
           setDeliveryEnabled(data.deliveryEnabled);
@@ -72,15 +79,17 @@ const AppearancePage = () => {
           setLogoPreview(data.logoUrl || "");
         }
       } catch (err: unknown) {
+        if(!isCurrent())return;setLoadError(true);
         if (import.meta.env.DEV) {
           console.error("Error fetching restaurant:", err);
         }
       } finally {
-        setLoading(false);
+        if(isCurrent())setLoading(false);
       }
     };
     fetch();
-  }, [user,restaurantId]);
+    return()=>controller.abort();
+  }, [user,restaurantId,capture,loadAttempt]);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -92,6 +101,7 @@ const AppearancePage = () => {
 
   const handleSave = async () => {
     if (!user || !restaurantId || config.id!==restaurantId || saving || publication.blocked) return;
+    const isCurrent=capture();if(!isCurrent())return;
     setSaving(true);
     try {
       const patch = {
@@ -103,16 +113,19 @@ const AppearancePage = () => {
         logoUrl: config.logoUrl || null,
       };
       if (catalogWriterEnabled()) await updateRestaurant(restaurantId,patch, publication); else await updateRestaurant(restaurantId,patch);
+      if(!isCurrent())return;
       toast({ title: "Aparencia salva", description: "As alteracoes de marca foram aplicadas." });
     } catch (err: unknown) {
+      if(!isCurrent())return;
       if (isCatalogPublicationDeferred(err)) return;
       const description = err instanceof Error ? err.message : "Tente novamente.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
-      setSaving(false);
+      if(isCurrent())setSaving(false);
     }
   };
 
+  if(loadError)return <div className="space-y-3"><p role="alert">Não foi possível carregar o restaurante. Tente novamente.</p><Button onClick={()=>setLoadAttempt(value=>value+1)}>Tentar novamente</Button></div>;
   if (loading) {
     return <AppearanceFormSkeleton />;
   }
@@ -375,6 +388,7 @@ const CurrentMenuPreview = ({ config, logoPreview }: { config: RestaurantConfig;
   );
 };
 
-export default AppearancePage;
+const ScopedAppearancePage=withRestaurantScope(AppearancePage,"restaurant.manage");
+export default function AppearancePageRoute(){return <ScopedAppearancePage/>;}
 
 

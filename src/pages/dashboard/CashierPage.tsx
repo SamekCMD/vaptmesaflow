@@ -1,3 +1,4 @@
+import {withRestaurantScope,useTenantContinuation} from "@/features/restaurants/RestaurantScopeBoundary";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
@@ -46,6 +47,7 @@ const playBellSound = () => {
 const CashierPage = () => {
   const { user } = useAuth();
   const userId=user?.id;
+  const capture=useTenantContinuation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [totalTables, setTotalTables] = useState(20);
@@ -81,8 +83,10 @@ const CashierPage = () => {
 
   const fetchSessions = useCallback(async () => {
     if (!userId || !restaurantId) return;
+    const isCurrent=capture();if(!isCurrent())return;
     try {
       const currentSessions = await listTableSessions(restaurantId);
+      if(!isCurrent())return;
       if (currentOwnerRef.current !== userId || selectedRef.current!==restaurantId) return;
       const currentCheckRequested = new Set(currentSessions.filter((s) => s.status === "check_requested").map((s) => s.id));
       if (knownCheckRequestedRef.current.size > 0) {
@@ -118,9 +122,10 @@ const CashierPage = () => {
         return refreshed ? { ...refreshed } : null;
       });
     } catch {
+      if(!isCurrent())return;
       toast({ title: "Erro", description: "Não foi possível atualizar as mesas.", variant: "destructive" });
     }
-  }, [userId,restaurantId]);
+  }, [userId,restaurantId,capture]);
 
   const requestRefresh = useRealtimeRefresh({
     scopes: userId && ownedScope?.userId === userId && ownedScope.restaurantId
@@ -195,4 +200,5 @@ const CashierPage = () => {
   );
 };
 
-export default CashierPage;
+const ScopedCashierPage=withRestaurantScope(CashierPage,"restaurant.operate");
+export default function CashierPageRoute(){return <ScopedCashierPage/>;}

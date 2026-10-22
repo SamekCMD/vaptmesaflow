@@ -1,3 +1,4 @@
+import {useBoundContinuation} from "@/features/restaurants/tenant-continuation";
 import { useRef, useState } from "react";
 import { Banknote, CreditCard, Loader2, QrCode, ReceiptText, Ticket } from "lucide-react";
 
@@ -23,6 +24,9 @@ export type ManualPaymentOrder = {
 };
 
 type ManualPaymentDialogProps = {
+  restaurantId:string;
+  sessionId:string;
+  canOperate:boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   orders: ManualPaymentOrder[];
@@ -80,12 +84,16 @@ function createIdempotencyKey(orderId: string): string {
   return `manual-${orderId}-${randomPart}`;
 }
 
-const ManualPaymentDialog = ({
+const ManualPaymentDialogContent = ({
   open,
+  restaurantId,
+  sessionId,
+  canOperate,
   onOpenChange,
   orders,
   onConfirmed,
 }: ManualPaymentDialogProps) => {
+  const capture=useBoundContinuation(restaurantId+":"+sessionId);
   const [paymentMethod, setPaymentMethod] = useState<ManualPaymentMethod>("cash");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +113,8 @@ const ManualPaymentDialog = ({
   };
 
   const handleConfirm = async () => {
-    if (inFlightRef.current) return;
+    if (inFlightRef.current||!canOperate) return;
+    const isCurrent=capture();if(!isCurrent())return;
     inFlightRef.current = true;
     setSubmitting(true);
     setError(null);
@@ -114,18 +123,20 @@ const ManualPaymentDialog = ({
       for (const order of unpaidOrders) {
         if (confirmedOrderIdsRef.current.has(order.id)) continue;
         await paymentClient.confirmManual(
+          restaurantId,
           order.id,
           paymentMethod,
           getIdempotencyKey(order.id),
         );
+        if(!isCurrent())return;
         confirmedOrderIdsRef.current.add(order.id);
       }
-      await onConfirmed();
+      if(isCurrent())await onConfirmed();
     } catch (confirmationError) {
-      setError(errorMessage(confirmationError));
+      if(isCurrent())setError(errorMessage(confirmationError));
     } finally {
       inFlightRef.current = false;
-      setSubmitting(false);
+      if(isCurrent())setSubmitting(false);
     }
   };
 
@@ -172,7 +183,7 @@ const ManualPaymentDialog = ({
                 <RadioGroupItem
                   id={`manual-payment-${method.value}`}
                   value={method.value}
-                  disabled={submitting}
+                  disabled={submitting||!canOperate}
                 />
                 <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 <span className="min-w-0">
@@ -204,4 +215,6 @@ const ManualPaymentDialog = ({
   );
 };
 
-export default ManualPaymentDialog;
+export default function ManualPaymentDialog(props:ManualPaymentDialogProps){
+  return <ManualPaymentDialogContent key={props.restaurantId+":"+props.sessionId+":"+props.canOperate} {...props}/>;
+}

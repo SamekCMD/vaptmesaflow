@@ -19,7 +19,7 @@ vi.mock("@/lib/realtime/client", () => ({ subscribeRealtime: (scope, signal, sta
 } }));
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
-vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:authUser.id?{userId:authUser.id,restaurantId:"10000000-0000-4000-8000-000000000001"}:null,organizationId:"test-org",restaurant:null,loading:false,error:null})}));
+vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:authUser.id?{userId:authUser.id,restaurantId:"10000000-0000-4000-8000-000000000001"}:null,organizationId:"test-org",restaurant:{id:"10000000-0000-4000-8000-000000000001"},capabilities:["restaurant.read","restaurant.operate","restaurant.manage","billing.read","billing.manage"],loading:false,error:null})}));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: authUser }),
 }));

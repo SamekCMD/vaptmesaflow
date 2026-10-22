@@ -13,7 +13,7 @@ import MenuManagement from "@/pages/dashboard/MenuManagement";
 
 const { authUser } = vi.hoisted(() => ({ authUser: { id: "owner-1" } }));
 
-vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:authUser.id?{userId:authUser.id,restaurantId:restaurant.id}:null,organizationId:"test-org",restaurant:null,loading:false,error:null})}));
+vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:authUser.id?{userId:authUser.id,restaurantId:restaurant.id}:null,organizationId:"test-org",restaurant:{id:restaurant.id},capabilities:["restaurant.read","restaurant.operate","restaurant.manage","billing.read","billing.manage"],loading:false,error:null})}));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: authUser }),
 }));

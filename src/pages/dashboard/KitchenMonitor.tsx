@@ -1,3 +1,4 @@
+import {withRestaurantScope,useTenantContinuation} from "@/features/restaurants/RestaurantScopeBoundary";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -109,6 +110,7 @@ const errorMessage = (error: unknown) =>
 const KitchenMonitor = () => {
   const { user } = useAuth();
   const userId=user?.id;
+  const capture=useTenantContinuation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -166,6 +168,7 @@ const KitchenMonitor = () => {
       knownOrderIdsRef.current = new Set(fetched.map((o) => o.id));
       setOrders(fetched.filter((order) => !archivingOrderIdsRef.current.has(order.id)));
     } catch (error: unknown) {
+      if(!mountedRef.current||selectedRef.current!==restaurantId||currentOwnerRef.current!==userId)return;
       toast({
         title: "Erro ao carregar pedidos",
         description: errorMessage(error),
@@ -240,6 +243,7 @@ const KitchenMonitor = () => {
   const advance = async (order: Order) => {
     const next = nextStatus[order.status];
     if (!next || !restaurantId) return;
+    const isCurrent=capture();if(!isCurrent())return;
     setUpdatingOrderId(order.id);
     const previousOrder = order;
     setOrders((prev) =>
@@ -249,6 +253,7 @@ const KitchenMonitor = () => {
     );
     try {
       const updated = await updateKitchenOrderStatus(restaurantId,order.id, next);
+      if(!isCurrent())return;
       if (mountedRef.current) {
         setOrders((current) => current.map((candidate) => candidate.id === order.id ? updated : candidate));
       }
@@ -257,12 +262,13 @@ const KitchenMonitor = () => {
         description: `Movido para "${columns.find((c) => c.key === next)?.label ?? "Próxima etapa"}"`,
       });
     } catch (error: unknown) {
+      if(!isCurrent())return;
       if (mountedRef.current) {
         setOrders((current) => current.map((candidate) => candidate.id === order.id ? previousOrder : candidate));
       }
       toast({ title: "Erro", description: errorMessage(error), variant: "destructive" });
     } finally {
-      if (mountedRef.current) setUpdatingOrderId(null);
+      if(isCurrent())setUpdatingOrderId(null);
     }
   };
 
@@ -438,4 +444,5 @@ const KitchenMonitor = () => {
   );
 };
 
-export default KitchenMonitor;
+const ScopedKitchenMonitor=withRestaurantScope(KitchenMonitor,"restaurant.operate");
+export default function KitchenMonitorRoute(){return <ScopedKitchenMonitor/>;}

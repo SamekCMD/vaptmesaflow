@@ -7,7 +7,7 @@ import OnboardingPage from "@/pages/onboarding/OnboardingPage";
 import { vaptApiRequest } from "@/lib/vapt-api-client";
 import { catalogState } from "./public-catalog-fixture";
 const auth = vi.hoisted(() => ({ user: { id: "owner", name: "Gestor", email: "owner@synthetic.test" }, updateName: vi.fn(), changePassword: vi.fn() }));
-vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:auth.user.id?{userId:auth.user.id,restaurantId:catalogState().catalog.restaurant.id}:null,organizationId:"test-org",restaurant:null,loading:false,error:null})}));
+vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:auth.user.id?{userId:auth.user.id,restaurantId:catalogState().catalog.restaurant.id}:null,organizationId:"test-org",restaurant:{id:catalogState().catalog.restaurant.id},capabilities:["restaurant.read","restaurant.operate","restaurant.manage","billing.read","billing.manage"],loading:false,error:null})}));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth }));
 vi.mock("@/lib/env", async original => ({ ENV: { ...(await original<typeof import("@/lib/env")>()).ENV, publicCatalogEventsEnabled: true } }));
 vi.mock("@/lib/vapt-api-client", async original => ({ ...(await original<typeof import("@/lib/vapt-api-client")>()), vaptApiRequest: vi.fn() }));

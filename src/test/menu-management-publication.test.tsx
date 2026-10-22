@@ -5,7 +5,7 @@ import MenuManagement from "@/pages/dashboard/MenuManagement";
 import { vaptApiRequest } from "@/lib/vapt-api-client";
 import type { MenuItemDto } from "@/lib/business-api.types";
 const environment = vi.hoisted(() => ({ user: { id: "11111111-1111-4111-8111-111111111111" }, reader: true }));
-vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:environment.user?.id?{userId:environment.user?.id,restaurantId:restaurantId}:null,organizationId:"test-org",restaurant:null,loading:false,error:null})}));
+vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:environment.user?.id?{userId:environment.user?.id,restaurantId:restaurantId}:null,organizationId:"test-org",restaurant:{id:restaurantId},capabilities:["restaurant.read","restaurant.operate","restaurant.manage","billing.read","billing.manage"],loading:false,error:null})}));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: environment.user }) }));
 vi.mock("@/lib/env", async original => ({ ENV: { ...(await original<typeof import("@/lib/env")>()).ENV, get publicCatalogEventsEnabled() { return environment.reader; }, publicCatalogWriterEnabled: true, menuImageStorageMode: "r2" } }));
 vi.mock("@/lib/vapt-api-client", async original => ({ ...(await original<typeof import("@/lib/vapt-api-client")>()), vaptApiRequest: vi.fn() }));

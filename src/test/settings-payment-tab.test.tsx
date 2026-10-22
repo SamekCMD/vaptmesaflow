@@ -15,7 +15,7 @@ const { authUser, changePassword, updateName } = vi.hoisted(() => ({
   updateName: vi.fn(),
 }));
 
-vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:authUser.id?{userId:authUser.id,restaurantId:"10000000-0000-4000-8000-000000000001"}:null,organizationId:"test-org",restaurant:null,loading:false,error:null})}));
+vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:authUser.id?{userId:authUser.id,restaurantId:"10000000-0000-4000-8000-000000000001"}:null,organizationId:"test-org",restaurant:{id:"10000000-0000-4000-8000-000000000001"},capabilities:["restaurant.read","restaurant.operate","restaurant.manage","billing.read","billing.manage"],loading:false,error:null})}));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
     user: authUser,
@@ -86,7 +86,7 @@ describe("aba de pagamentos nas configuracoes", () => {
     );
 
     const restaurantTab = await screen.findByRole("tab", { name: "Restaurante" });
-    expect(mockedFetchOwnedRestaurant).toHaveBeenCalledWith("10000000-0000-4000-8000-000000000001");
+    expect(mockedFetchOwnedRestaurant).toHaveBeenCalledWith("10000000-0000-4000-8000-000000000001",expect.any(AbortSignal));
     const paymentsTab = screen.getByRole("tab", { name: "Pagamentos" });
     const accountTab = screen.getByRole("tab", { name: "Conta" });
 

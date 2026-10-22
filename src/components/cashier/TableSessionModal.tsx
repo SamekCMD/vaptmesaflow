@@ -1,3 +1,4 @@
+import {useTenantContinuation} from "@/features/restaurants/RestaurantScopeBoundary";
 import {useCurrentRestaurant} from "@/features/restaurants/current-restaurant";
 import { useState, useEffect } from "react";
 import {
@@ -65,7 +66,8 @@ const formatCents = (value: bigint): string => {
 };
 
 const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSessionModalProps) => {
-  const {scope}=useCurrentRestaurant();
+  const {scope,capabilities}=useCurrentRestaurant();
+  const capture=useTenantContinuation();
   const restaurantId=scope?.restaurantId;
   const [orders, setOrders] = useState<TableSessionOrderDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -76,7 +78,7 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
   const [transferring, setTransferring] = useState(false);
 
   useEffect(() => {
-    if (!open || !session || !restaurantId) return;
+    if (!open || !session || !restaurantId || session.restaurantId!==restaurantId) return;
     setLoading(true);
     setSplitBy(1);
     setNewTableNumber("");
@@ -84,7 +86,7 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
   }, [open, session?.id,restaurantId]);
 
   useEffect(() => {
-    if (!open || !session || !restaurantId) return;
+    if (!open || !session || !restaurantId || session.restaurantId!==restaurantId) return;
     const controller = new AbortController();
     let active = true;
     const fetchOrders = async () => {
@@ -104,24 +106,28 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
     return () => { active = false; controller.abort(); };
   }, [open, session,restaurantId]);
 
-  if (!session || !restaurantId) return null;
+  if (!session || !restaurantId || session.restaurantId!==restaurantId) return null;
 
   const totalCents = orders.reduce((sum, order) => sum + toCents(order.totalPrice), 0n);
   const divisor = BigInt(Math.max(1, splitBy));
   const perPersonCents = (totalCents + divisor / 2n) / divisor;
 
   const closeSessionAfterPayment = async () => {
+    if(!capabilities.includes("restaurant.operate"))return;
+    const isCurrent=capture();if(!isCurrent())return;
     setClosing(true);
     try {
       await closeTableSession(restaurantId!,session.id);
+      if(!isCurrent())return;
 
       toast({ title: "Conta finalizada ✅", description: `Mesa ${session.tableNumber} está livre.` });
       await onSessionClosed();
-      onClose();
+      if(isCurrent())onClose();
     } catch {
+      if(!isCurrent())return;
       toast({ title: "Erro", description: "Não foi possível fechar a conta.", variant: "destructive" });
     } finally {
-      setClosing(false);
+      if(isCurrent())setClosing(false);
     }
   };
 
@@ -138,18 +144,20 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
   }));
 
   const handleTransfer = async () => {
-    if (!newTableNumber.trim()) return;
+    if (!newTableNumber.trim()||!capabilities.includes("restaurant.operate")) return;
+    const isCurrent=capture();if(!isCurrent())return;
     setTransferring(true);
     try {
       await transferTableSession(restaurantId!,session.id, newTableNumber.trim());
+      if(!isCurrent())return;
 
       toast({ title: "Mesa transferida!", description: `Sessão movida para Mesa ${newTableNumber.trim()}.` });
       await onSessionClosed();
-      onClose();
+      if(isCurrent())onClose();
     } catch {
       toast({ title: "Erro", description: "Não foi possível transferir.", variant: "destructive" });
     } finally {
-      setTransferring(false);
+      if(isCurrent())setTransferring(false);
     }
   };
 
@@ -263,6 +271,9 @@ const TableSessionModal = ({ open, onClose, session, onSessionClosed }: TableSes
       </DialogContent>
     </Dialog>
     <ManualPaymentDialog
+      sessionId={session.id}
+      restaurantId={restaurantId}
+      canOperate={capabilities.includes("restaurant.operate")}
       open={paymentDialogOpen}
       onOpenChange={setPaymentDialogOpen}
       orders={manualPaymentOrders}

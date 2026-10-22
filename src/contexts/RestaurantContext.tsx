@@ -7,7 +7,9 @@ import {useAccountBootstrap} from '@/features/auth/use-account-bootstrap';
 import {restaurantQueryKey,accountBootstrapQueryKey,tabRestaurantKey} from '@/features/auth/account-bootstrap-query';
 import {fetchRestaurant} from '@/lib/restaurants';
 import type {RestaurantDto,RestaurantScope} from '@/lib/business-api.types';
-export type CurrentRestaurant={scope:RestaurantScope|null;organizationId:string|null;restaurant:RestaurantDto|null;loading:boolean;error:Error|null};
+import type {OrganizationSummary} from '@/features/auth/account-client';
+export type CurrentRestaurant={scope:RestaurantScope|null;organizationId:string|null;restaurant:RestaurantDto|null;loading:boolean;error:Error|null;
+  capabilities:OrganizationSummary['capabilities']};
 const RestaurantContext=createContext<CurrentRestaurant|undefined>(undefined);
 export function RestaurantProvider({children}:{children:ReactNode}){
   const {user,loading:authLoading}=useAuth(),location=useLocation();
@@ -38,7 +40,8 @@ export function RestaurantProvider({children}:{children:ReactNode}){
   const value=useMemo<CurrentRestaurant>(()=>({
     scope:restaurant&&user?{userId:user.id,restaurantId:restaurant.id}:null,
     organizationId:restaurant?organizationId:null,restaurant,loading,error:error instanceof Error?error:error?new Error('Não foi possível carregar o restaurante.'):null,
-  }),[restaurant,user,organizationId,loading,error]);
+    capabilities:restaurant?account?.organizations.find(value=>value.id===organizationId)?.capabilities??[]:[],
+  }),[restaurant,user,organizationId,loading,error,account?.organizations]);
   return <RestaurantContext.Provider value={value}>{children}</RestaurantContext.Provider>;
 }
 export function useRestaurant(){

@@ -1,4 +1,6 @@
+import {useBoundContinuation} from "@/features/restaurants/tenant-continuation";
 import { useEffect, useRef, useState } from "react";
+import {useAuth} from "@/contexts/AuthContext";
 import { Check, Minus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,9 +34,12 @@ const COMPARISON_FEATURES = [
 const SubscriptionPage = () => {
   const { planType, planStatus, isTrialing, trialDaysLeft, organizationId,
     canManageBilling, canStartCheckout, requiresBillingAction, billingError, loading, refetch } = useSubscription();
+  const {user}=useAuth();
+  const capture=useBoundContinuation((user?.id??"")+":"+organizationId);
   const [pending, setPending] = useState<"checkout" | "portal" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const requestInFlight = useRef(false);
+  useEffect(()=>{requestInFlight.current=false;setPending(null);setError(null);},[user?.id,organizationId]);
   const activePlanId = planStatus === "active" ? planType : null;
   const currentPlan = PLANS.find(p => p.id === activePlanId);
   const showCheckout = canStartCheckout;
@@ -45,6 +50,7 @@ const SubscriptionPage = () => {
 
   const openBilling = async (plan?: PlanDefinition) => {
     if (!organizationId || loading || requestInFlight.current || (plan?!canStartCheckout:!canManageBilling)) return;
+    const isCurrent=capture();if(!isCurrent())return;
     requestInFlight.current = true;
     setPending(plan ? "checkout" : "portal");
     setError(null);
@@ -52,16 +58,19 @@ const SubscriptionPage = () => {
       const result = plan
         ? await billingClient.createCheckout({ organizationId, planType: plan.id })
         : await billingClient.createPortal(organizationId);
-      redirectToBilling(result.url);
+      if(isCurrent())redirectToBilling(result.url);
     } catch (failure) {
+      if(!isCurrent())return;
       setError(failure instanceof VaptApiClientError && failure.status === 401
         ? "Sua sessão expirou. Entre novamente para gerenciar a cobrança."
         : failure instanceof VaptApiClientError && failure.status === 409
         ? "Há uma assinatura ou pagamento em andamento. Atualize a página ou abra Gerenciar cobrança e tente novamente."
         : "Não foi possível abrir a cobrança. Tente novamente.");
     } finally {
-      requestInFlight.current = false;
-      setPending(null);
+      if(isCurrent()){
+        requestInFlight.current = false;
+        setPending(null);
+      }
     }
   };
 

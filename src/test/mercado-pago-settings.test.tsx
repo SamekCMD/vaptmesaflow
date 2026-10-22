@@ -27,6 +27,7 @@ describe("configuração do Mercado Pago", () => {
 
     render(
       <MercadoPagoSettingsCard
+        canRead canManage
         restaurantId="10000000-0000-4000-8000-000000000001"
         environment="sandbox"
         onAuthorizationUrl={vi.fn()}
@@ -51,6 +52,7 @@ describe("configuração do Mercado Pago", () => {
 
     render(
       <MercadoPagoSettingsCard
+        canRead canManage
         restaurantId="10000000-0000-4000-8000-000000000001"
         environment="sandbox"
         onAuthorizationUrl={onAuthorizationUrl}
@@ -83,6 +85,7 @@ describe("configuração do Mercado Pago", () => {
 
     render(
       <MercadoPagoSettingsCard
+        canRead canManage
         restaurantId="10000000-0000-4000-8000-000000000001"
         environment="sandbox"
         onAuthorizationUrl={onAuthorizationUrl}
@@ -110,6 +113,7 @@ describe("configuração do Mercado Pago", () => {
 
     render(
       <MercadoPagoSettingsCard
+        canRead canManage
         restaurantId="10000000-0000-4000-8000-000000000001"
         environment="sandbox"
         onAuthorizationUrl={vi.fn()}
@@ -134,6 +138,7 @@ describe("configuração do Mercado Pago", () => {
 
     render(
       <MercadoPagoSettingsCard
+        canRead canManage
         restaurantId="10000000-0000-4000-8000-000000000001"
         environment="production"
         onAuthorizationUrl={vi.fn()}
