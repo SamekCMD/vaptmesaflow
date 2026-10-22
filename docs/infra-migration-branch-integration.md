@@ -1,5 +1,11 @@
 # Consolidação da migração — situação e integração
 
+## Continuação22/10 — opção2 executada
+
+Os PRs canônicos [frontend#4](https://github.com/SamekCMD/vaptmesaflow/pull/4) e [API#1](https://github.com/SamekCMD/vapt-api/pull/1) receberam F`a4eb545`/A`7d5604f`; CI de push e PR aprovado nos dois SHAs. Billing#3 foi encerrado como incorporado e Vercel Analytics#2 como legado, ambos sem merge e com branches/worktrees preservados. Main continua F`9b576c1`/A`cebaed4`; não houve publicação por esta opção. Histórico dos PRs preservado em seção própria, sem novos PRs sobrepostos.
+
+Retomada local do plano: reconciliados inventário de writers e receita de bootstrap com o código tenant. [Readiness e evidências](infra-migration-promotion-readiness-2026-10-22.md) separa gates locais já cumpridos dos remotos ainda bloqueados. Atualizar documentos/PR não substitui liberar capacidade do Neon, validar schema/grants/CPU/writers implantados ou autorizar promoção. Não reiniciar a restauração de paridade já encerrada.
+
 ## Atualização22/10 — paridade antes da integração
 
 Tarefas1–16 do plano de paridade foram implementadas e verificadas nos dois repositórios, incluindo multi-restaurante/equipe, billing por organização, onboarding retomável, ativação, logoR2/quota compartilhada e slug pontual. A revisão independente encontrou dois Important (privacidade do DTO operacional e retorno de provedores); ambos foram corrigidos com regressões RED→GREEN e suítes completas. [Manifesto pareado, matrizP01–P10, resultados e procedimento de promoção](infra-migration-tenant-parity-verification.md).

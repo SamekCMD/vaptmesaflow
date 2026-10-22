@@ -1,5 +1,32 @@
 # Inventário de writers do catálogo público
 
+## Atualização22/10 — contrato canônico após a paridade tenant
+
+Inventário do código candidato F`a4eb545`/A`7d5604f`, não dos processos atualmente implantados. A [restauração de paridade](infra-migration-tenant-parity-verification.md) e suas decisões superam as referências owner-only do snapshot histórico abaixo. Tarefas5/9/10 do catálogo continuam abertas para evidência remota; não reexecutar os testes históricos como substituto.
+
+| Writer / efeito | Entrada canônica | Fronteira e publicação |
+| --- | --- | --- |
+| Criar unidade/draft | POST `/account/onboarding-draft` ou `/organizations/:organizationId/restaurants/drafts` | Sessão vigente, membership/capacidade da organização; draft não aparece no catálogo nem aceita pedido público |
+| Salvar configuração do draft | PATCH `/restaurants/:restaurantId/onboarding` | Alvo explícito e permissão de gerenciamento; não significa publicação concluída |
+| Concluir onboarding | POST `/restaurants/:restaurantId/onboarding/finalize` | Com writer ligado, comando `onboarding.finalize` no coordenador; replay não reinicia trial nem cria outra revisão já concluída |
+| Dados, canais, mesas e marca do restaurante | PATCH `/restaurants/:restaurantId` | `restaurant.manage`; patch público/misto segue o journal inteiro, CNPJ isolado não publica revisão |
+| Item, disponibilidade, variações, chef e referência de imagem | POST/PATCH/DELETE `/restaurants/:restaurantId/menu-items[/:itemId]` | Membership e filho no mesmo restaurante; aplicação e snapshot atômicos com writer ligado |
+| Upload/retirada de imagem de item | POST `.../menu-items/:itemId/image/upload`; DELETE `.../menu-items/:itemId/image?objectKey=...` | Coordenador com writer ligado, lease e bytes preservados no retry; chave `restaurantId/itemId/objectId` |
+| Upload/retirada de logo | POST `.../branding/image/upload`; DELETE `.../branding/image?objectKey=...` | Somente writer ligado; mesma quota/sala, chave `restaurantId/branding/objectId`; não cai no storage legado |
+| Reconciliação de imagens | POST `/restaurants/:restaurantId/menu-images/reconcile` | Ação autenticada de gerenciamento, limitada a10 verificações; nunca devolve quota só pelo TTL |
+| Republicação/bootstrap | POST `/restaurants/:restaurantId/catalog/rebuild` | `restaurant.manage`, writer obrigatoriamente ligado e chave de operação preservada; alvo arbitrário não concede acesso |
+| Status/retry de publicação | GET `/restaurants/:restaurantId/catalog-operations/:operationId`; POST `.../:operationId/retry` | Alvo e ator reautorizados; resultado privado não é público por conhecer operationId; retry manual, sem polling automático |
+
+São os mesmos campos públicos enumerados no snapshot abaixo, não uma nova allowlist. Alterações privadas de billing SaaS e progresso de ativação não publicam catálogo. Estado financeiro saiu do DTO operacional; staff usa features/operationActive do bootstrap sem `billing.read`. Pedidos, cozinha, caixa e realtime privado não são writers de catálogo.
+
+Rotas `/me` são apenas adapters de compatibilidade: zero unidades acessíveis não seleciona nada, múltiplas retornam409 `restaurant_selection_required`; preferência de outra aba não resolve o alvo de uma mutação. O antigo POST `/onboarding` retorna410 e não deve ser usado por novos operadores. Autorização é membership ativa/capability, não `owner_id` como bypass.
+
+Produto e logo compartilham100MiB, incluindo versões retidas e reservas pendentes; input5MiB, output1MiB/1200px. Lease SQLite é atualizada em lugar, sem reset de counters/fences. Limpeza continua protegida por locks comuns, revisões e referências de snapshots atual/anterior e comandos não resolvidos. A confirmação do upload não substitui confirmação da publicação.
+
+Fastify/Node e clientes antigos ainda precisam de inventário **remoto**: código compatível com tenancy não comprova participação no coordenador DO. Não liberar reader enquanto qualquer writer ativo puder gravar domínio/objetos fora do protocolo. Nenhum processo Coolify foi alterado ou removido nesta inspeção.
+
+Rastreamento: A`src/worker/catalog/writer.ts`, `src/worker/routes/{account,restaurant,misc}.ts`, `src/modules/catalog-publication/transaction.ts`; F`src/lib/{catalog-mutations,restaurant-assets,menu-image-storage}.ts`. [Readiness e ordem de promoção](infra-migration-promotion-readiness-2026-10-22.md). O restante preserva os checkpoints datados15–18/10, não instruções owner-only a executar no candidato atual.
+
 Data:15/10/2026. Escopo: [plano aprovado](D:/Projetos/vaptmesaflow/docs/infra-migration-public-catalog-event-driven-plan.md), T5. Inspeção de código local; não é prova de tráfego ou configuração remota. Flags novas seguem ausentes/desligadas nos arquivos de implantação existentes.
 
 ## Escritas de domínio
