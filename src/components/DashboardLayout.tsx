@@ -6,7 +6,9 @@ import { useTheme } from "@/hooks/useTheme";
 import TrialBanner from "@/components/dashboard/TrialBanner";
 import PushNotificationBanner from "@/components/dashboard/PushNotificationBanner";
 import { registerServiceWorker } from "@/lib/push-notifications";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import {useCurrentRestaurant} from "@/features/restaurants/current-restaurant";
+import {useAccountBootstrap} from "@/features/auth/use-account-bootstrap";
+import {RestaurantSwitcher} from "@/features/restaurants/RestaurantSwitcher";
 import { Switch } from "@/components/ui/switch";
 import {
   LayoutDashboard,
@@ -47,33 +49,27 @@ const navItems = [
 
 const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
-  const [restaurantSlug, setRestaurantSlug] = useState<string | null>(null);
+  const {restaurant,scope}=useCurrentRestaurant();
+  const restaurantId=scope?.restaurantId??null,restaurantSlug=restaurant?.slug;
+  const account=useAccountBootstrap();
+  const capabilities=account.data?.organizations.find(value=>value.id===account.data.currentOrganizationId)?.capabilities??[];
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { isActive, loading: planLoading, planType, isTrialing, trialDaysLeft } = useSubscription();
+  const { isActive, loading: planLoading, planType, isTrialing, trialDaysLeft,canReadBilling } = useSubscription();
   const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     registerServiceWorker();
   }, []);
 
-  useEffect(() => {
-    if (!user) return;
-    fetchOwnedRestaurant().then((data) => {
-      if (data) {
-        setRestaurantId(data.id);
-        setRestaurantSlug(data.slug);
-      }
-    });
-  }, [user]);
+  const scopedPath=(path:string)=>path+(restaurantId?"?restaurantId="+restaurantId:"");
 
   useEffect(() => {
-    if (!planLoading && !isActive && !location.pathname.includes("/settings") && !location.pathname.includes("/subscription")) {
-      navigate("/dashboard/subscription");
+    if (canReadBilling && restaurantId && !planLoading && !isActive && !location.pathname.includes("/settings") && !location.pathname.includes("/subscription")) {
+      navigate("/dashboard/subscription"+(restaurantId?"?restaurantId="+restaurantId:""));
     }
-  }, [planLoading, isActive, location.pathname, navigate]);
+  }, [canReadBilling,restaurantId,planLoading, isActive, location.pathname, navigate]);
 
   const fullName = user?.name || "Usuário";
   const initials = fullName
@@ -88,7 +84,7 @@ const DashboardLayout = () => {
     navigate("/login");
   };
 
-  const badgeLabel = isTrialing
+  const badgeLabel = !canReadBilling?"Equipe":isTrialing
     ? `Trial · ${trialDaysLeft}d`
     : planType === "trial"
     ? "Trial"
@@ -116,12 +112,12 @@ const DashboardLayout = () => {
         </div>
 
         <nav className="p-3 space-y-0.5 flex-1">
-          {navItems.map((item) => {
+          {navItems.filter(item=>!["/dashboard/menu","/dashboard/appearance"].includes(item.path)||capabilities.includes("restaurant.manage")).map((item) => {
             const active = location.pathname === item.path;
             return (
               <Link
                 key={item.path}
-                to={item.path}
+                to={scopedPath(item.path)}
                 onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2 rounded-md text-[13px] font-medium transition-colors duration-150 ${
                   active
@@ -138,7 +134,7 @@ const DashboardLayout = () => {
 
         {/* Plan badge */}
         <div className="p-3 border-t border-border">
-          <Link to="/dashboard/subscription">
+          <Link to={canReadBilling?scopedPath("/dashboard/subscription"):"/restaurants/select"}>
             <Badge
               variant="outline"
               className="w-full justify-center py-1.5 text-[11px] cursor-pointer hover:opacity-80 transition-opacity"
@@ -167,7 +163,7 @@ const DashboardLayout = () => {
             <Menu className="h-4 w-4" />
           </button>
 
-          <div className="hidden lg:block" />
+          <RestaurantSwitcher/>
 
           <div className="flex items-center gap-3">
             <Button
@@ -228,11 +224,11 @@ const DashboardLayout = () => {
                 <DropdownMenuSeparator />
 
                 {/* Navigation items */}
-                <DropdownMenuItem onClick={() => navigate("/dashboard/subscription")} className="px-3 py-2 text-[13px] gap-2">
+                {canReadBilling&&<DropdownMenuItem onClick={() => navigate(scopedPath("/dashboard/subscription"))} className="px-3 py-2 text-[13px] gap-2">
                   <CreditCard className="h-4 w-4" />
                   Assinatura
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate("/dashboard/settings")} className="px-3 py-2 text-[13px] gap-2">
+                </DropdownMenuItem>}
+                <DropdownMenuItem onClick={() => navigate(scopedPath("/dashboard/settings"))} className="px-3 py-2 text-[13px] gap-2">
                   <Settings className="h-4 w-4" />
                   Configurações
                 </DropdownMenuItem>
@@ -257,7 +253,7 @@ const DashboardLayout = () => {
         {/* Content */}
         <main className="flex-1 p-4 lg:p-6 overflow-auto space-y-6">
           <PushNotificationBanner restaurantId={restaurantId} />
-          <TrialBanner />
+          {canReadBilling&&<TrialBanner />}
           <Outlet />
         </main>
       </div>

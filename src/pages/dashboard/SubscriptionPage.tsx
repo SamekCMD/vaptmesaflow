@@ -24,13 +24,13 @@ const COMPARISON_FEATURES = [
   { label: "Dashboard de métricas", plans: ["pro", "business"] },
   { label: "Suporte prioritário", plans: ["pro", "business"] },
   { label: "Multi-usuários", plans: ["business"] },
-  { label: "Múltiplas unidades", plans: ["business"] },
+  { label: "Até 25 restaurantes por organização (Starter e Pro: 1)", plans: ["business"] },
   { label: "Relatórios avançados", plans: ["business"] },
   { label: "Gerente de conta dedicado", plans: ["business"] },
 ];
 
 const SubscriptionPage = () => {
-  const { planType, planStatus, isTrialing, trialDaysLeft, restaurantId,
+  const { planType, planStatus, isTrialing, trialDaysLeft, organizationId,
     canManageBilling, canStartCheckout, requiresBillingAction, billingError, loading, refetch } = useSubscription();
   const [pending, setPending] = useState<"checkout" | "portal" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,14 +44,14 @@ const SubscriptionPage = () => {
   }, [refetch]);
 
   const openBilling = async (plan?: PlanDefinition) => {
-    if (!restaurantId || loading || requestInFlight.current) return;
+    if (!organizationId || loading || requestInFlight.current || (plan?!canStartCheckout:!canManageBilling)) return;
     requestInFlight.current = true;
     setPending(plan ? "checkout" : "portal");
     setError(null);
     try {
       const result = plan
-        ? await billingClient.createCheckout({ restaurantId, planType: plan.id })
-        : await billingClient.createPortal(restaurantId);
+        ? await billingClient.createCheckout({ organizationId, planType: plan.id })
+        : await billingClient.createPortal(organizationId);
       redirectToBilling(result.url);
     } catch (failure) {
       setError(failure instanceof VaptApiClientError && failure.status === 401
@@ -92,7 +92,7 @@ const SubscriptionPage = () => {
       )}
       {pending && <p role="status" className="text-sm text-muted-foreground">Abrindo cobrança segura…</p>}
       {canManageBilling && (
-        <Button disabled={loading || pending !== null || !restaurantId} onClick={() => void openBilling()}>
+        <Button disabled={loading || pending !== null || !organizationId} onClick={() => void openBilling()}>
           Gerenciar cobrança
         </Button>
       )}
@@ -167,7 +167,7 @@ const SubscriptionPage = () => {
                 {PLANS.map(plan => (
                   <TableCell key={plan.id} className="text-center py-4">
                     <Button size="sm" className="text-[12px]"
-                      disabled={loading || pending !== null || !restaurantId}
+                      disabled={loading || pending !== null || !organizationId}
                       onClick={() => void openBilling(plan)}>
                       Assinar {plan.name}
                     </Button>

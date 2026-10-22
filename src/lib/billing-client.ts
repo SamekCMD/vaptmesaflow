@@ -23,21 +23,21 @@ function safeUrl(value: unknown, hostname: string): string {
   } catch { invalidResponse(); }
 }
 export const billingClient = {
-  async createCheckout(input: { restaurantId: string; planType: BillingPlanType }) {
+  async createCheckout(input: { organizationId: string; planType: BillingPlanType }) {
     const result = await vaptApiRequest<{ checkoutSessionId: string; url: string }>({
       route: "/billing/stripe/checkout", headers: { "Idempotency-Key": crypto.randomUUID() },
-      body: { restaurantId: input.restaurantId, planType: input.planType },
+      body: { organizationId: input.organizationId, planType: input.planType },
     });
     if (!result || typeof result.checkoutSessionId !== "string" || !result.checkoutSessionId) invalidResponse();
     return { checkoutSessionId: result.checkoutSessionId, url: safeUrl(result.url, "checkout.stripe.com") };
   },
-  async createPortal(restaurantId: string) {
-    const result = await vaptApiRequest<{ url: string }>({ route: "/billing/stripe/portal", body: { restaurantId } });
+  async createPortal(organizationId: string) {
+    const result = await vaptApiRequest<{ url: string }>({ route: "/billing/stripe/portal", body: { organizationId } });
     return { url: safeUrl(result?.url, "billing.stripe.com") };
   },
-  async getSubscriptionStatus(restaurantId: string): Promise<BillingStatus> {
+  async getSubscriptionStatus(organizationId: string,signal?:AbortSignal): Promise<BillingStatus> {
     const result = statusSchema.safeParse(await vaptApiRequest({ method: "GET",
-      route: "/billing/stripe/subscription", query: { restaurantId } }));
+      route: "/billing/stripe/subscription", query: { organizationId },...(signal?{signal}:{}) }));
     if (!result.success) invalidResponse();
     return result.data;
   },

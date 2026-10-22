@@ -3,7 +3,7 @@ import {VaptApiClientError,vaptApiRequest} from '@/lib/vapt-api-client';
 export const accountUuid=z.string().uuid().transform(value=>value.toLowerCase());
 export const capabilitySchema=z.enum(['restaurant.read','restaurant.operate','restaurant.manage','restaurant.create','billing.read','billing.manage']);
 export const organizationSummarySchema=z.object({id:accountUuid,name:z.string().min(1),role:z.enum(['owner','admin','manager','staff']),
-  capabilities:z.array(capabilitySchema),features:z.object({cashier:z.boolean(),open_tab:z.boolean(),metrics:z.boolean(),multi_user:z.boolean(),advanced_reports:z.boolean()})});
+  capabilities:z.array(capabilitySchema),operationActive:z.boolean(),features:z.object({cashier:z.boolean(),open_tab:z.boolean(),metrics:z.boolean(),multi_user:z.boolean(),advanced_reports:z.boolean()})});
 export const restaurantSummarySchema=z.object({id:accountUuid,organizationId:accountUuid,name:z.string(),slug:z.string(),onboardingStatus:z.enum(['draft','complete'])});
 const bootstrapSchema=z.object({userId:accountUuid,organizations:z.array(organizationSummarySchema),restaurants:z.array(restaurantSummarySchema),
   currentOrganizationId:accountUuid.nullable(),currentRestaurantId:accountUuid.nullable(),destination:z.enum(['onboarding','select-restaurant','dashboard'])});

@@ -29,6 +29,9 @@ const PricingPage = lazy(() => import("./pages/PricingPage"));
 const SubscriptionPage = lazy(() => import("./pages/dashboard/SubscriptionPage"));
 const PaymentReturn = lazy(() => import("./pages/payment/PaymentReturn"));
 
+const RestaurantSelectorPage=lazy(()=>import("./features/restaurants/RestaurantSelectorPage"));
+const NewRestaurantPage=lazy(()=>import("./features/restaurants/NewRestaurantPage"));
+
 const queryClient = new QueryClient();
 
 const App = () => {
@@ -55,6 +58,8 @@ const App = () => {
                   <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                   <Route path="/reset-password" element={<ResetPasswordPage />} />
                   <Route path="/pricing" element={<PricingPage />} />
+                  <Route path="/restaurants/select" element={<ProtectedRoute mode="account"><RestaurantSelectorPage/></ProtectedRoute>}/>
+                  <Route path="/restaurants/new" element={<ProtectedRoute mode="account"><NewRestaurantPage/></ProtectedRoute>}/>
                   <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
                   <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
                     <Route index element={<Overview />} />

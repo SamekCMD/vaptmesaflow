@@ -72,6 +72,10 @@ vi.mock("@/lib/restaurants", () => ({
   fetchOwnedRestaurant: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:null,restaurant:null,loading:false,error:null})}));
+vi.mock("@/features/auth/use-account-bootstrap",()=>({useAccountBootstrap:()=>({data:{currentOrganizationId:null,organizations:[]},isPending:false,isError:false})}));
+vi.mock("@/features/restaurants/RestaurantSwitcher",()=>({RestaurantSwitcher:()=>null}));
+
 import DashboardLayout from "@/components/DashboardLayout";
 import ForgotPasswordPage from "@/pages/auth/ForgotPasswordPage";
 import LoginPage from "@/pages/auth/LoginPage";

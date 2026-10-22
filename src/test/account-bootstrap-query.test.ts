@@ -11,7 +11,7 @@ const userId='10000000-0000-4000-8000-000000000001',organizationId='20000000-000
 vi.mock('@/contexts/AuthContext',()=>({useAuth:()=>({user:{id:'10000000-0000-4000-8000-000000000001'},loading:false})}));
 const restA='30000000-0000-4000-8000-000000000001',restB='30000000-0000-4000-8000-000000000002';
 const organization={id:organizationId,name:'Grupo Teste',role:'staff' as const,capabilities:['restaurant.read','restaurant.operate'] as ('restaurant.read'|'restaurant.operate')[],
-  features:{cashier:true,open_tab:true,metrics:true,multi_user:true,advanced_reports:true}};
+  operationActive:true,features:{cashier:true,open_tab:true,metrics:true,multi_user:true,advanced_reports:true}};
 const restaurant={id:restA,organizationId,name:'A',slug:'a-test',onboardingStatus:'complete' as 'complete'|'draft'};
 const multipleWithoutPreference={userId,organizations:[organization],restaurants:[restaurant,{...restaurant,id:restB,name:'B',slug:'b-test'}],
   preferredOrganizationId:null,preferredRestaurantId:null,routeRestaurantId:null};

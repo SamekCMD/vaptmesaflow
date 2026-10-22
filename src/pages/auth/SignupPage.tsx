@@ -1,4 +1,5 @@
-﻿import { useEffect, useState } from "react";
+﻿import {AccountEntryRedirect} from "@/features/auth/AccountEntryRedirect";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -30,11 +31,6 @@ const SignupPage = () => {
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
-  useEffect(() => {
-    if (!authLoading && user) {
-      navigate("/dashboard", { replace: true });
-    }
-  }, [authLoading, user, navigate]);
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((p) => ({ ...p, [field]: e.target.value }));
@@ -68,6 +64,7 @@ const SignupPage = () => {
     }
   };
 
+  if(!authLoading&&user)return <AccountEntryRedirect/>;
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm">

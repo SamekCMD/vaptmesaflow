@@ -1,4 +1,5 @@
-﻿import { useEffect, useState } from "react";
+﻿import {AccountEntryRedirect} from "@/features/auth/AccountEntryRedirect";
+import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -27,11 +28,6 @@ const LoginPage = () => {
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
-  useEffect(() => {
-    if (!authLoading && user) {
-      navigate("/dashboard", { replace: true });
-    }
-  }, [authLoading, user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,6 +64,7 @@ const LoginPage = () => {
     }
   };
 
+  if(!authLoading&&user)return <AccountEntryRedirect/>;
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm">

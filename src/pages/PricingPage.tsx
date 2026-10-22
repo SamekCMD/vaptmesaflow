@@ -14,7 +14,7 @@ import { billingClient, redirectToBilling, type BillingPlanType } from "@/lib/bi
 const PricingPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { planType, planStatus, restaurantId, canManageBilling, canStartCheckout, loading, billingError } = useSubscription();
+  const { planType, planStatus, organizationId, canManageBilling, canStartCheckout, loading, billingError } = useSubscription();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestInFlight = useRef(false);
@@ -26,18 +26,18 @@ const PricingPage = () => {
       return;
     }
 
-    if (!restaurantId) {
+    if (!organizationId) {
       toast({ title: "Complete o onboarding primeiro", variant: "destructive" });
       navigate("/onboarding");
       return;
     }
 
-    if (requestInFlight.current || loading) return;
+    if (requestInFlight.current || loading || (!canManageBilling&&!canStartCheckout)) return;
     requestInFlight.current = true; setPending(true); setError(null);
     try {
       const result = managed || !planId
-        ? await billingClient.createPortal(restaurantId)
-        : await billingClient.createCheckout({ restaurantId, planType: planId });
+        ? await billingClient.createPortal(organizationId)
+        : await billingClient.createCheckout({ organizationId, planType: planId });
       redirectToBilling(result.url);
     } catch {
       setError("Não foi possível abrir a cobrança. Tente novamente.");
@@ -144,7 +144,7 @@ const PricingPage = () => {
                   {!managed && <Button
                     className="w-full"
                     variant={plan.highlighted ? "default" : "outline"}
-                    disabled={pending || (!!user && loading)}
+                    disabled={pending || (!!user && (loading||!canStartCheckout))}
                     onClick={() => handleSubscribe(plan.id)}
                   >
                     Assinar Agora

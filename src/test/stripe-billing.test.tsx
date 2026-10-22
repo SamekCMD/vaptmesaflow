@@ -5,7 +5,7 @@ import { VaptApiClientError } from "@/lib/vapt-api-client";
 import SubscriptionPage from "@/pages/dashboard/SubscriptionPage";
 
 const state = vi.hoisted(() => ({ planType: "starter", planStatus: "expired", isTrialing: false,
-  trialDaysLeft: 0, restaurantId: "restaurant-1", loading: false, canManageBilling: false,
+  trialDaysLeft: 0, organizationId: "organization-1", loading: false, canManageBilling: false,
   canStartCheckout: true, requiresBillingAction: false, refetch: vi.fn() }));
 vi.mock("@/hooks/useSubscription", () => ({ useSubscription: () => state }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "owner-1", email: "owner@example.com" } }) }));
@@ -25,34 +25,34 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 describe("cliente de cobrança hospedada", () => {
   it("usa cookies, UUID Idempotency-Key e apenas os campos permitidos", async () => {
     const fetchSpy = vi.fn().mockImplementation(async () => response(checkout)); vi.stubGlobal("fetch", fetchSpy);
-    await billingClient.createCheckout({ restaurantId: "restaurant-1", planType: "pro" });
+    await billingClient.createCheckout({ organizationId: "organization-1", planType: "pro" });
     const [url, init] = fetchSpy.mock.calls[0];
     expect(url).toBe("https://api.test.example.com/billing/stripe/checkout");
     expect(init.credentials).toBe("include");
     expect(init.headers["Idempotency-Key"]).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     expect(init.headers.Authorization).toBeUndefined();
-    expect(JSON.parse(init.body)).toEqual({ restaurantId: "restaurant-1", planType: "pro" });
+    expect(JSON.parse(init.body)).toEqual({ organizationId: "organization-1", planType: "pro" });
   });
   it("novo clique tem chave nova; Portal tem corpo restrito", async () => {
     const fetchSpy = vi.fn().mockImplementation(async () => response(checkout)); vi.stubGlobal("fetch", fetchSpy);
-    await billingClient.createCheckout({ restaurantId: "restaurant-1", planType: "pro" });
-    await billingClient.createCheckout({ restaurantId: "restaurant-1", planType: "pro" });
+    await billingClient.createCheckout({ organizationId: "organization-1", planType: "pro" });
+    await billingClient.createCheckout({ organizationId: "organization-1", planType: "pro" });
     expect(fetchSpy.mock.calls[0][1].headers["Idempotency-Key"]).not.toBe(fetchSpy.mock.calls[1][1].headers["Idempotency-Key"]);
     fetchSpy.mockResolvedValue(response({ url: "https://billing.stripe.com/p/session/vapt" }));
-    await billingClient.createPortal("restaurant-1");
+    await billingClient.createPortal("organization-1");
     expect(fetchSpy.mock.calls[2][0]).toContain("/billing/stripe/portal");
-    expect(JSON.parse(fetchSpy.mock.calls[2][1].body)).toEqual({ restaurantId: "restaurant-1" });
+    expect(JSON.parse(fetchSpy.mock.calls[2][1].body)).toEqual({ organizationId: "organization-1" });
   });
   it("recusa redirecionamentos inseguros ou de outro provedor", async () => {
     for (const url of ["http://checkout.stripe.com/vapt", "javascript:alert(1)", "https://evil.example/vapt", "https://user:secret@checkout.stripe.com/vapt"]) {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({ ...checkout, url })));
-      await expect(billingClient.createCheckout({ restaurantId: "restaurant-1", planType: "pro" })).rejects.toMatchObject({ code: "invalid_billing_response" });
+      await expect(billingClient.createCheckout({ organizationId: "organization-1", planType: "pro" })).rejects.toMatchObject({ code: "invalid_billing_response" });
     }
   });
   it("preserva erros tipados do provedor e 401/409/503", async () => {
     for (const status of [401, 409, 503]) {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({ error: { code: "billing_conflict", message: "Tente novamente" } }, status)));
-      await expect(billingClient.createPortal("restaurant-1")).rejects.toEqual(expect.objectContaining({ code: "billing_conflict", status }));
+      await expect(billingClient.createPortal("organization-1")).rejects.toEqual(expect.objectContaining({ code: "billing_conflict", status }));
     }
   });
 });

@@ -19,6 +19,7 @@ export function deriveAccountBootstrap(input:AccountBootstrapInput):AccountBoots
     destination:current?(current.onboardingStatus==='complete'?'dashboard':'onboarding'):restaurants.length>1?'select-restaurant':'onboarding'};
 }
 export const privateAccountKey=(userId:string)=>['vapt-private',userId] as const;
+export const tabRestaurantKey=(userId:string)=>[...privateAccountKey(userId),'tab-selection'] as const;
 export const accountBootstrapQueryKey=(userId:string,routeRestaurantId:string|null=null)=>[...privateAccountKey(userId),'account-bootstrap',routeRestaurantId] as const;
 export const restaurantQueryKey=(userId:string,organizationId:string,restaurantId:string)=>[...privateAccountKey(userId),'restaurant',organizationId,restaurantId] as const;
 export function accountBootstrapQueryOptions(userId:string,routeRestaurantId:string|null=null){
