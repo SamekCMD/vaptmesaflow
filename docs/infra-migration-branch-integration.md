@@ -2,7 +2,7 @@
 
 ## Atualização22/10 — paridade antes da integração
 
-Tarefas1–15 do plano de paridade foram implementadas e verificadas nos dois repositórios, incluindo multi-restaurante/equipe, billing por organização, onboarding retomável, ativação, logoR2/quota compartilhada e slug pontual. A tarefa16 está na verificação integrada/revisão independente. [Manifesto pareado, matrizP01–P10, resultados e procedimento de promoção](infra-migration-tenant-parity-verification.md).
+Tarefas1–16 do plano de paridade foram implementadas e verificadas nos dois repositórios, incluindo multi-restaurante/equipe, billing por organização, onboarding retomável, ativação, logoR2/quota compartilhada e slug pontual. A revisão independente encontrou dois Important (privacidade do DTO operacional e retorno de provedores); ambos foram corrigidos com regressões RED→GREEN e suítes completas. [Manifesto pareado, matrizP01–P10, resultados e procedimento de promoção](infra-migration-tenant-parity-verification.md).
 
 Não é preciso recriar o código em production: a promoção futura usa os artefatos F/A/B pareados e aplica schema/grants/bindings apropriados. Entretanto, um push de frontend não publica a API do outro repositório nem incorpora automaticamente WIPs de branches divergentes. Integração será seletiva por comportamento, preservando alterações alheias e sem reintroduzir infra substituída. Main/merge/push/deploy não foram executados.
 

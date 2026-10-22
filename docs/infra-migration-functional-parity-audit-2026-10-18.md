@@ -1,6 +1,6 @@
 # Migração — auditoria de paridade funcional
 
-> Atualização22/10: as lacunas abaixo descrevem o snapshot histórico de18/10. A restauração seletiva P01–P10 foi implementada nos checkpoints locais das tarefas1–15; testes integrados e revisão final estão em andamento. Ver [matriz de implementação e promoção](infra-migration-tenant-parity-verification.md). Não significa produção/Neon remoto/main atualizados.
+> Atualização22/10: as lacunas abaixo descrevem o snapshot histórico de18/10. A restauração seletiva P01–P10 foi implementada e verificada nas tarefas1–16; revisão independente realizada, com dois Important corrigidos/testados em passagem única. Ver [matriz de implementação e promoção](infra-migration-tenant-parity-verification.md). Não significa produção/Neon remoto/main atualizados.
 
 Data:18/10/2026. Solicitação: corrigir múltiplos restaurantes/equipe e verificar outras funcionalidades anteriormente decididas que ficaram fora da candidata. Este registro é uma inspeção estática e uma correção do inventário, **não uma correção de runtime nem uma especificação aprovada de implementação**.
 

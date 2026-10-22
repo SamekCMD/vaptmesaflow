@@ -1,16 +1,16 @@
 # Paridade tenant — verificação pareada local
 
-22/10/2026. Execução do [plano de 16 tarefas](superpowers/plans/2026-10-19-tenant-parity-restoration.md), conforme a [especificação aprovada](superpowers/specs/2026-10-19-tenant-parity-restoration-design.md). **Gate final e revisão independente em andamento. Não é aprovação de merge, deploy, SQL remoto ou ativação.**
+22/10/2026. Execução do [plano de 16 tarefas](superpowers/plans/2026-10-19-tenant-parity-restoration.md), conforme a [especificação aprovada](superpowers/specs/2026-10-19-tenant-parity-restoration-design.md). **16/16 tarefas locais concluídas; revisão independente realizada e dois achados importantes corrigidos/testados na passagem única. Não é aprovação de merge, deploy, SQL remoto ou ativação.**
 
 ## Manifesto funcional
 
 | Componente | Checkout usado | Base deste plano | Último checkpoint funcional |
 | --- | --- | --- | --- |
-| F: frontend e migrations | `D:/Projetos/vaptmesaflow` | `0cb286d` | `0c94394` |
-| A: API, outro repositório | `D:/Projetos/vaptmesaflow/.worktrees/vapt-api-infra-foundation` | `ab24eb0` | `986e4c4` |
+| F: frontend e migrations | `D:/Projetos/vaptmesaflow` | `0cb286d` | `9f67679` |
+| A: API, outro repositório | `D:/Projetos/vaptmesaflow/.worktrees/vapt-api-infra-foundation` | `ab24eb0` | `7d5604f` |
 | B: consumidor de billing, versionado em F | `infra/cloudflare/billing-email-worker` | base F | `be66c15`, preservado nos checkpoints seguintes |
 
-As alterações/testes de reconciliação da tarefa16 acrescentam o checkpoint documental a este manifesto. As duas candidatas continuam em `codex/infra-foundation`. Não houve criação de worktree, fetch, checkout, cherry-pick, merge ou push nesta execução. Main F permanece `9b576c1`; main A, `cebaed4`. A lista completa das refs e os WIPs preservados ficam na [reconciliação](infra-migration-branch-reconciliation.md).
+As alterações/testes de reconciliação da tarefa16 foram registrados em F `960cedf` e A `031e5ec`; o helper da tarefa16 confirmou F376/376 antes da revisão. A passagem única posterior está nos checkpoints funcionais F `9f67679` / A `7d5604f`, com F383/383, A701/701, PG92/92 e workerd30/30. As duas candidatas continuam em `codex/infra-foundation`. Não houve criação de worktree, fetch, checkout, cherry-pick, merge ou push nesta execução. Main F permanece `9b576c1`; main A, `cebaed4`. A lista completa das refs e os WIPs preservados ficam na [reconciliação](infra-migration-branch-reconciliation.md); as decisões e checkpoints, no [registro durável](infra-migration-tenant-parity-decisions.md).
 
 ## Aceites P01–P10
 
@@ -33,7 +33,7 @@ O smoke adicional A `src/modules/tenancy/parity.pg-integration.ts` une duas orga
 
 ## Verificação final
 
-Gates completos executados nesta tarefa, com saída final lida: F376/376; A701/701; PostgreSQL91/91 sem skips; workerd30/30; guards frontend18/18; configuração de catálogo69/69; scripts179/179. Builds/typechecks exit0; lint sem erros e um aviso preexistente em TableSessionModal. B isolado48pass/3skip; os três casos exigem PG e executaram sem skip no harness completo. A revisão independente ainda é um gate aberto, não substituído por estes testes.
+Gates completos finais, após a passagem de correção, com saída lida: F383/383; A701/701; PostgreSQL92/92 sem skips; workerd30/30; guards frontend18/18; configuração de catálogo69/69; scripts179/179. Builds/typechecks exit0; lint sem erros e um aviso preexistente em TableSessionModal. B isolado48pass/3skip; os três casos exigem PG e executaram sem skip no harness completo. A revisão independente identificou dois Important e nenhum Critical/Minor; ambos foram reproduzidos e corrigidos em uma passagem, sem re-revisão. [Parecer e tratamento](infra-migration-tenant-parity-review.md).
 
 Comandos finais obrigatórios: F `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, `npm run test:production-deploy`; B `npm test`, `npm run typecheck`; A `npm test`, `npm run build`, `npm run test:worker`, `npm run test:tenant-pg`, `npm run test:catalog-config`, `node --test scripts/*.test.mjs`. Testes de scripts usam portas falsas; nenhum `apply` ou deploy foi executado. O selector de PG `--only=parity` serve apenas à iteração, nunca substitui o gate completo.
 
@@ -48,7 +48,7 @@ Comandos finais obrigatórios: F `npm test`, `npm run typecheck`, `npm run lint`
 
 ## Integração futura — não executada
 
-1. Fechar a revisão independente pareada e fixar os SHAs F/A/B; revisar os WIPs separadamente. Preparar PRs/merge por repositório só após autorização, sem cherry-pick integral das famílias antigas.
+1. Usar os SHAs F/A/B pareados e o parecer/correções locais; revisar os WIPs separadamente. Preparar PRs/merge por repositório só após autorização, sem cherry-pick integral das famílias antigas.
 2. Revalidar capacidade do Neon existente. O último readback, de18/10, indicava Free com114,8086CU-h no ciclo até1/11; não houve novo readback remoto nesta etapa. Não contornar com projeto/plano pago.
 3. Backup/restauração ensaiados; conferir migrations001–009 existentes, aplicar apenas010–012 na ordem sob gate. Não editar históricos nem usar o baseline Supabase.
 4. Bloquear admissões incompatíveis e pausar consumidores antigos; drenar claims/comandos duráveis, sem apagar journal, namespace, leases ou assets para simular rollback. Um webhook ainda não aceito deve continuar retentável.
@@ -57,4 +57,4 @@ Comandos finais obrigatórios: F `npm test`, `npm run typecheck`, `npm run lint`
 7. Rollback de código apenas para uma versão compatível com o schema tenant e os comandos já aceitos. **Nunca retornar a owner-only após dados multi-tenant.** Manter drain/recuperação da projeção pública e os requests de email congelados.
 8. Só depois retomar as etapas principais14–19: observação de estabilidade/consumo, backup final, dependência zero e cancelamento da Hetzner autorizado. Workers Paid já ativo; Vercel é legado e DNS já migrado não será refeito. Easypanel não existe.
 
-Conclusão deste documento, por enquanto: comportamentos restaurados/testados localmente nos checkpoints descritos; gate final/revisão em curso, promoção remota e main **não realizadas**.
+Conclusão: restauração local e passagem de correção encerradas com as evidências acima; promoção remota, integração em main e gates de estabilidade/consumo **não realizados**. A revisão não certifica o ambiente implantado.
