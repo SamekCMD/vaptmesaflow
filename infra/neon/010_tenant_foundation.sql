@@ -192,7 +192,8 @@ revoke all on function public.enforce_organization_restaurant_limit() from publi
 create trigger restaurants_organization_capacity before insert or update of organization_id
   on public.restaurants for each row execute function public.enforce_organization_restaurant_limit();
 -- Remove the legacy blocker only in the same transaction as the scoped capacity guard.
-drop index public.restaurants_owner_id_unique;
+-- Some deployed baselines already lack optional004's owner-only index.
+drop index if exists public.restaurants_owner_id_unique;
 
 create trigger organizations_updated_at before update on public.organizations
   for each row execute function public.update_updated_at_column();

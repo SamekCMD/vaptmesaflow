@@ -23,7 +23,7 @@ Conexões diretas com TLS verificado, projeto/branch/endpoint/database/role fixo
 - **Objetos da009 ausentes em ambos:** `public.catalog_publication_operations` não existe. Objetos tenant010–012 pesquisados também ausentes. Portanto não partir da premissa de001–009 já implantadas: preservar001–008, conferir backup/restauração, aplicar009 original e seus grants antes de010–012, primeiro no preview, após autorização própria. Nenhum arquivo histórico foi reescrito.
 - Operador restrito `catalog-preview-inert.mjs inspect` retornou exit0, mesma implantação27 `7b51fca2-207e-4e29-948e-159761b362ea`, preparado/CPU configurada1000ms, workload não verificado e `activationReady=false`. Nenhum deploy/flag/namespace modificado.
 
-Solicitada autorização para backup protegido, restauração em PostgreSQL local descartável e, condicionada às provas, aplicação009–012 com grants somente de preview. Produção, publicação de código e ativação continuam fora desse gate. Não usar a leitura pontual sem pendências como substituto do controle de admissões/drain antes de futuras migrations.
+Usuário aprovou backup protegido, restauração em PostgreSQL local descartável e, condicionada às provas, aplicação009–012 com grants somente de preview. [Backup/restauração, ajuste mínimo da010 e ensaios](infra-migration-preview-schema-gate-2026-10-22.md): arquivo protegido e restore com ACLs idênticas, oito SQLs ensaiados também em transação única/locks; regressão nova RED→GREEN, F383/A701/PG93 sem skips e buildA0. Aplicação remota ainda pendente neste checkpoint. Produção, publicação de código e ativação continuam fora desse gate. Não usar a leitura pontual sem pendências como substituto do controle de admissões/drain antes de futuras migrations.
 
 ## Candidatos e CI já conferidos
 
