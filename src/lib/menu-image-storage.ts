@@ -32,7 +32,7 @@ function imageKey(value: string | undefined, restaurantId: string, itemId: strin
     const url = new URL(value ?? "");
     if (url.protocol !== "https:" || url.username || url.password) throw new Error();
     const parts = url.pathname.split("/").filter(Boolean).slice(-3).map(decodeURIComponent);
-    if (parts.length !== 3 || !parts.every(part => uuidPattern.test(part)) || parts[0] !== restaurantId || parts[1] !== itemId) throw new Error();
+    if (parts.length !== 3 || !parts.every((part,index) => uuidPattern.test(part)||(index===1&&part==="branding"&&itemId==="branding")) || parts[0] !== restaurantId || parts[1] !== itemId) throw new Error();
     return parts.join("/");
   } catch { throw new VaptApiClientError("invalid_image_key", "A imagem anterior não pode ser limpa automaticamente. Sua cópia será mantida.", 409); }
 }
@@ -64,20 +64,22 @@ function requireR2Cutover(): void {
   }
 }
 
-export async function uploadMenuImage({
+export async function uploadRestaurantImage({
   restaurantId,
   itemId,
   image,
   operationId,
-}: UploadMenuImageInput): Promise<string> {
+  optimizedImage,
+}: UploadMenuImageInput & {optimizedImage?:Blob}): Promise<string> {
   requireR2Cutover();
-  const optimized = await optimizeMenuImage(image);
+  const optimized = optimizedImage??await optimizeMenuImage(image);
+  if(optimized.size<1||optimized.size>1_048_576)throw new VaptApiClientError("invalid_image_size","A imagem comprimida deve ter até 1 MiB.",400);
   const contentType = requireSupportedContentType(optimized.type);
   const key = operationId ?? (catalogWriterEnabled() ? crypto.randomUUID() : undefined);
   if (key && !uuidPattern.test(key)) throw new VaptApiClientError("invalid_operation_id", "Operação de imagem inválida.", 400);
-  const descriptor = await vaptApiRequest<UploadDescriptor>({
+  const prepare = () => vaptApiRequest<UploadDescriptor>({
     method: "POST",
-    route: `/restaurants/${restaurantId}/menu-items/${itemId}/image/upload`,
+    route: itemId==="branding"?`/restaurants/${restaurantId}/branding/image/upload`:`/restaurants/${restaurantId}/menu-items/${itemId}/image/upload`,
     ...(catalogWriterEnabled() ? { headers: { "X-Vapt-Catalog-Protocol": "1", "Idempotency-Key": key! } } : {}),
     body: {
       contentType,
@@ -85,6 +87,7 @@ export async function uploadMenuImage({
     },
   });
 
+  const descriptor=await prepare();
   if (catalogWriterEnabled() && imageKey(descriptor.publicUrl, restaurantId, itemId) !== descriptor.objectKey) {
     throw new VaptApiClientError("invalid_image_key", "O envio não corresponde a esta imagem.", 502);
   }
@@ -107,7 +110,18 @@ export async function uploadMenuImage({
     );
   }
 
+  if(itemId==="branding"){
+    const verified=await prepare();
+    if(verified.state!=="uploaded"||verified.objectKey!==descriptor.objectKey||imageKey(verified.publicUrl,restaurantId,itemId)!==descriptor.objectKey){
+      throw new VaptApiClientError("menu_image_upload_pending","Não foi possível confirmar o envio do logo. Tente novamente.",409);
+    }
+  }
   return descriptor.publicUrl;
+}
+
+export async function uploadMenuImage(input:UploadMenuImageInput):Promise<string>{
+  if(!uuidPattern.test(input.itemId))throw new VaptApiClientError("invalid_image_key","Item de cardápio inválido.",400);
+  return uploadRestaurantImage(input);
 }
 
 export async function deleteMenuImage({

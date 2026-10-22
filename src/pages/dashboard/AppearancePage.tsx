@@ -13,6 +13,8 @@ import { Upload, Smartphone, ExternalLink, Loader2, UtensilsCrossed } from "luci
 import { AppearanceFormSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import {useCurrentRestaurant} from "@/features/restaurants/current-restaurant";
 import { useAuth } from "@/contexts/AuthContext";
+import {optimizeMenuImage} from "@/lib/menu-image-optimization";
+import {uploadRestaurantLogo,retireRestaurantAsset,restaurantBrandingKey} from "@/lib/restaurant-assets";
 import { fetchRestaurant, updateRestaurant } from "@/lib/restaurants";
 import { catalogWriterEnabled } from "@/lib/catalog/flags";
 import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
@@ -30,6 +32,11 @@ const AppearancePage = () => {
   const [loadAttempt,setLoadAttempt]=useState(0);
   const [saving, setSaving] = useState(false);
   const [logoPreview, setLogoPreview] = useState("");
+  const [logoFile,setLogoFile]=useState<File|null>(null);
+  const previewRef=useRef<string|null>(null);
+  const retirePending=useRef<string|null>(null);
+  const logoLease=useRef<{file:File;operationId:string;publicUrl?:string;optimizedImage?:Blob}|null>(null);
+  useEffect(()=>()=>{if(previewRef.current)URL.revokeObjectURL(previewRef.current);},[]);
   const [deliveryEnabled, setDeliveryEnabled] = useState(false);
   const [config, setConfig] = useState<RestaurantConfig>({
     id: "",
@@ -46,12 +53,22 @@ const AppearancePage = () => {
     setConfig((prev) => ({ ...prev, ...partial }));
   };
 
+  const settleLogo=async(logoUrl:string|null,isCurrent:()=>boolean)=>{
+    if(!isCurrent())return;
+    setConfig(current=>({...current,logoUrl:logoUrl??""}));setLogoFile(null);logoLease.current=null;
+    if(previewRef.current){URL.revokeObjectURL(previewRef.current);previewRef.current=null;}setLogoPreview(logoUrl??"");
+    const previous=retirePending.current;retirePending.current=null;
+    if(previous&&previous!==logoUrl&&restaurantId){
+      const objectKey=restaurantBrandingKey(previous,restaurantId);
+      if(objectKey)try{await retireRestaurantAsset({restaurantId,objectKey});}catch{if(isCurrent())toast({title:"Logo salvo; limpeza pendente",description:"A imagem anterior será mantida enquanto houver referências."});}
+    }
+  };
   const publication = useCatalogPublication(scope, async isCurrent => {
     const data = await fetchRestaurant(restaurantId!); if (!isCurrent()) return;
     setConfig(current => ({ ...current, id: data.id, name: data.name, slug: data.slug, logoUrl: data.logoUrl || "",
       primaryColor: data.primaryColor, secondaryColor: data.secondaryColor,
       fontFamily: data.fontFamily === "classic" || data.fontFamily === "rounded" ? data.fontFamily : "modern" }));
-    setLogoPreview(data.logoUrl || ""); setDeliveryEnabled(data.deliveryEnabled);
+    setDeliveryEnabled(data.deliveryEnabled);await settleLogo(data.logoUrl,isCurrent);
   });
 
   // Fetch restaurant data
@@ -94,9 +111,12 @@ const AppearancePage = () => {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setLogoPreview(url);
-    updateConfig({ logoUrl: url });
+    if(saving||publication.blocked)return;
+    if(!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size<1||file.size>5_242_880){
+      toast({title:"Imagem inválida",description:"Use JPG, PNG ou WebP de até 5 MiB.",variant:"destructive"});return;
+    }
+    if(previewRef.current)URL.revokeObjectURL(previewRef.current);
+    const url=URL.createObjectURL(file);previewRef.current=url;setLogoPreview(url);setLogoFile(file);logoLease.current=null;
   };
 
   const handleSave = async () => {
@@ -104,15 +124,26 @@ const AppearancePage = () => {
     const isCurrent=capture();if(!isCurrent())return;
     setSaving(true);
     try {
+      let logoUrl=config.logoUrl||null;
+      if(logoFile){
+        if(logoLease.current?.file!==logoFile)logoLease.current={file:logoFile,operationId:crypto.randomUUID()};
+        const lease=logoLease.current;
+        if(!lease.optimizedImage){const encoded=await optimizeMenuImage(logoFile);if(!isCurrent())return;lease.optimizedImage=encoded;}
+        logoUrl=lease.publicUrl??await uploadRestaurantLogo({restaurantId,image:logoFile,operationId:lease.operationId,optimizedImage:lease.optimizedImage});
+        if(!isCurrent())return;lease.publicUrl=logoUrl;
+      }
+      retirePending.current=config.logoUrl!==logoUrl?config.logoUrl:null;
       const patch = {
         name: config.name,
         slug: config.slug,
         primaryColor: config.primaryColor,
         secondaryColor: config.secondaryColor,
         fontFamily: config.fontFamily,
-        logoUrl: config.logoUrl || null,
+        logoUrl,
       };
       if (catalogWriterEnabled()) await updateRestaurant(restaurantId,patch, publication); else await updateRestaurant(restaurantId,patch);
+      if(!isCurrent())return;
+      await settleLogo(logoUrl,isCurrent);
       if(!isCurrent())return;
       toast({ title: "Aparencia salva", description: "As alteracoes de marca foram aplicadas." });
     } catch (err: unknown) {
@@ -163,7 +194,7 @@ const AppearancePage = () => {
               </div>
               <div>
                 <Label>Logo</Label>
-                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleLogoUpload} />
                 <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                   <div
                     className="h-16 w-16 rounded-lg border-2 border-dashed border-border flex items-center justify-center cursor-pointer hover:border-primary transition-colors overflow-hidden"
