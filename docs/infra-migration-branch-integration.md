@@ -1,5 +1,13 @@
 # Consolidação da migração — situação e integração
 
+## Atualização22/10 — paridade antes da integração
+
+Tarefas1–15 do plano de paridade foram implementadas e verificadas nos dois repositórios, incluindo multi-restaurante/equipe, billing por organização, onboarding retomável, ativação, logoR2/quota compartilhada e slug pontual. A tarefa16 está na verificação integrada/revisão independente. [Manifesto pareado, matrizP01–P10, resultados e procedimento de promoção](infra-migration-tenant-parity-verification.md).
+
+Não é preciso recriar o código em production: a promoção futura usa os artefatos F/A/B pareados e aplica schema/grants/bindings apropriados. Entretanto, um push de frontend não publica a API do outro repositório nem incorpora automaticamente WIPs de branches divergentes. Integração será seletiva por comportamento, preservando alterações alheias e sem reintroduzir infra substituída. Main/merge/push/deploy não foram executados.
+
+O plano principal segue na Etapa13; estabilidade/backup/desligamento/cancelamento continuam gates posteriores. Não há novo readback remoto de capacidade; o diagnóstico18/10 continua apenas a última evidência conhecida. Os números abaixo são checkpoints históricos, não os resultados atuais da paridade.
+
 Checkpoint local: 17/10/2026. Este documento organiza a execução já aprovada; não autoriza merge, push, deploy, nova contratação ou cancelamento de serviço. Referências: [plano principal](infra-migration-plan.md), [plano do catálogo](infra-migration-public-catalog-event-driven-plan.md) e [inventário de writers](infra-migration-public-catalog-writers.md).
 
 ## Quanto falta

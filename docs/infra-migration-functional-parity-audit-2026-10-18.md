@@ -1,5 +1,7 @@
 # Migração — auditoria de paridade funcional
 
+> Atualização22/10: as lacunas abaixo descrevem o snapshot histórico de18/10. A restauração seletiva P01–P10 foi implementada nos checkpoints locais das tarefas1–15; testes integrados e revisão final estão em andamento. Ver [matriz de implementação e promoção](infra-migration-tenant-parity-verification.md). Não significa produção/Neon remoto/main atualizados.
+
 Data:18/10/2026. Solicitação: corrigir múltiplos restaurantes/equipe e verificar outras funcionalidades anteriormente decididas que ficaram fora da candidata. Este registro é uma inspeção estática e uma correção do inventário, **não uma correção de runtime nem uma especificação aprovada de implementação**.
 
 ## Escopo e evidência
@@ -72,9 +74,9 @@ Recomendação para o desenho a validar: reconciliar seletivamente os comportame
 - [x] Registrar lacunas e fontes, sem declarar paridade completa ou execução de testes inexistente.
 - [x] Abordagem de reconciliação validada pelo usuário em19/10; [especificação escrita](superpowers/specs/2026-10-19-tenant-parity-restoration-design.md) preparada para revisão separada.
 - [x] Usuário aprovou continuar após receber a especificação escrita em19/10.
-- [x] [Plano de implementação](superpowers/plans/2026-10-19-tenant-parity-restoration.md) preparado com testes negativos/concorrência; ainda não executado.
-- [ ] Usuário revisou/aprovou o plano escrito; execução direta preserva a preferência já informada.
+- [x] [Plano de implementação](superpowers/plans/2026-10-19-tenant-parity-restoration.md) preparado com testes negativos/concorrência; tarefas1–15 executadas localmente e tarefa16 em verificação.
+- [x] Usuário revisou/aprovou o plano escrito em19/10; execução direta preserva a preferência já informada.
 - [ ] Implementar P01–P10 nos dois repositórios; verificar cada comportamento e a suíte final integrada.
 - [ ] Retestar gates remotos após disponibilidade e autorização próprias; consolidar mains somente depois da paridade verificada.
 
-Até estes aceites serem cumpridos, multi-restaurante/equipe e paridade funcional **continuam abertos**. [Capacidade Neon](infra-migration-capacity-readback-2026-10-18.md) é gate remoto separado e não impede investigação/desenho/testes locais; não autoriza contratação, SQL remoto, bootstrap ou publicação.
+O aceite final integrado e a promoção remota **continuam abertos**; a descrição das lacunas acima é histórica, não afirma que o port local ainda esteja ausente. [Capacidade Neon](infra-migration-capacity-readback-2026-10-18.md) é gate remoto separado e não impede investigação/desenho/testes locais; não autoriza contratação, SQL remoto, bootstrap ou publicação.

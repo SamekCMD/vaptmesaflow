@@ -1,5 +1,15 @@
 # Migração — reconciliação das branches locais
 
+## Releitura22/10 — sem integração automática
+
+As12refs F e13refs A foram conferidas novamente, sem fetch. Main F9b576c1/Acebaed4 e todos os tips das famílias antigas permanecem os mesmos. Antes do checkpoint da tarefa16, candidata F0c94394 tem0/175 commits na comparação main…HEAD; A986e4c4 tem0/166. Contagens não equivalem a funcionalidades ou certificação remota.
+
+As cadeias divergentes e as contagens de commits exclusivos sem equivalência continuam F30/37/40 e A2/5/6; não somar famílias sobrepostas. Os três pares equivalentes abaixo continuam sem patch exclusivo a reaplicar. A restauração P01–P10 foi portada seletivamente para a arquitetura atual, em vez de merge wholesale; [manifesto e evidências](infra-migration-tenant-parity-verification.md). A revisão integrada final ainda está em andamento.
+
+WIPs D: relidos somente por status: frontend e2e2tracked/2untracked; API membership5tracked/7untracked; payment-effects0tracked/2untracked. Permanecem intactos, não incorporados nem certificados. Candidata F preserva os documentos financeiros/main-plan e implementation-references do usuário; A contém apenas o trabalho desta tarefa. Worktrees C: antigos foram apenas listados, não abertos, criados, podados ou apagados.
+
+O restante deste documento é o snapshot histórico18/10. Afirmações de funcionalidade ausente nesse snapshot devem ser lidas junto da matriz atual, não como diagnóstico do HEAD portado.
+
 Snapshot18/10/2026, **sem fetch, checkout, merge, cherry-pick, push ou alterações nas outras branches/worktrees**. Não é revisão funcional concluída nem aprovação de main/deploy. Complementa o [procedimento de integração](infra-migration-branch-integration.md).
 
 ## Bases examinadas
