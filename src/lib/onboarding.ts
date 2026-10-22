@@ -18,8 +18,6 @@ export const EMPTY_GUIDE_PROGRESS: OnboardingGuideProgress = {
   overview: false,
 };
 
-export const GUIDE_PROGRESS_STORAGE_KEY = "onboarding-guide-progress";
-
 export const POST_SETUP_PRIMARY_ACTION = {
   label: "Ir para o Caixa",
   to: "/dashboard/cashier",
@@ -73,6 +71,7 @@ export function isGuideComplete(progress: OnboardingGuideProgress) {
   return GUIDE_MODULES.every((key) => progress[key]);
 }
 
+
 export function getRemainingGuideModules(progress: OnboardingGuideProgress) {
   return GUIDE_MODULES.filter((key) => !progress[key]);
 }
@@ -82,8 +81,9 @@ export function getNextGuideModule(module: GuideModule) {
   return index >= 0 ? GUIDE_MODULES[index + 1] ?? null : null;
 }
 
-export function getGuideModuleHref(module: GuideModule) {
-  return `${GUIDE_MODULE_ROUTES[module]}?guide=1`;
+export function getGuideModuleHref(module: GuideModule,restaurantId?:string|null) {
+  const params=new URLSearchParams({guide:'1'});if(restaurantId)params.set('restaurantId',restaurantId);
+  return `${GUIDE_MODULE_ROUTES[module]}?${params}`;
 }
 
 export function markGuideModuleComplete(
@@ -91,45 +91,4 @@ export function markGuideModuleComplete(
   module: GuideModule
 ) {
   return { ...progress, [module]: true };
-}
-
-export function completeGuideModule(
-  module: GuideModule,
-  progress: OnboardingGuideProgress = loadGuideProgress()
-) {
-  const nextProgress = markGuideModuleComplete(progress, module);
-  saveGuideProgress(nextProgress);
-  return nextProgress;
-}
-
-export function loadGuideProgress() {
-  if (typeof window === "undefined") {
-    return EMPTY_GUIDE_PROGRESS;
-  }
-
-  try {
-    const rawProgress = window.localStorage.getItem(GUIDE_PROGRESS_STORAGE_KEY);
-
-    if (!rawProgress) {
-      return EMPTY_GUIDE_PROGRESS;
-    }
-
-    const parsed = JSON.parse(rawProgress) as Partial<OnboardingGuideProgress>;
-
-    return GUIDE_MODULES.reduce((acc, module) => {
-      acc[module] = parsed[module] === true;
-      return acc;
-    }, { ...EMPTY_GUIDE_PROGRESS });
-  } catch {
-    return EMPTY_GUIDE_PROGRESS;
-  }
-}
-
-export function saveGuideProgress(progress: OnboardingGuideProgress) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(GUIDE_PROGRESS_STORAGE_KEY, JSON.stringify(progress));
-  window.dispatchEvent(new Event("onboarding-guide-progress-changed"));
 }

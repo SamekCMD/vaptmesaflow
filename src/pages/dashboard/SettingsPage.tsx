@@ -22,7 +22,6 @@ import { useCurrentRestaurant } from "@/features/restaurants/current-restaurant"
 import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
 import { CatalogPublicationFeedback } from "@/components/menu/CatalogPublicationStatus";
 import {
-  completeGuideModule,
   getGuideModuleHref,
   getNextGuideModule,
   GUIDE_MODULE_CONTENT,
@@ -134,11 +133,6 @@ const SettingsPage = () => {
 
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("settings");
-
-  const handleGuideComplete = () => {
-    completeGuideModule("settings");
-    navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
-  };
 
   const handleSave = async () => {
     if (!user || !restaurantId || !canEdit || saving || publication.blocked) return;
@@ -272,8 +266,8 @@ const SettingsPage = () => {
           module="settings"
           title={GUIDE_MODULE_CONTENT.settings.title}
           description={GUIDE_MODULE_CONTENT.settings.description}
-          nextHref={guideNextModule ? getGuideModuleHref(guideNextModule) : null}
-          onComplete={handleGuideComplete}
+          nextHref={guideNextModule ? getGuideModuleHref(guideNextModule,restaurantId) : null}
+          restaurantId={restaurantId!}
         />
       )}
       <div>

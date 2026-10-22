@@ -174,4 +174,9 @@ $function$;
 revoke all on function public.require_complete_order_restaurant() from public;
 create trigger orders_complete_restaurant_required before insert on public.orders
   for each row execute function public.require_complete_order_restaurant();
+-- Finalization from a second browser may journal another operation pointing at
+-- the already published revision. Revision versions remain globally unique;
+-- operation_id, rather than version, is the journal's idempotency identity.
+alter table public.catalog_publication_operations
+  drop constraint catalog_publication_operations_version_key;
 commit;

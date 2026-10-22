@@ -1,6 +1,6 @@
 ﻿import {withRestaurantScope,useTenantContinuation} from "@/features/restaurants/RestaurantScopeBoundary";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {useCurrentRestaurant} from "@/features/restaurants/current-restaurant";
 import { useAuth } from "@/contexts/AuthContext";
 import type {
@@ -38,18 +38,16 @@ import {
 } from "recharts";
 import { toast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
+import {useActivationProgress} from "@/features/onboarding/use-activation-progress";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import type { StoredOrderFeedbackRecord } from "@/lib/order-feedback";
 import {
   EMPTY_GUIDE_PROGRESS,
   GUIDE_MODULES,
-  completeGuideModule,
   getGuideModuleHref,
   getNextGuideModule,
   getRemainingGuideModules,
   GUIDE_MODULE_CONTENT,
-  loadGuideProgress,
-  saveGuideProgress,
   type OnboardingGuideProgress,
 } from "@/lib/onboarding";
 
@@ -59,10 +57,6 @@ type OrderStatusSummary = {
   body: string;
   ctaLabel: string;
   ctaHref: string;
-};
-
-type OverviewProps = {
-  guideProgress?: OnboardingGuideProgress;
 };
 
 type SatisfactionSummary = {
@@ -103,9 +97,10 @@ export function getGuideChecklistState(guideProgress: OnboardingGuideProgress) {
 
 type OverviewGuideChecklistProps = {
   guideProgress: OnboardingGuideProgress;
+  restaurantId?:string;
 };
 
-export function OverviewGuideChecklist({ guideProgress }: OverviewGuideChecklistProps) {
+export function OverviewGuideChecklist({ guideProgress,restaurantId }: OverviewGuideChecklistProps) {
   const { remainingGuideModules, showGuideChecklist } = useMemo(
     () => getGuideChecklistState(guideProgress),
     [guideProgress]
@@ -147,7 +142,7 @@ export function OverviewGuideChecklist({ guideProgress }: OverviewGuideChecklist
                 <span className="text-xs text-muted-foreground">Concluído</span>
               ) : (
                 <Button asChild variant="ghost" size="sm" className="h-9 px-3 text-xs">
-                  <Link to={getGuideModuleHref(module)}>Abrir</Link>
+                  <Link to={getGuideModuleHref(module,restaurantId)}>Abrir</Link>
                 </Button>
               )}
             </div>
@@ -191,13 +186,12 @@ export function getOverviewSatisfactionSummary({
   };
 }
 
-const Overview = ({ guideProgress }: OverviewProps) => {
+const Overview = () => {
   const { user } = useAuth();
   const userId=user?.id;
   const capture=useTenantContinuation();
   const {scope}=useCurrentRestaurant();
   const restaurantId=scope?.restaurantId;
-  const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { refetch: refetchSub } = useSubscription();
@@ -206,11 +200,9 @@ const Overview = ({ guideProgress }: OverviewProps) => {
   const [orders, setOrders] = useState<OverviewOrderDto[]>([]);
   const [period, setPeriod] = useState<OverviewPeriod>("week");
   const [periodStart, setPeriodStart] = useState<Date | null>(null);
-  const [storedGuideProgress, setStoredGuideProgress] = useState<OnboardingGuideProgress>(() =>
-    loadGuideProgress()
-  );
+  const activation=useActivationProgress(restaurantId??null);
   const [feedbackRecords, setFeedbackRecords] = useState<StoredOrderFeedbackRecord[]>([]);
-  const effectiveGuideProgress = guideProgress ?? storedGuideProgress ?? EMPTY_GUIDE_PROGRESS;
+  const effectiveGuideProgress = activation.data ?? EMPTY_GUIDE_PROGRESS;
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("overview");
 
@@ -224,36 +216,6 @@ const Overview = ({ guideProgress }: OverviewProps) => {
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams, refetchSub]);
-
-  useEffect(() => {
-    if (guideProgress) {
-      setStoredGuideProgress(guideProgress);
-      saveGuideProgress(guideProgress);
-    }
-  }, [guideProgress]);
-
-  useEffect(() => {
-    const syncGuideProgress = () => {
-      setStoredGuideProgress(loadGuideProgress());
-    };
-
-    syncGuideProgress();
-    window.addEventListener("storage", syncGuideProgress);
-    window.addEventListener("focus", syncGuideProgress);
-    window.addEventListener("onboarding-guide-progress-changed", syncGuideProgress);
-
-    return () => {
-      window.removeEventListener("storage", syncGuideProgress);
-      window.removeEventListener("focus", syncGuideProgress);
-      window.removeEventListener("onboarding-guide-progress-changed", syncGuideProgress);
-    };
-  }, [location.pathname, location.search]);
-
-  const handleGuideComplete = () => {
-    const nextProgress = completeGuideModule("overview", effectiveGuideProgress);
-    setStoredGuideProgress(nextProgress);
-    navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
-  };
 
   useEffect(() => {
     const continuation=capture();let active=true;
@@ -525,7 +487,7 @@ const Overview = ({ guideProgress }: OverviewProps) => {
     [effectiveGuideProgress]
   );
 
-  const shouldShowGuideChecklist = showGuideChecklist && !restaurant?.onboardingCompleted;
+  const shouldShowGuideChecklist = !!activation.data && showGuideChecklist;
 
   if (loading) return <OverviewSkeleton />;
 
@@ -549,8 +511,8 @@ const Overview = ({ guideProgress }: OverviewProps) => {
           module="overview"
           title={GUIDE_MODULE_CONTENT.overview.title}
           description={GUIDE_MODULE_CONTENT.overview.description}
-          nextHref={guideNextModule ? getGuideModuleHref(guideNextModule) : null}
-          onComplete={handleGuideComplete}
+          nextHref={guideNextModule ? getGuideModuleHref(guideNextModule,restaurantId) : null}
+          restaurantId={restaurantId!}
         />
       )}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -686,7 +648,7 @@ const Overview = ({ guideProgress }: OverviewProps) => {
           </Card>
         )}
 
-        {shouldShowGuideChecklist && <OverviewGuideChecklist guideProgress={effectiveGuideProgress} />}
+        {shouldShowGuideChecklist && <OverviewGuideChecklist guideProgress={effectiveGuideProgress} restaurantId={restaurantId} />}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -859,4 +821,4 @@ const Overview = ({ guideProgress }: OverviewProps) => {
 };
 
 const ScopedOverview=withRestaurantScope(Overview,"restaurant.read");
-export default function OverviewRoute(props:OverviewProps){return <ScopedOverview {...props}/>;}
+export default function OverviewRoute(){return <ScopedOverview/>;}

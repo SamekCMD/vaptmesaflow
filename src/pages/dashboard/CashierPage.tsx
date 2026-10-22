@@ -13,7 +13,6 @@ import TableSessionModal from "@/components/cashier/TableSessionModal";
 import FeatureGate from "@/components/FeatureGate";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import {
-  completeGuideModule,
   getGuideModuleHref,
   getNextGuideModule,
   GUIDE_MODULE_CONTENT,
@@ -70,11 +69,6 @@ const CashierPage = () => {
 
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("cashier");
-
-  const handleGuideComplete = () => {
-    completeGuideModule("cashier");
-    navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
-  };
 
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 60000);
@@ -150,8 +144,8 @@ const CashierPage = () => {
             module="cashier"
             title={GUIDE_MODULE_CONTENT.cashier.title}
             description={GUIDE_MODULE_CONTENT.cashier.description}
-            nextHref={guideNextModule ? getGuideModuleHref(guideNextModule) : null}
-            onComplete={handleGuideComplete}
+            nextHref={guideNextModule ? getGuideModuleHref(guideNextModule,restaurantId) : null}
+            restaurantId={restaurantId!}
           />
         )}
         <div className="flex items-center justify-between">

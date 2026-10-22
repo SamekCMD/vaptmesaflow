@@ -37,7 +37,6 @@ import {
 } from "@/lib/menu-items";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import {
-  completeGuideModule,
   getGuideModuleHref,
   getNextGuideModule,
   GUIDE_MODULE_CONTENT,
@@ -116,11 +115,6 @@ const MenuManagement = () => {
 
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("menu");
-
-  const handleGuideComplete = () => {
-    completeGuideModule("menu");
-    navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
-  };
 
   const handleImageCleanup = async () => {
     if (!userId || !restaurantId || saving || publication.blocked) return;
@@ -358,8 +352,8 @@ const MenuManagement = () => {
           module="menu"
           title={GUIDE_MODULE_CONTENT.menu.title}
           description={GUIDE_MODULE_CONTENT.menu.description}
-          nextHref={guideNextModule ? getGuideModuleHref(guideNextModule) : null}
-          onComplete={handleGuideComplete}
+          nextHref={guideNextModule ? getGuideModuleHref(guideNextModule,restaurantId) : null}
+          restaurantId={restaurantId!}
         />
       )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

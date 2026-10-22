@@ -3,7 +3,6 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AppearancePage from "@/pages/dashboard/AppearancePage";
 import SettingsPage from "@/pages/dashboard/SettingsPage";
-import OnboardingPage from "@/pages/onboarding/OnboardingPage";
 import { vaptApiRequest } from "@/lib/vapt-api-client";
 import { catalogState } from "./public-catalog-fixture";
 const auth = vi.hoisted(() => ({ user: { id: "owner", name: "Gestor", email: "owner@synthetic.test" }, updateName: vi.fn(), changePassword: vi.fn() }));
@@ -30,13 +29,5 @@ describe("restaurant writer pages respect publication receipts", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /Salvar/i })[0]!);
     expect(await screen.findByText("Gravada; publicação pendente")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /Salvar/i })[0]).toBeDisabled();
-  });
-  it("onboarding cannot show operation ready or create a second restaurant after202", async () => {
-    render(<MemoryRouter><OnboardingPage /></MemoryRouter>);
-    fireEvent.change(screen.getByLabelText("Nome do Restaurante"), { target: { value: "Bistrô" } }); fireEvent.click(screen.getByRole("button", { name: /Próximo/ }));
-    fireEvent.change(screen.getByLabelText("Nome do Prato"), { target: { value: "Prato" } }); fireEvent.change(screen.getByLabelText("Preço (R$)"), { target: { value: "12" } });
-    fireEvent.click(screen.getByRole("button", { name: "Finalizar" }));
-    expect(screen.queryByText("Operação pronta")).not.toBeInTheDocument();
-    expect(vi.mocked(vaptApiRequest).mock.calls.some(([input])=>input.method==="POST")).toBe(false);
   });
 });

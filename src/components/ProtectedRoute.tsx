@@ -18,7 +18,7 @@ const ProtectedRoute=({children,mode='restaurant'}:{children:ReactNode;mode?:'re
   if(data.destination==='onboarding'&&!onboarding){
     return <Navigate to={'/onboarding'+(data.currentRestaurantId?'?restaurantId='+data.currentRestaurantId:'')} replace/>;
   }
-  if(onboarding&&data.destination==='dashboard'&&!query.has('organizationId')){
+  if(onboarding&&data.destination==='dashboard'&&!query.has('organizationId')&&query.get('setup')!=='complete'){
     return <Navigate to={'/dashboard?restaurantId='+data.currentRestaurantId} replace/>;
   }
   if(location.pathname==='/dashboard/subscription'&&!data.organizations.find(value=>value.id===data.currentOrganizationId)?.capabilities.includes('billing.read')){

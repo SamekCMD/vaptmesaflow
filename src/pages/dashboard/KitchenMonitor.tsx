@@ -19,7 +19,6 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import {
-  completeGuideModule,
   getGuideModuleHref,
   getNextGuideModule,
   GUIDE_MODULE_CONTENT,
@@ -141,11 +140,6 @@ const KitchenMonitor = () => {
 
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("kitchen");
-
-  const handleGuideComplete = () => {
-    completeGuideModule("kitchen");
-    navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
-  };
 
   const fetchOrders = useCallback(async () => {
     if (!userId || !restaurantId) return;
@@ -294,8 +288,8 @@ const KitchenMonitor = () => {
           module="kitchen"
           title={GUIDE_MODULE_CONTENT.kitchen.title}
           description={GUIDE_MODULE_CONTENT.kitchen.description}
-          nextHref={guideNextModule ? getGuideModuleHref(guideNextModule) : null}
-          onComplete={handleGuideComplete}
+          nextHref={guideNextModule ? getGuideModuleHref(guideNextModule,restaurantId) : null}
+          restaurantId={restaurantId!}
         />
       )}
       <div className="flex items-center justify-between">

@@ -1,6 +1,7 @@
+import {QueryClient,QueryClientProvider} from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { OverviewDto } from "@/lib/business-api.types";
 import { fetchOwnedOverview } from "@/lib/overview";
@@ -56,21 +57,25 @@ const response: OverviewDto = {
 };
 
 describe("overview API cutover", () => {
+  afterEach(()=>vi.unstubAllGlobals());
   beforeEach(() => {
+    vi.stubGlobal("fetch",vi.fn().mockResolvedValue(new Response(JSON.stringify({cashier:false,menu:false,kitchen:false,settings:false,overview:false}),{headers:{"Content-Type":"application/json"}})));
     vi.clearAllMocks();
     vi.mocked(fetchOwnedOverview).mockImplementation(async (_restaurantId,period) => ({ ...response, period }));
   });
 
   it("loads the owner-scoped server period without Supabase fan-out", async () => {
-    render(<MemoryRouter><Overview /></MemoryRouter>);
+    render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><MemoryRouter><Overview /></MemoryRouter></QueryClientProvider>);
 
     expect(await screen.findByText("Vapt Burger")).toBeInTheDocument();
     expect(screen.getAllByText("R$ 59,80").length).toBeGreaterThan(0);
     expect(fetchOwnedOverview).toHaveBeenCalledWith(response.restaurant.id,"week");
+    expect(await screen.findByText("Próximos passos")).toBeInTheDocument();
+    expect(screen.getAllByRole("link",{name:"Abrir"})[0]).toHaveAttribute("href","/dashboard/cashier?guide=1&restaurantId="+response.restaurant.id);
   });
 
   it("requests a new complete server snapshot when the period changes", async () => {
-    render(<MemoryRouter><Overview /></MemoryRouter>);
+    render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><MemoryRouter><Overview /></MemoryRouter></QueryClientProvider>);
     await screen.findByText("Vapt Burger");
 
     fireEvent.click(screen.getByRole("button", { name: "Hoje" }));
