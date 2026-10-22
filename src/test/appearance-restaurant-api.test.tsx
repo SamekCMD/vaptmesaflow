@@ -37,9 +37,7 @@ describe("appearance restaurant API", () => {
       secondaryColor: "#1e293b",
       fontFamily: "modern",
       logoUrl: null,
-      planType: "starter",
-      planStatus: "trialing",
-      trialEndsAt: "2026-09-29T12:00:00.000Z",
+
       totalTables: 1,
       maxTables: 1,
       paymentMode: "open_tab",

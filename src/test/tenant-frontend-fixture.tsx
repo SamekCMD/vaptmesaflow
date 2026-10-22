@@ -18,7 +18,7 @@ export function tenantAccount(role:'owner'|'manager'|'staff'='owner'):AccountBoo
 export const tenantJson=(value:unknown,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json'}});
 export function tenantRestaurant(id:string,name='Restaurante '+(id===tenantIds.a?'A':'B')):RestaurantDto{
   return {id,name,slug:id===tenantIds.a?'restaurante-a':'restaurante-b',cnpj:null,whatsapp:null,address:null,phone:null,hours:null,description:null,
-    primaryColor:'#0ea573',secondaryColor:'#1e293b',fontFamily:'modern',logoUrl:null,planType:'business',planStatus:'active',trialEndsAt:null,
+    primaryColor:'#0ea573',secondaryColor:'#1e293b',fontFamily:'modern',logoUrl:null,
     totalTables:2,maxTables:2,paymentMode:'open_tab',maxPendingOrders:3,localEnabled:true,deliveryEnabled:false,onboardingCompleted:true,updatedAt:new Date().toISOString()};
 }
 export function tenantWrapper(path='/dashboard/kitchen'){

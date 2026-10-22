@@ -13,9 +13,6 @@ export type RestaurantDto = {
   secondaryColor: string;
   fontFamily: string;
   logoUrl: string | null;
-  planType: "starter" | "pro" | "business";
-  planStatus: "trialing" | "active" | "past_due" | "incomplete" | "unpaid" | "paused" | "expired" | "cancelled";
-  trialEndsAt: string | null;
   totalTables: number;
   maxTables: number;
   paymentMode: "open_tab" | "prepaid";

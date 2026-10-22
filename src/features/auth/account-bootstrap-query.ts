@@ -22,8 +22,20 @@ export const privateAccountKey=(userId:string)=>['vapt-private',userId] as const
 export const tabRestaurantKey=(userId:string)=>[...privateAccountKey(userId),'tab-selection'] as const;
 export const accountBootstrapQueryKey=(userId:string,routeRestaurantId:string|null=null)=>[...privateAccountKey(userId),'account-bootstrap',routeRestaurantId] as const;
 export const restaurantQueryKey=(userId:string,organizationId:string,restaurantId:string)=>[...privateAccountKey(userId),'restaurant',organizationId,restaurantId] as const;
-export function accountBootstrapQueryOptions(userId:string,routeRestaurantId:string|null=null){
-  return queryOptions({queryKey:accountBootstrapQueryKey(userId,routeRestaurantId),queryFn:({signal})=>fetchAccountBootstrap(userId,routeRestaurantId,signal),
+export function accountBootstrapQueryOptions(userId:string,routeRestaurantId:string|null=null,billingOrganizationId:string|null=null){
+  const base=accountBootstrapQueryKey(userId,routeRestaurantId);
+  return queryOptions({queryKey:billingOrganizationId===null?base:[...base,'billing-return',billingOrganizationId],queryFn:async({signal})=>{
+    const organizationId=billingOrganizationId===null?null:accountUuid.parse(billingOrganizationId);
+    const data=await fetchAccountBootstrap(userId,routeRestaurantId,signal);
+    if(organizationId===null)return data;
+    if(!data.organizations.some(value=>value.id===organizationId))throw new VaptApiClientError('forbidden','Organização indisponível para esta conta.',403);
+    const candidates=data.restaurants.filter(value=>value.organizationId===organizationId);
+    const requested=routeRestaurantId===null?null:accountUuid.parse(routeRestaurantId);
+    if(requested!==null&&!candidates.some(value=>value.id===requested))throw new VaptApiClientError('forbidden','Restaurante indisponível nesta organização.',403);
+    const current=candidates.find(value=>value.id===(requested??data.currentRestaurantId))??(candidates.length===1?candidates[0]:undefined);
+    return {...data,currentOrganizationId:organizationId,currentRestaurantId:current?.id??null,
+      destination:current?(current.onboardingStatus==='complete'?'dashboard' as const:'onboarding' as const):candidates.length>1?'select-restaurant' as const:'onboarding' as const};
+  },
     staleTime:60_000,refetchInterval:false,refetchOnWindowFocus:false,retry:false});
 }
 export function clearPrivateAccountQueries(client:QueryClient|undefined,userId?:string){

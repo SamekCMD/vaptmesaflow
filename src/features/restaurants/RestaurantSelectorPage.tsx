@@ -1,10 +1,11 @@
-import {Link} from 'react-router-dom';
+import {Link,useSearchParams} from 'react-router-dom';
 import {useAccountBootstrap} from '@/features/auth/use-account-bootstrap';
 import {Button} from '@/components/ui/button';
 import {useSwitchRestaurant} from './use-switch-restaurant';
 
 export default function RestaurantSelectorPage(){
   const account=useAccountBootstrap(null),selection=useSwitchRestaurant();
+  const [query]=useSearchParams(),billingOrganizationId=query.get('billingOrganizationId');
   if(account.isPending)return <p role='status' className='p-6'>Carregando restaurantes…</p>;
   if(account.isError)return <div className='p-6'><p role='alert'>Não foi possível carregar seus restaurantes.</p><Button onClick={()=>void account.refetch()}>Tentar novamente</Button></div>;
   return <main className='mx-auto max-w-2xl space-y-6 px-4 py-12'>
@@ -12,7 +13,7 @@ export default function RestaurantSelectorPage(){
       <p className='text-sm text-muted-foreground'>Escolha onde você vai trabalhar.</p></header>
     {selection.error&&<p role='alert' className='text-sm text-destructive'>Não foi possível salvar a seleção.</p>}
     <ul className='divide-y divide-border border-y border-border'>
-      {account.data.restaurants.map(restaurant=><li key={restaurant.id} className='flex items-center justify-between gap-4 py-4'>
+      {account.data.restaurants.filter(value=>billingOrganizationId===null||value.organizationId===billingOrganizationId).map(restaurant=><li key={restaurant.id} className='flex items-center justify-between gap-4 py-4'>
         <div className='min-w-0'><p className='truncate font-medium'>{restaurant.name}</p>
           <p className='text-xs text-muted-foreground'>{account.data.organizations.find(value=>value.id===restaurant.organizationId)?.name}
             {restaurant.onboardingStatus==='draft'?' · Configuração incompleta':''}</p></div>

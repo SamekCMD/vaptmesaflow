@@ -22,7 +22,8 @@ export function useSwitchRestaurant(){
     if(!mounted.current||current.current!==userId||sequence.current!==generation)return;
     clearPrivateAccountQueries(client,userId);
     const query=new URLSearchParams(location.search);query.set('restaurantId',selection.id);
-    const path=selection.onboardingStatus==='draft'?'/onboarding':location.pathname.startsWith('/dashboard')?location.pathname:'/dashboard';
+    const billingReturn=query.has('billingOrganizationId');query.delete('billingOrganizationId');
+    const path=selection.onboardingStatus==='draft'?'/onboarding':location.pathname.startsWith('/dashboard')?location.pathname:billingReturn?'/dashboard/subscription':'/dashboard';
     navigate({pathname:path,search:'?'+query.toString()},{replace:true});
   },retry:false});
 }

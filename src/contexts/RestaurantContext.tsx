@@ -24,10 +24,11 @@ export function RestaurantProvider({children}:{children:ReactNode}){
     if(!privateRoute||!userId||!account||!restaurantId||account.destination!=='dashboard')return;
     if(!location.pathname.startsWith('/dashboard'))return;
     client.setQueryData(tabRestaurantKey(userId),restaurantId);
-    if(requested!==null)return;
+    const query=new URLSearchParams(location.search);
+    if(requested!==null&&!query.has('billingOrganizationId'))return;
     // Pin the validated selection without an extra preference write or SQL read.
     client.setQueryData(accountBootstrapQueryKey(userId,restaurantId),account);
-    const query=new URLSearchParams(location.search);query.set('restaurantId',restaurantId);
+    query.delete('billingOrganizationId');query.set('restaurantId',restaurantId);
     navigate({pathname:location.pathname,search:'?'+query.toString()},{replace:true});
   },[privateRoute,userId,account,restaurantId,requested,client,location.pathname,location.search,navigate]);
   const selected=!!user&&!!restaurantId&&!!organizationId;

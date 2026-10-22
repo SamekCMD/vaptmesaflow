@@ -10,6 +10,8 @@ export function useAccountBootstrap(routeRestaurantId?:string|null,options:{enab
   // An in-memory per-tab selection is only a hint for a fresh authorized read,
   // never an entitlement or a cross-tab replacement of the server preference.
   const hint=user&&/^\/(dashboard|pricing)(\/|$)/.test(location?.pathname??'')?client.getQueryData<string>(tabRestaurantKey(user.id)):null;
-  const requested=routeRestaurantId===undefined?new URLSearchParams(location?.search??'').get('restaurantId')??hint:routeRestaurantId;
-  return useQuery({...accountBootstrapQueryOptions(user?.id??'signed-out',requested??null),enabled:!!user&&!loading&&options.enabled!==false});
+  const query=new URLSearchParams(location?.search??'');
+  const billingOrganizationId=/^\/(dashboard|restaurants)(\/|$)/.test(location?.pathname??'')?query.get('billingOrganizationId'):null;
+  const requested=routeRestaurantId===undefined?query.get('restaurantId')??(billingOrganizationId===null?hint:null):routeRestaurantId;
+  return useQuery({...accountBootstrapQueryOptions(user?.id??'signed-out',requested??null,billingOrganizationId),enabled:!!user&&!loading&&options.enabled!==false});
 }

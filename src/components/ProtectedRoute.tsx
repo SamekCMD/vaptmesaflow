@@ -14,7 +14,7 @@ const ProtectedRoute=({children,mode='restaurant'}:{children:ReactNode;mode?:'re
   const data=account.data;
   if(!data)return null;
   const query=new URLSearchParams(location.search),onboarding=location.pathname==='/onboarding';
-  if(data.destination==='select-restaurant'&&!onboarding)return <Navigate to='/restaurants/select' replace/>;
+  if(data.destination==='select-restaurant'&&!onboarding)return <Navigate to={'/restaurants/select'+(query.has('billingOrganizationId')?'?billingOrganizationId='+encodeURIComponent(query.get('billingOrganizationId')!):'')} replace/>;
   if(data.destination==='onboarding'&&!onboarding){
     return <Navigate to={'/onboarding'+(data.currentRestaurantId?'?restaurantId='+data.currentRestaurantId:'')} replace/>;
   }
