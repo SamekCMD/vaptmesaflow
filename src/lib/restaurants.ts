@@ -7,6 +7,12 @@ export function restaurantRoute(restaurantId:string):string{
   if(!parsed.success)throw new VaptApiClientError('invalid_restaurant_scope','Selecione um restaurante válido.',400);
   return `/restaurants/${parsed.data.toLowerCase()}`;
 }
+export async function checkRestaurantSlug(restaurantId:string,slug:string,signal?:AbortSignal):Promise<boolean>{
+  const value=z.string().trim().min(2).max(60).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).parse(slug);
+  const raw=await vaptApiRequest<unknown>({method:'GET',route:restaurantRoute(restaurantId)+'/slug-availability',query:{slug:value},requireAuth:true,...(signal?{signal}:{})});
+  const parsed=z.object({available:z.boolean()}).strict().safeParse(raw);
+  if(!parsed.success)throw new VaptApiClientError('invalid_slug_response','Não foi possível verificar o endereço.',502);return parsed.data.available;
+}
 export async function fetchRestaurant(restaurantId:string,signal?:AbortSignal):Promise<RestaurantDto>{
   const route=restaurantRoute(restaurantId);
   const result=await vaptApiRequest<RestaurantDto>({method:'GET',route,...(signal?{signal}:{})});

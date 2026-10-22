@@ -1,5 +1,9 @@
 import {withRestaurantScope,useTenantContinuation} from "@/features/restaurants/RestaurantScopeBoundary";
-import { useState, useRef, useEffect } from "react";
+import {QueryClientContext} from "@tanstack/react-query";
+import {restaurantQueryKey,privateAccountKey} from "@/features/auth/account-bootstrap-query";
+import type {AccountBootstrap} from "@/features/auth/account-client";
+import type {RestaurantDto} from "@/lib/business-api.types";
+import { useContext,useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,14 +19,16 @@ import {useCurrentRestaurant} from "@/features/restaurants/current-restaurant";
 import { useAuth } from "@/contexts/AuthContext";
 import {optimizeMenuImage} from "@/lib/menu-image-optimization";
 import {uploadRestaurantLogo,retireRestaurantAsset,restaurantBrandingKey} from "@/lib/restaurant-assets";
-import { fetchRestaurant, updateRestaurant } from "@/lib/restaurants";
+import {VaptApiClientError} from "@/lib/vapt-api-client";
+import { fetchRestaurant, updateRestaurant,checkRestaurantSlug } from "@/lib/restaurants";
 import { catalogWriterEnabled } from "@/lib/catalog/flags";
 import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
 import { CatalogPublicationFeedback } from "@/components/menu/CatalogPublicationStatus";
 
 const AppearancePage = () => {
   const { user } = useAuth();
-  const {scope}=useCurrentRestaurant();
+  const {scope,organizationId}=useCurrentRestaurant();
+  const queryClient=useContext(QueryClientContext);
   const capture=useTenantContinuation();
   const restaurantId=scope?.restaurantId;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -31,6 +37,10 @@ const AppearancePage = () => {
   const [loadError,setLoadError]=useState(false);
   const [loadAttempt,setLoadAttempt]=useState(0);
   const [saving, setSaving] = useState(false);
+  const [confirmedSlug,setConfirmedSlug]=useState("");
+  const [slugStatus,setSlugStatus]=useState<"checking"|"available"|"conflict"|"invalid"|"error"|null>(null);
+  const slugEpoch=useRef(0),slugController=useRef<AbortController|null>(null);
+  useEffect(()=>()=>{slugEpoch.current++;slugController.current?.abort();},[]);
   const [logoPreview, setLogoPreview] = useState("");
   const [logoFile,setLogoFile]=useState<File|null>(null);
   const previewRef=useRef<string|null>(null);
@@ -53,6 +63,13 @@ const AppearancePage = () => {
     setConfig((prev) => ({ ...prev, ...partial }));
   };
 
+  const cacheConfirmedRestaurant=(saved:RestaurantDto)=>{
+    if(!queryClient||!user||!organizationId||saved.id!==restaurantId)return;
+    queryClient.setQueryData(restaurantQueryKey(user.id,organizationId,restaurantId),saved);
+    queryClient.setQueriesData<AccountBootstrap>({queryKey:[...privateAccountKey(user.id),'account-bootstrap']},current=>current?{
+      ...current,restaurants:current.restaurants.map(value=>value.id===restaurantId&&value.organizationId===organizationId?{...value,name:saved.name,slug:saved.slug}:value),
+    }:current);
+  };
   const settleLogo=async(logoUrl:string|null,isCurrent:()=>boolean)=>{
     if(!isCurrent())return;
     setConfig(current=>({...current,logoUrl:logoUrl??""}));setLogoFile(null);logoLease.current=null;
@@ -65,9 +82,11 @@ const AppearancePage = () => {
   };
   const publication = useCatalogPublication(scope, async isCurrent => {
     const data = await fetchRestaurant(restaurantId!); if (!isCurrent()) return;
+    cacheConfirmedRestaurant(data);
     setConfig(current => ({ ...current, id: data.id, name: data.name, slug: data.slug, logoUrl: data.logoUrl || "",
       primaryColor: data.primaryColor, secondaryColor: data.secondaryColor,
       fontFamily: data.fontFamily === "classic" || data.fontFamily === "rounded" ? data.fontFamily : "modern" }));
+    setConfirmedSlug(data.slug);setSlugStatus(null);
     setDeliveryEnabled(data.deliveryEnabled);await settleLogo(data.logoUrl,isCurrent);
   });
 
@@ -82,6 +101,7 @@ const AppearancePage = () => {
         if(!isCurrent())return;
 
         if (data) {
+          setConfirmedSlug(data.slug);
           setDeliveryEnabled(data.deliveryEnabled);
           setConfig({
             id: data.id,
@@ -108,6 +128,20 @@ const AppearancePage = () => {
     return()=>controller.abort();
   }, [user,restaurantId,capture,loadAttempt]);
 
+  const validSlug=(value:string)=>value.length>=2&&value.length<=60&&/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
+  const checkSlug=async(value:string)=>{
+    const isCurrent=capture(),epoch=++slugEpoch.current;slugController.current?.abort();
+    if(!isCurrent())return false;
+    if(!validSlug(value)){setSlugStatus("invalid");return false;}
+    const controller=new AbortController();slugController.current=controller;setSlugStatus("checking");
+    try{
+      const available=await checkRestaurantSlug(restaurantId!,value,controller.signal);
+      if(!isCurrent()||epoch!==slugEpoch.current)return false;
+      setSlugStatus(available?"available":"conflict");return available;
+    }catch{
+      if(isCurrent()&&epoch===slugEpoch.current)setSlugStatus("error");return false;
+    }
+  };
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -124,6 +158,9 @@ const AppearancePage = () => {
     const isCurrent=capture();if(!isCurrent())return;
     setSaving(true);
     try {
+      if(!validSlug(config.slug)){setSlugStatus("invalid");return;}
+      if(config.slug!==confirmedSlug&&!await checkSlug(config.slug))return;
+      if(!isCurrent())return;
       let logoUrl=config.logoUrl||null;
       if(logoFile){
         if(logoLease.current?.file!==logoFile)logoLease.current={file:logoFile,operationId:crypto.randomUUID()};
@@ -141,14 +178,17 @@ const AppearancePage = () => {
         fontFamily: config.fontFamily,
         logoUrl,
       };
-      if (catalogWriterEnabled()) await updateRestaurant(restaurantId,patch, publication); else await updateRestaurant(restaurantId,patch);
+      const saved=catalogWriterEnabled()?await updateRestaurant(restaurantId,patch,publication):await updateRestaurant(restaurantId,patch);
       if(!isCurrent())return;
+      cacheConfirmedRestaurant(saved);
+      setConfirmedSlug(saved.slug);setConfig(current=>({...current,slug:saved.slug}));setSlugStatus(null);
       await settleLogo(logoUrl,isCurrent);
       if(!isCurrent())return;
       toast({ title: "Aparencia salva", description: "As alteracoes de marca foram aplicadas." });
     } catch (err: unknown) {
       if(!isCurrent())return;
       if (isCatalogPublicationDeferred(err)) return;
+      if(err instanceof VaptApiClientError&&err.status===409&&err.code==="slug_conflict"){setSlugStatus("conflict");return;}
       const description = err instanceof Error ? err.message : "Tente novamente.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
@@ -181,16 +221,21 @@ const AppearancePage = () => {
                 <Input value={config.name} onChange={(e) => updateConfig({ name: e.target.value })} />
               </div>
               <div>
-                <Label>Slug da URL</Label>
+                <Label htmlFor="restaurant-slug">Slug da URL</Label>
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="text-sm text-muted-foreground whitespace-nowrap">/menu/</span>
                   <Input
-                    value={config.slug}
-                    onChange={(e) => updateConfig({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })}
+                    id="restaurant-slug" value={config.slug} disabled={saving||publication.blocked}
+                    aria-invalid={slugStatus==="conflict"||slugStatus==="invalid"} aria-describedby="slug-feedback"
+                    onBlur={()=>{if(!saving&&!publication.blocked)void checkSlug(config.slug);}}
+                    onChange={e=>{slugEpoch.current++;slugController.current?.abort();setSlugStatus(null);updateConfig({slug:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,"")});}}
                     className="min-w-0"
                   />
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Endereco publico: /menu/{config.slug}</p>
+                <p id="slug-feedback" aria-live="polite" className={slugStatus==="conflict"||slugStatus==="invalid"||slugStatus==="error"?"mt-1 text-xs text-destructive":"mt-1 text-xs text-muted-foreground"}>
+                  {slugStatus==="checking"?"Verificando endereço…":slugStatus==="conflict"?"Este endereço já está em uso. Escolha outro.":slugStatus==="invalid"?"Use de 2 a 60 caracteres: letras minúsculas, números e hífens simples.":slugStatus==="available"?"Endereço disponível.":slugStatus==="error"?"Não foi possível verificar o endereço. Tente novamente.":null}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">Prévia do endereço: /menu/{config.slug}</p>
               </div>
               <div>
                 <Label>Logo</Label>
@@ -259,7 +304,7 @@ const AppearancePage = () => {
               {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : "Salvar alteracoes"}
             </Button>
             <Button variant="outline" asChild className="h-11 w-full sm:w-auto">
-              <a href={`/menu/${config.slug}`} target="_blank" rel="noopener noreferrer">
+              <a href={`/menu/${confirmedSlug}`} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Ver Menu publico
               </a>
@@ -270,7 +315,7 @@ const AppearancePage = () => {
             >
               {deliveryEnabled ? (
                 <Button variant="outline" asChild className="h-11 w-full sm:w-auto">
-                  <a href={`/delivery/${config.slug}`} target="_blank" rel="noopener noreferrer">
+                  <a href={`/delivery/${confirmedSlug}`} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4 mr-2" />
                     Ver delivery publico
                   </a>
