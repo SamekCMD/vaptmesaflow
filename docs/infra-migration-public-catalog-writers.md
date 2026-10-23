@@ -1,5 +1,7 @@
 # Inventário de writers do catálogo público
 
+Checkpoint posterior23/10: [browser privado concluído](infra-migration-frontend-preview-browser-2026-10-23.md), Preview32 e cleanup confirmado; [diagnóstico local de CPU capturado](infra-migration-catalog-cpu-local-2026-10-23.md), sem CPU remota certificada. Não repetir smoke/rotação/migrations/Bpreview. A tabela de entradas canônicas abaixo é inventário de fonte, não prova de ausência de writers remotos. Separar a futura janela sintética de preview da cobertura de produção; nenhuma mudança Coolify/DNS foi feita ou exigida para este diagnóstico local. Flags remotas permanecemfalse.
+
 Atualização23/10,18:01UTC: [consumidor Bpreview canônico promovido](infra-migration-billing-preview-promotion-2026-10-23.md) com autorização própria, versão95e3a026; source exato/readback/configuração/filas/segredos/cron30min e controles aprovados. Não é writer do catálogo nem prova de envio runtime; não gera snapshot por email/billing privado. Bproduction/frontend continuam anteriores, sem mudança de flags/schema/main. Não repetir a publicação de Bpreview; o inventário17:31 abaixo conserva a situação anterior a essa promoção. Gates de clientes/writers/CPU/bootstrap continuam abertos.
 
 ## Conferência remota23/10 — ainda não liberar catálogo
