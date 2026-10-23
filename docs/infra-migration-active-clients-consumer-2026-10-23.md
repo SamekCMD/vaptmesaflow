@@ -1,5 +1,7 @@
 # Clientes e consumidor ativos — conferência23/10/2026
 
+Atualização posterior,18:01UTC: [Bpreview canônico publicado com autorização própria](infra-migration-billing-preview-promotion-2026-10-23.md), deployment`dfc422bc-02d3-4a70-8d1d-e2de8de50385`/version`95e3a026-4282-4ef5-b78c-2852e6c248bb`,100%. Conteúdo conferido byte a byte; cron/filas/segredos/configuração/ingresso preservados, banco somente READ ONLY sem pendências, DLQ existente não tocada. Controles Bproduction/API/web/parallel inalterados; fonte B local não mudou. O inventário das17:31 abaixo é histórico para Bpreview, não ordem de repetir publicação. Frontend e Bproduction ainda não promovidos/validados para o candidato; compatibilidade global e gates do catálogo permanecem abertos.
+
 ## Resultado e escopo
 
 Gate somente-leitura,17:31–17:37UTC. **Compatibilidade remota ainda não aprovada.** O smoke da API Preview31 continua aprovado; não foi repetido. Não houve deploy, alteração de flags/cron/filas/segredos, migration, SQL remoto, envio de email, pagamento, DNS, main ou push.
