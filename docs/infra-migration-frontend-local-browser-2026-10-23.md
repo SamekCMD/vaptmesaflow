@@ -1,5 +1,7 @@
 # Frontend candidato — navegador local, 23/10/2026
 
+Atualização posterior18:56UTC: a proposta abaixo foi autorizada por “continuar”, implementada/testada e [executada com API real de preview](infra-migration-frontend-preview-browser-2026-10-23.md), com limpeza verificada e encerramento. Este relatório continua sendo a prova anterior de UI **com backend sintético**; não repetir seus passos nem interpretar a proposta histórica como pendência de nova rotação.
+
 ## Resultado e fronteira da prova
 
 Conferência encerrada às18:23UTC. O frontend da branch `codex/infra-foundation`, fonte F`07840e9`, carregou no Brave com seu React, roteamento, Better Auth client e React Query reais, mas **backend HTTP inteiramente sintético e local**. Não é certificação integrada da API de preview, autenticação remota, cookies/CORS de produção, realtime, mutações de catálogo, CPU8MiB ou ativação do catálogo. Etapa13 e catálogo7/10 continuam abertos.
@@ -36,7 +38,7 @@ Seis testes das fronteiras locais falharam antes da implementação e passaram d
 
 O primeiro navegador ficou vazio antes de qualquer requisição à API: o build com definição única de `import.meta.env` perdeu os valores no objeto dinâmico gerado pelo Vite. Regressão reproduzida com **compilação Vite real** (API resultavaundefined), corrigida usando o padrão de chaves individuais já empregado pelo build protegido existente. Resultado final do harness: **7/7**, zero falhas/skips; navegador efetivamente carregou após a correção. Sem alteração em `src`, scripts versionados, dependências ou configuração de produção. Aviso existente de caniuse-lite antigo não foi usado como motivo para atualizar pacotes. A suíte F383 do gate anterior não foi repetida nem apresentada como nova prova desta execução.
 
-## Próximo gate integrado — proposta limitada, ainda não autorizada
+## Proposta integrada anterior — histórico antes da autorização/execução
 
 O bearer de `stage11-inert` continua write-only, desconhecido após o encerramento do controller anterior. Não recuperar de logs/cache/UI, embuti-lo em Vite ou abrir a API para contornar o problema. Repetir o smoke de68checks já concluído ou publicar o frontend antigo não resolve essa admissão.
 
