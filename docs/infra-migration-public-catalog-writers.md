@@ -1,5 +1,9 @@
 # Inventário de writers do catálogo público
 
+## Conferência remota23/10 — ainda não liberar catálogo
+
+[Versões de clientes/consumidor ativas](infra-migration-active-clients-consumer-2026-10-23.md): produçãoweb09/10, Bpreview/production29/09; B publicado ainda usa restaurante/owner em vez do contato canônico de organização. Os cron30min/filas/consumer IDs e nomes/tipos de secrets foram conferidos sem alterações. Domínios públicos atuais vinculam web/API aos Workersproduction, não certificam ausência de writers diretos Node/Coolify. Frontend/consumidor canônicos existem localmente, mas não foram publicados por este gate; testes focados e dry-run não são runtime remoto. Smoke da API Preview31 permanece aprovado. Próximo gate proposto: somente Bpreview, com preflight de pendências/identidade, sem purge nem rollback owner-only; requer autorização de publicação. Reader/writer continuamfalse; CPU/bootstrap/produção/main separados. As referências históricas seguintes não anulam esse resultado nem autorizam repetir etapas concluídas.
+
 ## Atualização22/10 — contrato canônico após a paridade tenant
 
 Inventário do código candidato F`a4eb545`/A`7d5604f`, não dos processos atualmente implantados. A [restauração de paridade](infra-migration-tenant-parity-verification.md) e suas decisões superam as referências owner-only do snapshot histórico abaixo. Tarefas5/9/10 do catálogo continuam abertas para evidência remota; não reexecutar os testes históricos como substituto.
