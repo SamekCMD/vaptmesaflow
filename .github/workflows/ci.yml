@@ -79,6 +79,9 @@ jobs:
       - name: Typecheck billing Worker
         run: npm run typecheck
 
+      - name: Test scoped billing preview publisher without remote credentials
+        run: node --test ../../../scripts/billing-preview-publish.test.mjs ../../../scripts/billing-preview-database.test.mjs
+
       - name: Test billing Worker without remote credentials
         run: npm test
 

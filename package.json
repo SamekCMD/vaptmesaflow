@@ -10,6 +10,7 @@
     "build:preview": "vite build --mode preview",
     "build:production": "node scripts/production-deploy.mjs --build",
     "test:production-deploy": "node --test scripts/production-deploy.test.mjs",
+    "test:billing-preview-publish": "node --test scripts/billing-preview-publish.test.mjs scripts/billing-preview-database.test.mjs",
     "verify:production": "node scripts/production-deploy.mjs --verify-artifact",
     "lint": "eslint .",
     "preview": "vite preview",
