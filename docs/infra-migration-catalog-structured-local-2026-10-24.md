@@ -45,6 +45,8 @@ SHA256 do relatório JSON: `506ecb288c2ef08b247d8afe16518973960fe6a44fbae3b5a683
 
 ## Gate que permanece aberto
 
+Correção do próximo gate, após o pedido de continuação: o código existente `isCatalogReaderEnabled` exige **reader=true e writer=true**; reader=true/writer=false retorna503 (`catalog_configuration_invalid`). O teste local existente confirmou essa proteção. A proposta anterior de ligar somente a flag reader estava incorreta. Nenhum recurso remoto, bearer ou objeto foi alterado nesta tentativa. Não remover a proteção: para avançar sem publicar código, é necessária aprovação explícita de uma janela privada com ambas as flags, embora o controlador faça somente quatro GETs e nenhuma mutação de API/Neon. Fechar ambas ao final; produção continua fora do escopo.
+
 `remoteCpuGatePassed:false` e `activationReady:false`. Este trabalho não ligou reader/writer remoto, não consultou Neon, não publicou código, não criou recurso pago, não mudou main/DNS e não repetiu o canário concluído. O último estado remoto verificado continua o [Preview 34 fechado](infra-migration-catalog-preview-canary-2026-10-24.md), sem novo readback nesta passagem.
 
 A próxima prova é um **canário privado de leitura do preview**, com payload estruturado, CPU remoto atribuível, quantidade fixa de requisições e limpeza verificável. Exige escopo/autorização próprios; não reutilizar o marcador consumido da janela de publicação, recuperar bearer write-only ou publicar a fixture `/_test/*`. Produção permanece separada. Catálogo formalmente 7/10; T5/writers, T9/CPU amplo, T10/bootstrap/ativação e Etapa 13 continuam abertos.
