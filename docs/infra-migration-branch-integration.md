@@ -1,5 +1,7 @@
 # Consolidação da migração — situação e integração
 
+Atualização24/10: [canários de publicação/leitura encerrados](infra-migration-catalog-reader-canary-2026-10-24.md), Preview36 fechado/CPU1000 e produção intacta. [Bootstrap atual sem carga](infra-migration-catalog-bootstrap-readiness-2026-10-24.md): preview0restaurantes/itens/journal/revisions e produção0restaurantes nos agregados conferidos; não criar dados sintéticos só para migrar UUIDs. Produção ainda sem seis tabelas-marcadoras canônicas; próximo gate é backup/restauração e promoção pareada de schema/API/B/F, não merge ou publicação automática. Nenhum PR/push/main foi alterado nesta conferência; histórico opção2 abaixo permanece válido.
+
 ## Continuação22/10 — opção2 executada
 
 Os PRs canônicos [frontend#4](https://github.com/SamekCMD/vaptmesaflow/pull/4) e [API#1](https://github.com/SamekCMD/vapt-api/pull/1) receberam F`a4eb545`/A`7d5604f`; CI de push e PR aprovado nos dois SHAs. Billing#3 foi encerrado como incorporado e Vercel Analytics#2 como legado, ambos sem merge e com branches/worktrees preservados. Main continua F`9b576c1`/A`cebaed4`; não houve publicação por esta opção. Histórico dos PRs preservado em seção própria, sem novos PRs sobrepostos.
