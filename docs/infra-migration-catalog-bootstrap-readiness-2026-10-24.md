@@ -1,5 +1,9 @@
 # Bootstrap e preparação de produção — 24/10/2026
 
+Checkpoint posterior,15:38 São Paulo: ensaio **local**009–012/grants production aprovado sobre esse mesmo backup:30tabelas/0linhas, integridade e5leituras/10negações conferidas; terceiro cluster encerrado. Sem SQL remoto. Próximo: admissões/drain e promoção pareada schema/API/B/F; não repetir bootstrap/backup/ensaio já aprovado nem aplicar migration isolada com consumidores antigos ativos.
+
+Checkpoint posterior,15:33 São Paulo: **[backup de produção restaurado e conferido localmente](infra-migration-production-backup-2026-10-24.md)**. Snapshot das20tabelas de aplicação/Auth inteiro com0linhas; schema/owners/ACLs/defaults/triggers conferidos, sem alteração remota. Complementa as consultas agregadas abaixo, não é drain contínuo, migração ou autorização de publicação. Próximo ensaio é local009–012/grants production, não novo bootstrap sintético.
+
 **Preview não tem carga inicial para executar:** leitura real confirmou zero restaurantes, itens e journal/revisions. Não foi criado restaurante de teste apenas para preencher essa etapa. Produção também está sem os dados agregados conferidos, mas ainda não tem as tabelas canônicas necessárias; não foi migrada ou publicada.
 
 ## Bootstrap: o que foi preparado

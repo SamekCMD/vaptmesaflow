@@ -1,5 +1,9 @@
 # Consolidação da migração — situação e integração
 
+Atualização24/10,15:38: ensaio local das migrations009–012 e grants próprios de production **aprovado** no [mesmo backup restaurado](infra-migration-production-backup-2026-10-24.md), incluindo integridade e permissões efetivas. Sem escrita ou publicação remota. Próximo: admissões/drain e promoção pareada schema/API/B/F; não migrar isoladamente enquanto componentes legados podem escrever. Nenhum push/merge/main neste gate.
+
+Atualização24/10,15:33: [backup production restaurado localmente e validado](infra-migration-production-backup-2026-10-24.md), incluindo owners/ACLs e20tabelas vazias no snapshot. Nenhuma mudança remota de schema/código/flags ou integração Git. Próximo gate preparatório é ensaio local das migrations/grants production; promoção pareada e merge continuam próprios. Backup não precisa ser repetido neste checkpoint.
+
 Atualização24/10: [canários de publicação/leitura encerrados](infra-migration-catalog-reader-canary-2026-10-24.md), Preview36 fechado/CPU1000 e produção intacta. [Bootstrap atual sem carga](infra-migration-catalog-bootstrap-readiness-2026-10-24.md): preview0restaurantes/itens/journal/revisions e produção0restaurantes nos agregados conferidos; não criar dados sintéticos só para migrar UUIDs. Produção ainda sem seis tabelas-marcadoras canônicas; próximo gate é backup/restauração e promoção pareada de schema/API/B/F, não merge ou publicação automática. Nenhum PR/push/main foi alterado nesta conferência; histórico opção2 abaixo permanece válido.
 
 ## Continuação22/10 — opção2 executada
