@@ -1,5 +1,7 @@
 # Catálogo: fronteira estruturada de 8 MiB — 24/10/2026
 
+Atualização posterior: o [canário privado de leitura remoto foi concluído](infra-migration-catalog-reader-canary-2026-10-24.md), com quatroGET200/maxCPU245,860ms e fechamento36/limpeza independente. As propostas de próximo gate abaixo são históricas; não repetí-lo nem interpretar este relatório local como autorização atual.
+
 Publicação e leitura passaram no **workerd local** para dois snapshots de exatamente 8.388.608 bytes. Nenhum código de produto foi alterado: foram acrescentados gerador de dados sintéticos e testes, importados somente por testes locais.
 
 | Formato | Itens | Variações | Opções | Publicação / duas rotas de leitura |
