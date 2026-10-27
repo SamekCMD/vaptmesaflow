@@ -24,6 +24,8 @@ Journal confirmou a fila às15:39:58SP e o agendamento às15:40:18SP. Outro proc
 
 Esta é uma **retomada de configuração confirmada**, não prova de execução natural do agendamento ou entrega pelo Resend. Os recibos mantêm `deliveryProven=false` e `scheduledExecutionProven=false`. Não foram inseridas mensagens/fixtures nem invocados Cron, Stripe ou Resend artificialmente para repetir testes anteriores.
 
+Observação posterior: [consulta do agendamento natural](infra-migration-billing-natural-observation-2026-10-27.md). Até16:05SP, o dataset específico ainda não retornou evento da janela iniciada às16h; a prova permanece pendente, sem declarar sucesso ou falha por ausência de dados.
+
 O agendamento continua com48horários de despacho por dia, não frequência de1min nem SLA de entrega para qualquer backlog. Mudanças podem levar até15min para propagar; readback imediato não prova propagação global. [Documentação Cloudflare](https://developers.cloudflare.com/workers/configuration/cron-triggers/). O backlog reportado0 não é garantia absoluta de ausência de mensagens em trânsito.
 
 Nenhuma mudança de código, schema/grants, secrets, plano pago, recurso, DNS, main, push ou merge foi feita nesta retomada. Não há garantia de teto global de fatura. As suites114operadores/383aplicação da preparação continuam evidência daquela etapa; não foram repetidas como testes novos desta alteração de control plane.
