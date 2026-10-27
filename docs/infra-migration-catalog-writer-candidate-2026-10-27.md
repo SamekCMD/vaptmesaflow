@@ -37,6 +37,8 @@ O candidato não substitui nem sobrescreve a release congelada que já foi publi
 
 ## O que continua faltando
 
+Continuação27/10: [primitivas da publicação pareada preparadas e testadas](infra-migration-catalog-writer-publication-preparation-2026-10-27.md), sem rede ou ativação. O upload distingue91 arquivos de build de90 assets públicos; `_headers` vai na configuração e `candidate-proof.json` não é publicado. O controlador fixo e seu preflight remoto ainda precisam ser preparados.
+
 Não publicar o candidato isoladamente contra APIwriterfalse. A passagem exige operador pareado próprio, preflight dos recursos/privacidade/grants, proteção da admissão durante a troca e readback, sem reaplicar SQL, remover namespace ou voltar a código owner-only. O tratamento de recibos precisa estar pronto enquanto houver writer/ações aceitas; rollback do reader não pode desligá-lo.
 
 Os canários24/10 continuam evidência encerrada de publicação8MiB e leitura estruturada, não devem ser repetidos ou renomeados como uma nova autorização. Falta evidência runtime dos writers/clientes ativos, recuperação/bootstrap dos alvos reais quando existirem e ativação controlada. Não criar restaurante apenas para forçar um bootstrap vazio. Nenhum teste remoto novo de imagem, receipt, CPU ou navegador foi executado por este build local.
