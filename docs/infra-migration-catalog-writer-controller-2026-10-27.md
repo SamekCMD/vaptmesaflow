@@ -1,5 +1,7 @@
 # Controlador da janela writer-only — 27/10/2026
 
+Atualização posterior: a [janela autorizada foi concluída](infra-migration-catalog-writer-published-2026-10-27.md). O marcador está consumido e o writer está ligado com reader desligado. Os parágrafos de preparação/inspect abaixo são histórico; não executar novamente este controlador.
+
 O controlador fixo foi composto e executado **somente em modo `inspect`**. O preflight real passou com zero escritas remotas/SQL de escrita. Nenhum catálogo foi ativado e nenhuma publicação foi tentada.
 
 ## Limites do controlador
