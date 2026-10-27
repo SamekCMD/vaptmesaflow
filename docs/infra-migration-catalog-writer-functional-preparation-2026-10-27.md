@@ -52,6 +52,16 @@ Verificação final desta continuação:479/479 testes dos operadores,704/704 da
 
 O usuário aprovou a credencial temporária restrita a objetos de `vapt-catalog-production`,30min e revogação ao encerrar. **Ainda não criada**: só será emitida quando a janela estiver pronta. Dois GETs de metadados/permissões retornaram403 para a autenticação Wrangler atual; isso não autoriza ampliar seus privilégios ou reutilizar secrets dos Workers. A criação/transferência segura ainda precisa ser integrada, sem imprimir ou persistir o valor.
 
+## Continuação: orquestração de ciclo único
+
+API `scripts/catalog-writer-gate.mjs` agora liga o probe HTTP real ao ciclo de um owner: preflight, storage pronto, desafio humano antes do seed, journal antes das mutações, seed/login únicos, probe, logout401, nova checagem, aposentadoria restrita, limpeza estrita e revogação da credencial. Exige pelo menos10min restantes da credencial antes do seed. Não tem CLI, fetch padrão, descoberta de secrets ou provisão própria; os adapters concretos do controlador fixo ainda são obrigatórios.
+
+Uma resposta perdida, seed/limpeza incertos ou trabalho pendente não causam retry ou descarte automático da fixture. Cancelamento durante seed é tratado como incerto, inclusive quando o resultado chega depois do cancelamento; senhas tardias são descartadas. Cookie conhecido recebe uma tentativa de logout, com orçamento de limpeza separado do cancelamento do teste. Falha no journal ou credenciais malformadas não impedem a tentativa única de revogação. Revogação não confirmada impede declarar sucesso mesmo que os dados já tenham sido limpos.
+
+15 testes locais: os12 iniciais falharam por export ausente; o primeiro GREEN expôs revogação indevidamente dependente do journal, corrigida sem enfraquecer a parada das mutações. Testes adicionais reproduziram cancelamento durante seed e credenciais malformadas. O caso nominal usa o probe HTTP real (15 requests) e quatro requests de autenticação, com fronteiras de banco/storage/HTTP simuladas. Portanto **não prova login, CRUD, revogação ou limpeza remotos**. Suíte final dos operadores494/494 e da API704/704, zero falhas/skips; PostgreSQL16/16 é a evidência anterior, não repetida nesta rodada sem mudança SQL. Logs `catalog-writer-gate-{red,abort-red,malformed-red,green,all-scripts,api-unit}.log` no workspace próprio.
+
+O Brave foi localizado, mas o vínculo CDP com a aba Cloudflare falhou em `Emulation.setFocusEmulationEnabled`, inclusive após reiniciar a sessão e selecionar o ID atualizado. Nenhum input no painel, token criado, bridge aberto ou preflight remoto foi executado nesta rodada. Foi solicitado ao usuário deixar a aba Cloudflare em primeiro plano, sem alterar proteções. Não continuar repetindo a mesma tentativa de conexão sem nova evidência.
+
 ## Ainda não executar o CRUD remotamente
 
 Faltam o controlador one-shot atual, emissão/revogação segura da credencial aprovada, integração do login humano/Turnstile e a execução dessas provas no alvo sintético. As peças de sessão/aposentadoria estão testadas localmente, não executadas em produção. Não reaproveitar journals consumidos nem a limpeza preview do canário8MiB, que pressupõe fechamento global do writer.
