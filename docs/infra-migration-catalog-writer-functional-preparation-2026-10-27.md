@@ -1,6 +1,6 @@
 # Prova funcional do writer — preparação em 27/10/2026
 
-O [writer-only publicado](infra-migration-catalog-writer-published-2026-10-27.md) permanece o estado operacional de referência. Nesta continuação não houve chamada aos provedores, seed remoto, publicação ou mudança de flags. Foram preparados o probe HTTP e uma fixture menor para o futuro teste sintético.
+O [writer-only publicado](infra-migration-catalog-writer-published-2026-10-27.md) permanece o estado operacional de referência. A preparação inicial foi inteiramente local; a continuação abaixo acrescentou apenas um diagnóstico delimitado sobre um marcador sintético já aposentado no preview e GETs de capacidade da autenticação. Não houve seed remoto, publicação, mudança de flags ou escrita em produção.
 
 ## Probe HTTP delimitado
 
@@ -28,8 +28,32 @@ O restaurante começa finalizado apenas para isolar este primeiro probe de CRUD.
 
 Logs no workspace próprio `D:/Projetos/vaptmesaflow/.superpowers/sdd/infra-migration-public-catalog-event-driven-plan`: `catalog-writer-probe-red.log`, `catalog-writer-probe-green.log`, `catalog-single-owner-fixture-red.log`, `catalog-writer-preparation-focused-green.log`, `catalog-writer-local-pg-mode-red.log`, `catalog-writer-local-pg.log`, `catalog-writer-api-all-scripts.log`, `catalog-writer-api-unit-tests.log`.
 
-## Ainda não executar remotamente
+## Continuação: login único e aposentadoria delimitada
 
-Faltam o controlador one-shot atual, prova de fechamento das sessões do alvo sintético, aposentadoria R2/journal/revisões segura e a integração com login humano/Turnstile. O bridge antigo é de cinco logins e não será mostrado como se fosse um teste de um único owner. Não reaproveitar o journal consumido nem a limpeza preview do canário8MiB, que pressupõe fechamento global do writer.
+`createProductionCatalogChallenge` reutiliza o bridge loopback, com factory fixa de um proprietário e texto de um login. O fluxo anterior continua fixo em cinco contas. Mantidos Host/Origin/nonce, início humano explícito, limites de corpo, rejeição de desafio dummy, cancelamento e encerramento do listener. Três testes RED → GREEN; sete no conjunto. Nenhum bridge humano está ativo.
+
+`scripts/catalog-writer-retirement.mjs` exige probe concluído sem incerteza, seis recibos terminais (cinco versões públicas crescentes e patch privado sem versão), logout401 e zero sessões SQL. Sob locks, confere exatamente uma identidade, organização, membership owner e restaurante sintético, sem efeitos inesperados; confere os cinco journals e a revisão final. Valida todos os objetos conhecidos antes da primeira escrita. Não lista buckets nem apaga objetos ou identidades.
+
+Slug vira tombstone e snapshots viram pequenos fences por gravação condicional com ETag. O manifesto válido e pequeno é preservado: trabalhos tardios de prune ainda conseguem lê-lo e concluir, sem transformar limpeza em alarmes falhando. Depois de readback de todos os fences e manifesto inalterado, remove apenas os journals/revisão conhecidos, com predicados completos e readback SQL independente. Só então a limpeza estrita da fixture poderá remover as identidades. PUT, conflito, readback ou COMMIT incertos interrompem sem retry ou limpeza de identidades. Pequenos fences e metadados DO podem permanecer; isso não é promessa de apagar todos os recursos de teste.
+
+Doze testes novos de aposentadoria falharam por módulo ausente e depois passaram em PostgreSQL descartável real. Com os quatro anteriores,16/16: preservação de dados alheios, sessões/membership/journal inesperados, versões acima de Number.MAX_SAFE_INTEGER, objetos divergentes, CAS e COMMIT perdido. Somente logout HTTP e R2 são fronteiras simuladas; não é prova de execução no Worker/Neon/R2 de produção.
+
+## Transporte R2: diagnóstico real e alternativa S3
+
+A [documentação S3](https://developers.cloudflare.com/r2/api/s3/extensions/) garante avaliação atômica de `If-Match`; o [upload REST](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/objects/methods/upload/) usado pelo Wrangler não documenta esse header. Não se presumiu equivalência.
+
+O controlador fixo `production-catalog-conditional-put-capability-v1.mjs` foi executado uma vez: dois GETs do perímetro privado e GET do snapshot sintético preview já aposentado `8572dc6c-84b2-4b12-8099-934204cc21eb/snapshots/1.json`; um PUT dos **mesmos bytes** com ETag impossível; GET final. Resultado: HTTP200, corpo e ETag preservados, portanto **proteção condicional não comprovada nessa API**. Nenhum objeto novo ou produção foi escrito, mas houve um PUT aceito no marcador preview; não afirmar zero operações remotas ou ausência de atualização de metadados. Não repetir o marcador consumido.
+
+Recibo `production-catalog-conditional-put-capability-v1-result.json`, início22:12:22.065Z, SHA256 `61031938676d492858d5e67ad49f985b267717b3dad9fcc7350d97253822f707`. `supported:false` é o resultado esperado da descoberta, não permissão para enfraquecer CAS. O helper tem quatro testes RED → GREEN, incluindo PUT aceito explicitamente tratado como não suportado e resposta perdida sem retry.
+
+`scripts/catalog-writer-s3-store.mjs` usa o SDK S3 já instalado, endpoint/bucket production fixos, credenciais explícitas com expiração de no máximo30min e sete chaves derivadas do único alvo/cinco versões. Sem fallback de ambiente, list/delete, escrita de manifesto ou payload arbitrário. Só grava pequenos fences, com `If-Match`, no máximo32 requests, timeout15s, corpo limitado e `maxAttempts:1`. Dez testes RED → GREEN com assinatura/deserialização reais e fronteira HTTP simulada: ETag,412,500 sem retry, limite de stream, expiração, chaves/corpos rejeitados e close. A revisão detectou que rejeitar Content-Length/ETag antes da leitura deixava o body aberto; dois testes reproduziram a falha e a correção destrói o stream recebido. Não é prova do S3 remoto.
+
+Verificação final desta continuação:479/479 testes dos operadores,704/704 da API,16/16 no PostgreSQL local real; zero falhas/skips. Logs `catalog-retirement-all-scripts-final.log`, `catalog-retirement-api-unit-final.log`, `catalog-writer-retirement-pg.log` e ciclos RED no workspace próprio. Runtime/configs não alterados; servidor local encerrado.
+
+O usuário aprovou a credencial temporária restrita a objetos de `vapt-catalog-production`,30min e revogação ao encerrar. **Ainda não criada**: só será emitida quando a janela estiver pronta. Dois GETs de metadados/permissões retornaram403 para a autenticação Wrangler atual; isso não autoriza ampliar seus privilégios ou reutilizar secrets dos Workers. A criação/transferência segura ainda precisa ser integrada, sem imprimir ou persistir o valor.
+
+## Ainda não executar o CRUD remotamente
+
+Faltam o controlador one-shot atual, emissão/revogação segura da credencial aprovada, integração do login humano/Turnstile e a execução dessas provas no alvo sintético. As peças de sessão/aposentadoria estão testadas localmente, não executadas em produção. Não reaproveitar journals consumidos nem a limpeza preview do canário8MiB, que pressupõe fechamento global do writer.
 
 Depois desta preparação ainda serão necessárias provas de imagens/quota/referências, onboarding, recuperação de trabalho efetivamente pendente e clientes ativos. Não afirmar que os testes HTTP sintéticos provam esses casos, nem ativar o reader/eventos. Total formal7/10, tarefas5/9/10 e Etapa13 abertas; sem main/push/merge ou garantia financeira.
