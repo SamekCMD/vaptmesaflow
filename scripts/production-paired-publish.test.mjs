@@ -86,6 +86,13 @@ test('durable journal refuses a second claim and duplicate phases',async()=>{
   assert.equal(JSON.parse(await readFile(path+'.api_attempt.json','utf8')).phase,'api_attempt');
 });
 
+test('frontend repair journal identifies its own operation without replacing the paired marker',async()=>{
+  const {createPairJournal}=await load();
+  const folder=await mkdtemp(join(tmpdir(),'vapt-front-journal-')),path=join(folder,'front.json');
+  assert.equal(await createPairJournal(path,'production-frontend-cache-fix-v1').claim(),true);
+  assert.equal(JSON.parse(await readFile(path,'utf8')).operation,'production-frontend-cache-fix-v1');
+});
+
 function fixture(failAt) {
   const events=[];
   return {events,ports:{journal:{claim:async()=>{events.push('claim');return true;},record:async phase=>events.push(phase)},
@@ -127,4 +134,30 @@ test('unexpected arguments fail without invoking any ports',async()=>{
   const {runPairedPublication}=await load(),{ports,events}=fixture();
   for(const args of [[],['publish','again'],['resume'],['inspect']])assert.equal((await runPairedPublication(args,ports)).status,1);
   assert.deepEqual(events,[]);
+});
+
+test('frontend-only correction never invokes API or billing publication and requires a new exclusive journal',async()=>{
+  const {runFrontendCorrection}=await load();assert.equal(typeof runFrontendCorrection,'function');
+  const events=[];
+  const result=await runFrontendCorrection(['publish'],{preflight:async()=>events.push('preflight'),
+    journal:{claim:async()=>{events.push('claim');return true;},record:async phase=>events.push(phase)},
+    publish:async()=>events.push('frontend-only-put'),verify:async()=>events.push('readback')});
+  assert.equal(result.status,0);
+  assert.deepEqual(events,['preflight','claim','frontend_attempt','frontend-only-put','readback','frontend_confirmed']);
+  assert.equal(result.report.apiChanged,false);assert.equal(result.report.billingChanged,false);
+});
+test('frontend-only correction stops after uncertain PUT without a second attempt or a success marker',async()=>{
+  const {runFrontendCorrection}=await load();assert.equal(typeof runFrontendCorrection,'function');
+  const events=[];
+  const result=await runFrontendCorrection(['publish'],{preflight:async()=>{},journal:{claim:async()=>true,record:async phase=>events.push(phase)},
+    publish:async()=>{events.push('put');throw Error('private');},verify:async()=>events.push('verify')});
+  assert.equal(result.status,1);assert.equal(result.report.uncertain,true);
+  assert.deepEqual(events,['frontend_attempt','put']);assert(!JSON.stringify(result).includes('private'));
+});
+test('frontend-only correction refuses consumed journal and unintended command without writing',async()=>{
+  const {runFrontendCorrection}=await load();assert.equal(typeof runFrontendCorrection,'function');
+  let writes=0;const ports={preflight:async()=>{},journal:{claim:async()=>false,record:async()=>writes++},publish:async()=>writes++,verify:async()=>{}};
+  assert.equal((await runFrontendCorrection(['publish'],ports)).status,1);
+  assert.equal((await runFrontendCorrection(['publish','again'],ports)).status,1);
+  assert.equal(writes,0);
 });

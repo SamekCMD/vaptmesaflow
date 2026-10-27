@@ -66,7 +66,8 @@ export function assetManifest(files) {
   return result;
 }
 
-export function createPairJournal(path) {
+export function createPairJournal(path,operation='production-paired-publication-v1') {
+  assert(['production-paired-publication-v1','production-frontend-cache-fix-v1'].includes(operation));
   let claimed=false;
   async function save(file,value) {
     const handle=await open(file,'wx',0o600);
@@ -74,7 +75,7 @@ export function createPairJournal(path) {
   }
   return {
     async claim() {
-      try{await save(path,{version:1,operation:'production-paired-publication-v1',at:new Date().toISOString(),automaticRetry:false});claimed=true;return true;}
+      try{await save(path,{version:1,operation,at:new Date().toISOString(),automaticRetry:false});claimed=true;return true;}
       catch(error){if(error.code==='EEXIST')return false;throw error;}
     },
     async record(phase) {
@@ -103,4 +104,19 @@ export async function runPairedPublication(args,ports={}) {
     }
     report.ok=true;report.uncertain=false;return {status:0,report};
   }catch{return {status:1,report:{...report,stoppedAt:stage,code:report.attempted.length?'partial_or_uncertain':'preflight_failed'}};}
+}
+
+// Separate human-authorized repair; never resumes or replays the paired operator.
+export async function runFrontendCorrection(args,ports={}) {
+  const report={ok:false,attempted:false,uncertain:false,apiChanged:false,billingChanged:false};
+  if(!Array.isArray(args)||args.length!==1||args[0]!=='publish')return {status:1,report:{...report,code:'invalid_arguments'}};
+  try {
+    assert(['preflight','publish','verify'].every(key=>typeof ports[key]==='function'));
+    assert(typeof ports.journal?.claim==='function'&&typeof ports.journal?.record==='function');
+    await ports.preflight();
+    if(!await ports.journal.claim())return {status:1,report:{...report,code:'already_started'}};
+    await ports.journal.record('frontend_attempt');report.attempted=true;report.uncertain=true;
+    await ports.publish();await ports.verify();await ports.journal.record('frontend_confirmed');
+    report.ok=true;report.uncertain=false;return {status:0,report};
+  }catch{return {status:1,report:{...report,code:report.attempted?'partial_or_uncertain':'preflight_failed'}};}
 }
