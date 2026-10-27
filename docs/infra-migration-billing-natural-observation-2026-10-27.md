@@ -19,6 +19,7 @@ O observador `billing-natural-cron-readonly.mjs` valida o journal consumido, scr
 |19:02:02|Janela19:00–19:02:02 aceita; nenhum evento retornado |
 |19:05:25|Janela19:00–19:05:25 aceita, nenhum evento retornado |
 |19:31:41|Nova continuação, leitura única após intervalo; janela19:00–19:31:41 aceita, nenhum evento retornado |
+|19:57:55|Uma leitura durante a revisão do controlador; janela19:00–19:57:55 aceita, nenhum evento retornado |
 
 As leituras não mostraram erro do job, mas **também não comprovaram execução**. Ausência de registro não foi tratada como CPUzero, sucesso nem falha do billing. Não se altera fila/cron ou dispara um job artificial para forçar a confirmação.
 
@@ -34,5 +35,6 @@ No workspace próprio `D:/Projetos/vaptmesaflow/.superpowers/sdd/infra-migration
 - Recibo posterior `billing-natural-cron-2026-10-27T19-02-02.896Z.json`, SHA256`ec3df02432bfc5d1816d62a1e7365ac74fc2bf0fdb6172bca0b88e4f5bd449cf`.
 - Recibo19:05 `billing-natural-cron-2026-10-27T19-05-25.797Z.json`, SHA256`e84cd0ed51427501883cf9f7092c5573441a12d98f85152bb07cf9666a45e4a6`.
 - Nova leitura única `billing-natural-cron-2026-10-27T19-31-41.225Z.json`, SHA256`07b2324dc89da497f6467adac11063acb8464cf90d744ffb5a4e246309c999df`. Controles conferidos antes/depois, zero escritas; execução e entrega permanecem não comprovadas.
+- Leitura posterior `billing-natural-cron-2026-10-27T19-57-55.770Z.json`, SHA256`df261fb60539f79998ad16f2e1b6934031d98b8d4d54d77b864356597cd2a6ce`, com os mesmos limites e estado pendente. Nenhum job artificial ou mudança de configuração foi usado para produzir um resultado.
 
 A observação é somente-leitura e pode ser retomada depois; **não** repetir o controlador de retomada de billing, que já foi consumido. Não foi criada automação ou monitor recorrente. O catálogo continua desligado; o candidato frontend preparado no intervalo está documentado separadamente e não foi publicado. Etapa13 e os gates de catálogo/estabilidade/integração continuam abertos.

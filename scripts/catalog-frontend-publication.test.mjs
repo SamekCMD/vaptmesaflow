@@ -1,5 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {mkdtemp} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {runCatalogWriterPublication,createCatalogWriterJournal} from './catalog-writer-publication.mjs';
 async function feature(){const m=await import('./catalog-frontend-publication.mjs').catch(()=>({}));assert.equal(typeof m.publishCatalogFrontend,'function','catalog frontend uploader missing');return m;}
 function files(){return [{path:'_headers',bytes:Buffer.from('/assets/*\n  Cache-Control: public, max-age=31556952, immutable\n')},{path:'index.html',bytes:Buffer.from('<html>candidate</html>')},{path:'assets/app.js',bytes:Buffer.from('export default 1')}];}
 function fixture(buckets,failAt){
@@ -61,4 +65,25 @@ test('source buffers cannot change bytes after an upload session is requested',a
   const {publishCatalogFrontend:publish}=await feature(),input=files(),f=fixture(m=>[[m['/index.html'].hash]]),session=f.ports.createSession;
   f.ports.createSession=async m=>{const result=await session(m);input[1].bytes.fill(0);return result;};
   await publish(input,f.ports);assert.equal(f.calls.find(c=>typeof c==='object').files[0].value,'<html>candidate</html>');
+});
+const singleAssetToken=()=>Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url')+'.'+Buffer.from(JSON.stringify({wrangler_single_asset_uploads:true,exp:4102444800})).toString('base64url')+'.synthetic-signature-not-a-credential';
+test('single-asset JWT sessions with missing files are rejected before any bulk upload or frontend PUT',async()=>{
+  const {publishCatalogFrontend:publish}=await feature(),f=fixture(m=>[[m['/index.html'].hash]]),create=f.ports.createSession;
+  f.ports.createSession=async manifest=>({...await create(manifest),jwt:singleAssetToken()});
+  await assert.rejects(publish(files(),f.ports),e=>e.message==='Catalog frontend publication stopped');assert.deepEqual(f.calls,['session']);assert.equal(f.published.length,0);
+});
+test('single-asset session with no missing files needs no unsupported upload protocol',async()=>{
+  const {publishCatalogFrontend:publish}=await feature(),f=fixture(()=>[]),create=f.ports.createSession;
+  f.ports.createSession=async manifest=>({...await create(manifest),jwt:singleAssetToken()});
+  assert.equal((await publish(files(),f.ports)).uploadedAssets,0);assert.deepEqual(f.calls,['session','publish']);
+});
+test('unsupported upload session stops the real publication protocol in maintenance and cannot replay into writer',async()=>{
+  const {publishCatalogFrontend:publish}=await feature(),f=fixture(m=>[[m['/index.html'].hash]]),create=f.ports.createSession,attempted=[];
+  f.ports.createSession=async manifest=>({...await create(manifest),jwt:singleAssetToken()});
+  const dir=await mkdtemp(join(tmpdir(),'vapt-catalog-unsupported-upload-')),path=join(dir,'start.json');
+  const ports={journal:createCatalogWriterJournal(path),preflight:async()=>{},databasePreflight:async()=>{},recheckOpen:async()=>{},recheckPair:async()=>{},
+    publish:async phase=>{attempted.push(phase);if(phase==='frontend')await publish(files(),f.ports);},verify:async()=>{}};
+  const result=await runCatalogWriterPublication(['publish'],ports);assert.equal(result.status,1);assert.equal(result.report.writerActivated,false);assert.equal(result.report.uncertain,true);
+  assert.deepEqual(result.report.confirmed,['maintenance']);assert.deepEqual(attempted,['maintenance','frontend']);assert.deepEqual(f.calls,['session']);
+  ports.journal=createCatalogWriterJournal(path);assert.equal((await runCatalogWriterPublication(['publish'],ports)).report.code,'already_started');assert.deepEqual(attempted,['maintenance','frontend']);
 });

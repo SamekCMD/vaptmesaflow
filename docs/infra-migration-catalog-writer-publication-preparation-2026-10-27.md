@@ -45,6 +45,8 @@ No workspace próprio `D:/Projetos/vaptmesaflow/.superpowers/sdd/infra-migration
 
 ## Próxima fronteira
 
+Continuação27/10: o [controlador fixo foi composto e passou no inspect real](infra-migration-catalog-writer-controller-2026-10-27.md), com zero escritas. A revisão da janela e sua autorização continuam separadas; a descrição abaixo registra o limite da preparação inicial.
+
 Falta compor e revisar o controlador fixo de transporte/readbacks, com os pins atuais e o billing **ativo**, e executar um novo preflight somente-leitura. Esta biblioteca não deve ser ligada diretamente a um fetch genérico: ela não substitui autorização da janela, verificação de fonte/configuração/privacidade ou os limites de escrita do controlador.
 
 Só depois considerar a passagem autorizada e a prova dos writers/clientes/imagens ativos. Não reaplicar 009–012, repetir o smoke de cinco usuários, refazer backups, recriar recursos ou executar os journals consumidos. Reader e bootstrap permanecem gates separados; rollback do reader não pode remover o tratamento dos recibos nem suspender operações aceitas.

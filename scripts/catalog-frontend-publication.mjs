@@ -5,6 +5,9 @@ import {extname} from 'node:path';
 import {assetManifest,frontendMetadata,moduleForm} from './production-paired-publish.mjs';
 const mime={html:'text/html',js:'application/javascript',css:'text/css',svg:'image/svg+xml',png:'image/png',webp:'image/webp',jpg:'image/jpeg',jpeg:'image/jpeg',ico:'image/x-icon',json:'application/json',txt:'text/plain'};
 const token=value=>typeof value==='string'&&value.length>10&&value.length<=8192&&!/[\r\n]/.test(value);
+// Capability discrimination only, not authentication; Cloudflare validates the
+// original token. This bounded operator implements bulk uploads, not raw /hash.
+const singleAssetSession=value=>{try{return JSON.parse(Buffer.from(value.split('.')[1]??'','base64url').toString('utf8')).wrangler_single_asset_uploads===true;}catch{return false;}};
 
 export async function publishCatalogFrontend(input,ports={}){
   try{
@@ -31,6 +34,7 @@ export async function publishCatalogFrontend(input,ports={}){
     }
     const session=await ports.createSession(manifest);
     assert(token(session?.jwt)&&Array.isArray(session.buckets)&&session.buckets.length<=byHash.size);
+    assert(session.buckets.length===0||!singleAssetSession(session.jwt));
     const requested=new Set();
     for(const bucket of session.buckets){
       assert(Array.isArray(bucket)&&bucket.length>0&&bucket.length<=byHash.size);
