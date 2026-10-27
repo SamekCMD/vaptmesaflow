@@ -1,5 +1,7 @@
 # Retomada do billing production — preparação em 27/10/2026
 
+Atualização posterior: [retomada autorizada e confirmada](infra-migration-production-billing-resumed-2026-10-27.md). O registro de preparação abaixo descreve o estado anterior à liberação; não indica uma pausa atual.
+
 Após o smoke positivo de67verificações de sessão/unidades, a preparação da retomada do billing passou. **A fila continua pausada e o agendamento continua vazio. Nenhuma reativação foi executada.**
 
 ## Conferência real somente-leitura
