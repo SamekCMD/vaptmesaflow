@@ -81,3 +81,13 @@ Nesta preparação passaram501/501 testes dos operadores API e704/704 da aplica�
 Faltam o controlador one-shot atual, emissão/revogação segura da credencial aprovada, integração do login humano/Turnstile e a execução dessas provas no alvo sintético. As peças de sessão/aposentadoria estão testadas localmente, não executadas em produção. Não reaproveitar journals consumidos nem a limpeza preview do canário8MiB, que pressupõe fechamento global do writer.
 
 Depois desta preparação ainda serão necessárias provas de imagens/quota/referências, onboarding, recuperação de trabalho efetivamente pendente e clientes ativos. Não afirmar que os testes HTTP sintéticos provam esses casos, nem ativar o reader/eventos. Total formal7/10, tarefas5/9/10 e Etapa13 abertas; sem main/push/merge ou garantia financeira.
+
+## Reconciliação da entrada expirada — 27/10 à noite
+
+A primeira página local encerrou após20min sem receber chaves. Recibo `production-catalog-writer-functional-v1-2026-10-27T23-01-34.904Z.json`: falha em `credential_input_ready`, sem gate, seed, login ou acesso ao banco. O campo antigo `credentialIssued:false` significa aqui **não recebida pelo controlador**, não ausência de criação no painel. A chave tinha sido criada na Cloudflare e foi posteriormente revogada por UI; a linha exata desapareceu e as duas chaves de imagens permaneceram. Não houve prova S3 de revogação porque o controlador nunca recebeu seus valores.
+
+Após o usuário pedir para refazer, o modo fixo de recuperação passou a exigir o recibo e marker anteriores por hash, ausência de qualquer fase de seed e evidência da revogação UI. Só então admite um novo journal exclusivo `functional-v2`; não sobrescreve/reexecuta o anterior. Novo teste local RED→GREEN, controlador3/3 em modos sem listener/rede. Nenhuma mudança API/runtime/SQL motivou repetição das suítes anteriores.
+
+O usuário confirmou disponibilidade antes da substituição. A nova chave, com o mesmo nome/escopo/24h, foi criada uma vez e entregue com sucesso à memória do controlador; começou a janela local20min+reserva10min. Início/Turnstile e resultado remoto pertencem ao novo recibo, não aos testes locais; o estado final deve ser registrado ao encerrar a janela.
+
+**Resultado posterior:** o [probe real em produção passou42 verificações](infra-migration-catalog-writer-functional-2026-10-27.md), com logout, aposentadoria CAS/readback e limpeza da fixture confirmados. A chave foi excluída no painel; o contrato estrito de bloqueio S3 imediato não fechou, mantendo o recibo globalfalse. Não repetir o teste nem alterar o recibo para ocultar essa pendência. Ambos os markers estão consumidos; próximos gates são independentes.
