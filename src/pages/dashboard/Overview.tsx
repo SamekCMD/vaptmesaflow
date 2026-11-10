@@ -1,8 +1,14 @@
-﻿import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+﻿import {withRestaurantScope,useTenantContinuation} from "@/features/restaurants/RestaurantScopeBoundary";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import {useCurrentRestaurant} from "@/features/restaurants/current-restaurant";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/lib/supabase";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import type {
+  OverviewOrderDto,
+  OverviewPeriod,
+  OverviewRestaurantDto,
+} from "@/lib/business-api.types";
+import { fetchOwnedOverview } from "@/lib/overview";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,25 +38,18 @@ import {
 } from "recharts";
 import { toast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
+import {useActivationProgress} from "@/features/onboarding/use-activation-progress";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
-import {
-  fetchOrderFeedbackRecords,
-  type StoredOrderFeedbackRecord,
-} from "@/lib/order-feedback";
+import type { StoredOrderFeedbackRecord } from "@/lib/order-feedback";
 import {
   EMPTY_GUIDE_PROGRESS,
   GUIDE_MODULES,
-  completeGuideModule,
   getGuideModuleHref,
   getNextGuideModule,
   getRemainingGuideModules,
   GUIDE_MODULE_CONTENT,
-  loadGuideProgress,
-  saveGuideProgress,
   type OnboardingGuideProgress,
 } from "@/lib/onboarding";
-
-type Period = "day" | "week" | "month" | "year";
 
 type OrderStatusSummary = {
   tone: "default" | "secondary" | "destructive" | "info";
@@ -60,66 +59,23 @@ type OrderStatusSummary = {
   ctaHref: string;
 };
 
-type OverviewProps = {
-  guideProgress?: OnboardingGuideProgress;
-};
-
 type SatisfactionSummary = {
   count: number;
   averageRating: number;
   promoterShare: number;
 };
 
-type RestaurantOverviewRecord = {
-  id: string;
-  name: string;
-  payment_mode: string | null;
-  onboarding_completed: boolean;
-  delivery_enabled: boolean;
-};
-
-const periodLabels: Record<Period, string> = {
+const periodLabels: Record<OverviewPeriod, string> = {
   day: "Hoje",
   week: "Semana",
   month: "Mês",
-  year: "Ano",
 };
 
-const periodSummaryTitles: Record<Period, string> = {
+const periodSummaryTitles: Record<OverviewPeriod, string> = {
   day: "Resumo de hoje",
   week: "Resumo da semana",
   month: "Resumo do mês",
-  year: "Resumo do ano",
 };
-
-function getStartDate(period: Period): Date {
-  const now = new Date();
-
-  switch (period) {
-    case "day":
-      return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    case "week": {
-      const d = new Date(now);
-      d.setDate(d.getDate() - d.getDay());
-      d.setHours(0, 0, 0, 0);
-      return d;
-    }
-    case "month":
-      return new Date(now.getFullYear(), now.getMonth(), 1);
-    case "year":
-      return new Date(now.getFullYear(), 0, 1);
-  }
-}
-
-interface OrderWithItems {
-  id: string;
-  display_id: number;
-  total_price: number;
-  status: string;
-  created_at: string;
-  updated_at: string | null;
-  order_items: { product_name: string; quantity: number; unit_price: number }[];
-}
 
 const GUIDE_MODULE_LABELS: Record<keyof OnboardingGuideProgress, string> = {
   cashier: "Caixa",
@@ -141,9 +97,10 @@ export function getGuideChecklistState(guideProgress: OnboardingGuideProgress) {
 
 type OverviewGuideChecklistProps = {
   guideProgress: OnboardingGuideProgress;
+  restaurantId?:string;
 };
 
-export function OverviewGuideChecklist({ guideProgress }: OverviewGuideChecklistProps) {
+export function OverviewGuideChecklist({ guideProgress,restaurantId }: OverviewGuideChecklistProps) {
   const { remainingGuideModules, showGuideChecklist } = useMemo(
     () => getGuideChecklistState(guideProgress),
     [guideProgress]
@@ -185,7 +142,7 @@ export function OverviewGuideChecklist({ guideProgress }: OverviewGuideChecklist
                 <span className="text-xs text-muted-foreground">Concluído</span>
               ) : (
                 <Button asChild variant="ghost" size="sm" className="h-9 px-3 text-xs">
-                  <Link to={getGuideModuleHref(module)}>Abrir</Link>
+                  <Link to={getGuideModuleHref(module,restaurantId)}>Abrir</Link>
                 </Button>
               )}
             </div>
@@ -210,8 +167,8 @@ export function getOverviewSatisfactionSummary({
 }): SatisfactionSummary | null {
   // Sem volume mínimo, a média engana mais do que ajuda a operação.
   const relevantRecords = feedbackRecords.filter((record) => {
-    if (record.restaurant_id !== restaurantId) return false;
-    const createdAt = new Date(record.created_at);
+    if (record.restaurantId !== restaurantId) return false;
+    const createdAt = new Date(record.createdAt);
     return !Number.isNaN(createdAt.getTime()) && createdAt >= periodStart;
   });
 
@@ -229,21 +186,23 @@ export function getOverviewSatisfactionSummary({
   };
 }
 
-const Overview = ({ guideProgress }: OverviewProps) => {
+const Overview = () => {
   const { user } = useAuth();
-  const location = useLocation();
+  const userId=user?.id;
+  const capture=useTenantContinuation();
+  const {scope}=useCurrentRestaurant();
+  const restaurantId=scope?.restaurantId;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { refetch: refetchSub } = useSubscription();
-  const [restaurant, setRestaurant] = useState<RestaurantOverviewRecord | null>(null);
+  const [restaurant, setRestaurant] = useState<OverviewRestaurantDto | null>(null);
   const [loading, setLoading] = useState(true);
-  const [orders, setOrders] = useState<OrderWithItems[]>([]);
-  const [period, setPeriod] = useState<Period>("week");
-  const [storedGuideProgress, setStoredGuideProgress] = useState<OnboardingGuideProgress>(() =>
-    loadGuideProgress()
-  );
+  const [orders, setOrders] = useState<OverviewOrderDto[]>([]);
+  const [period, setPeriod] = useState<OverviewPeriod>("week");
+  const [periodStart, setPeriodStart] = useState<Date | null>(null);
+  const activation=useActivationProgress(restaurantId??null);
   const [feedbackRecords, setFeedbackRecords] = useState<StoredOrderFeedbackRecord[]>([]);
-  const effectiveGuideProgress = guideProgress ?? storedGuideProgress ?? EMPTY_GUIDE_PROGRESS;
+  const effectiveGuideProgress = activation.data ?? EMPTY_GUIDE_PROGRESS;
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("overview");
 
@@ -259,68 +218,22 @@ const Overview = ({ guideProgress }: OverviewProps) => {
   }, [searchParams, setSearchParams, refetchSub]);
 
   useEffect(() => {
-    if (guideProgress) {
-      setStoredGuideProgress(guideProgress);
-      saveGuideProgress(guideProgress);
-    }
-  }, [guideProgress]);
-
-  useEffect(() => {
-    const syncGuideProgress = () => {
-      setStoredGuideProgress(loadGuideProgress());
-    };
-
-    syncGuideProgress();
-    window.addEventListener("storage", syncGuideProgress);
-    window.addEventListener("focus", syncGuideProgress);
-    window.addEventListener("onboarding-guide-progress-changed", syncGuideProgress);
-
-    return () => {
-      window.removeEventListener("storage", syncGuideProgress);
-      window.removeEventListener("focus", syncGuideProgress);
-      window.removeEventListener("onboarding-guide-progress-changed", syncGuideProgress);
-    };
-  }, [location.pathname, location.search]);
-
-  const handleGuideComplete = () => {
-    const nextProgress = completeGuideModule("overview", effectiveGuideProgress);
-    setStoredGuideProgress(nextProgress);
-    navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
-  };
-
-  useEffect(() => {
+    const continuation=capture();let active=true;
+    const isCurrent=()=>active&&continuation();
     const fetchData = async () => {
-      if (!user) return;
+      if (!userId || !restaurantId) {setLoading(false);return;}
 
       try {
         setLoading(true);
 
-        const restData = await fetchOwnedRestaurant<RestaurantOverviewRecord & { owner_id: string; updated_at: string }>(
-          user.id,
-          "id, owner_id, updated_at, name, payment_mode, onboarding_completed, delivery_enabled"
-        );
-        setRestaurant(restData as RestaurantOverviewRecord);
-
-        if (restData) {
-          const periodStart = getStartDate(period);
-          // Pedidos e satisfação precisam usar o mesmo recorte para o resumo fazer sentido.
-          const [{ data: ordersData }, feedbackData] = await Promise.all([
-            supabase
-              .from("orders")
-              .select("*, order_items(product_name, quantity, unit_price)")
-              .eq("restaurant_id", restData.id)
-              .gte("created_at", periodStart.toISOString())
-              .order("created_at", { ascending: true }),
-            fetchOrderFeedbackRecords({
-              restaurantId: restData.id,
-              periodStart,
-            }).catch(() => []),
-          ]);
-
-          if (ordersData) setOrders(ordersData as unknown as OrderWithItems[]);
-          setFeedbackRecords(feedbackData);
-        }
+        const snapshot = await fetchOwnedOverview(restaurantId,period);
+        if(!isCurrent())return;
+        setRestaurant(snapshot.restaurant);
+        setOrders(snapshot.orders);
+        setFeedbackRecords(snapshot.feedback);
+        setPeriodStart(new Date(snapshot.periodStart));
       } catch (error: unknown) {
+        if(!isCurrent())return;
         const description = error instanceof Error ? error.message : "Não foi possível carregar os dados.";
         toast({
           title: "Erro ao carregar dados",
@@ -328,12 +241,13 @@ const Overview = ({ guideProgress }: OverviewProps) => {
           variant: "destructive",
         });
       } finally {
-        setLoading(false);
+        if(isCurrent())setLoading(false);
       }
     };
 
     fetchData();
-  }, [user, period]);
+    return()=>{active=false;};
+  }, [userId, restaurantId, period,capture]);
 
   const completedOrders = useMemo(
     () => orders.filter((o) => ["ready", "delivered"].includes(o.status)),
@@ -341,7 +255,7 @@ const Overview = ({ guideProgress }: OverviewProps) => {
   );
 
   const totalRevenue = useMemo(
-    () => completedOrders.reduce((sum, o) => sum + Number(o.total_price), 0),
+    () => completedOrders.reduce((sum, o) => sum + Number(o.totalPrice), 0),
     [completedOrders]
   );
 
@@ -357,8 +271,7 @@ const Overview = ({ guideProgress }: OverviewProps) => {
 
   const avgPrepTime = useMemo(() => {
     const times = completedOrders
-      .filter((o) => o.updated_at)
-      .map((o) => new Date(o.updated_at!).getTime() - new Date(o.created_at).getTime());
+      .map((o) => new Date(o.updatedAt).getTime() - new Date(o.createdAt).getTime());
 
     if (times.length === 0) return null;
 
@@ -370,11 +283,11 @@ const Overview = ({ guideProgress }: OverviewProps) => {
     const map = new Map<string, { qty: number; revenue: number }>();
 
     completedOrders.forEach((order) =>
-      order.order_items.forEach((item) => {
-        const prev = map.get(item.product_name) || { qty: 0, revenue: 0 };
-        map.set(item.product_name, {
+      order.items.forEach((item) => {
+        const prev = map.get(item.productName) || { qty: 0, revenue: 0 };
+        map.set(item.productName, {
           qty: prev.qty + item.quantity,
-          revenue: prev.revenue + item.quantity * Number(item.unit_price),
+          revenue: prev.revenue + item.quantity * Number(item.unitPrice),
         });
       })
     );
@@ -491,15 +404,15 @@ const Overview = ({ guideProgress }: OverviewProps) => {
 
   const satisfactionSummary = useMemo(
     () =>
-      restaurant?.id
+      restaurant?.id && periodStart
         ? getOverviewSatisfactionSummary({
             feedbackRecords,
             restaurantId: restaurant.id,
-            periodStart: getStartDate(period),
+            periodStart,
             minRatings: 5,
           })
         : null,
-    [feedbackRecords, period, restaurant?.id]
+    [feedbackRecords, periodStart, restaurant?.id]
   );
 
   const operationalAlerts = useMemo(() => {
@@ -527,7 +440,7 @@ const Overview = ({ guideProgress }: OverviewProps) => {
       });
     }
 
-    if (!restaurant?.payment_mode) {
+    if (!restaurant?.paymentMode) {
       alerts.push({
         title: "Pagamento ainda não revisado",
         description: "Confira as configurações de pagamento para evitar bloqueios no atendimento.",
@@ -536,13 +449,13 @@ const Overview = ({ guideProgress }: OverviewProps) => {
     }
 
     return alerts.slice(0, 3);
-  }, [completedOrders.length, pendingCount, restaurant?.payment_mode]);
+  }, [completedOrders.length, pendingCount, restaurant?.paymentMode]);
 
   const chartData = useMemo(() => {
     if (period === "day") {
       const hours = Array.from({ length: 24 }, (_, i) => ({ label: `${i}h`, valor: 0 }));
       completedOrders.forEach((o) => {
-        hours[new Date(o.created_at).getHours()].valor += Number(o.total_price);
+        hours[new Date(o.createdAt).getHours()].valor += Number(o.totalPrice);
       });
       return hours;
     }
@@ -551,7 +464,7 @@ const Overview = ({ guideProgress }: OverviewProps) => {
       const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
       const data = days.map((d) => ({ label: d, valor: 0 }));
       completedOrders.forEach((o) => {
-        data[new Date(o.created_at).getDay()].valor += Number(o.total_price);
+        data[new Date(o.createdAt).getDay()].valor += Number(o.totalPrice);
       });
       return data;
     }
@@ -561,18 +474,12 @@ const Overview = ({ guideProgress }: OverviewProps) => {
       const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
       const data = Array.from({ length: daysInMonth }, (_, i) => ({ label: `${i + 1}`, valor: 0 }));
       completedOrders.forEach((o) => {
-        const day = new Date(o.created_at).getDate() - 1;
-        if (data[day]) data[day].valor += Number(o.total_price);
+        const day = new Date(o.createdAt).getDate() - 1;
+        if (data[day]) data[day].valor += Number(o.totalPrice);
       });
       return data;
     }
-
-    const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-    const data = months.map((m) => ({ label: m, valor: 0 }));
-    completedOrders.forEach((o) => {
-      data[new Date(o.created_at).getMonth()].valor += Number(o.total_price);
-    });
-    return data;
+    return [];
   }, [completedOrders, period]);
 
   const { remainingGuideModules, showGuideChecklist } = useMemo(
@@ -580,7 +487,7 @@ const Overview = ({ guideProgress }: OverviewProps) => {
     [effectiveGuideProgress]
   );
 
-  const shouldShowGuideChecklist = showGuideChecklist && !restaurant?.onboarding_completed;
+  const shouldShowGuideChecklist = !!activation.data && showGuideChecklist;
 
   if (loading) return <OverviewSkeleton />;
 
@@ -604,8 +511,8 @@ const Overview = ({ guideProgress }: OverviewProps) => {
           module="overview"
           title={GUIDE_MODULE_CONTENT.overview.title}
           description={GUIDE_MODULE_CONTENT.overview.description}
-          nextHref={guideNextModule ? getGuideModuleHref(guideNextModule) : null}
-          onComplete={handleGuideComplete}
+          nextHref={guideNextModule ? getGuideModuleHref(guideNextModule,restaurantId) : null}
+          restaurantId={restaurantId!}
         />
       )}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -626,7 +533,7 @@ const Overview = ({ guideProgress }: OverviewProps) => {
           role="group"
           aria-label="Filtrar período do dashboard"
         >
-          {(Object.keys(periodLabels) as Period[]).map((option) => (
+          {(Object.keys(periodLabels) as OverviewPeriod[]).map((option) => (
             <button
               key={option}
               type="button"
@@ -695,7 +602,7 @@ const Overview = ({ guideProgress }: OverviewProps) => {
                       <ArrowRight className="h-4 w-4" />
                     </Link>
                   </Button>
-                  {!restaurant.delivery_enabled && (
+                  {!restaurant.deliveryEnabled && (
                     <Button asChild variant="outline" className="h-11 justify-between px-4">
                       <Link to="/dashboard/settings?section=channels">
                         Ajustar delivery
@@ -741,7 +648,7 @@ const Overview = ({ guideProgress }: OverviewProps) => {
           </Card>
         )}
 
-        {shouldShowGuideChecklist && <OverviewGuideChecklist guideProgress={effectiveGuideProgress} />}
+        {shouldShowGuideChecklist && <OverviewGuideChecklist guideProgress={effectiveGuideProgress} restaurantId={restaurantId} />}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -913,4 +820,5 @@ const Overview = ({ guideProgress }: OverviewProps) => {
   );
 };
 
-export default Overview;
+const ScopedOverview=withRestaurantScope(Overview,"restaurant.read");
+export default function OverviewRoute(){return <ScopedOverview/>;}

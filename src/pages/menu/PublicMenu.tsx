@@ -7,7 +7,6 @@ import {
   hexToHsl,
   type RestaurantConfig,
   type PublicMenuItem,
-  type MenuItemVariation,
 } from "@/lib/restaurant-config";
 import { ShoppingBag, ClipboardList, Clock, QrCode, UtensilsCrossed, Plus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
@@ -17,62 +16,41 @@ import ProductDrawer from "@/components/menu/ProductDrawer";
 import OrderSummaryDrawer from "@/components/menu/OrderSummaryDrawer";
 import MyOrdersDrawer from "@/components/menu/MyOrdersDrawer";
 import FloatingActions from "@/components/menu/FloatingActions";
-import { supabase } from "@/lib/supabase";
+import type { PublicCatalogDto } from "@/lib/business-api.types";
+import { vaptApiRequest } from "@/lib/vapt-api-client";
 import { orderClient, readStoredOrderAccess, saveStoredOrderAccess, type StoredOrderAccess } from "@/lib/order-client";
+import { ENV } from "@/lib/env";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
+import { useLocation, useNavigate } from "react-router-dom";
+import { usePublicCatalog } from "@/hooks/use-public-catalog";
+import { catalogCartReviewMessage, staleCatalogCartItems } from "@/lib/catalog/cart-review";
+import { useCatalogAvailabilityClock } from "@/hooks/use-catalog-availability-clock";
+import { isCatalogWithinHours } from "@/lib/catalog/availability";
 
-type RestaurantPublicRow = {
-  id: string;
-  name: string;
-  slug: string;
-  logo_url: string | null;
-  primary_color: string | null;
-  secondary_color: string | null;
-  font_family: RestaurantConfig["fontFamily"] | null;
-  payment_mode: "open_tab" | "prepaid" | null;
-  max_pending_orders: number | null;
-  local_enabled: boolean;
-  delivery_enabled: boolean;
-};
+function normalizeFontFamily(value: string): RestaurantConfig["fontFamily"] {
+  return value === "classic" || value === "rounded" ? value : "modern";
+}
 
-type MenuItemRow = {
-  id: string;
-  name: string;
-  description: string | null;
-  price: number | string;
-  category: string | null;
-  image_url: string | null;
-  available: boolean;
-  available_from: string | null;
-  available_until: string | null;
-  badge: string | null;
-  is_chef_suggestion: boolean | null;
-  prep_time_minutes: number | null;
-};
-
-type MenuVariationRow = {
-  id: string;
-  menu_item_id: string;
-  name: string;
-  options: unknown;
-  required: boolean;
-};
+function mapCatalogItems(items: PublicCatalogDto["items"]): PublicMenuItem[] {
+  return items.map((item) => ({
+    id: item.id,
+    name: item.name,
+    description: item.description || "",
+    price: Number(item.price),
+    category: item.category || "Geral",
+    imageUrl: item.imageUrl || undefined,
+    available: item.available,
+    availableFrom: item.availableFrom,
+    availableUntil: item.availableUntil,
+    badge: item.badge,
+    isChefSuggestion: item.isChefSuggestion,
+    prepTimeMinutes: item.prepTimeMinutes,
+    variations: item.variations,
+  }));
+}
 
 function isWithinTimeRange(from: string | null | undefined, until: string | null | undefined): boolean {
-  if (!from && !until) return true;
-  const now = new Date();
-  const mins = now.getHours() * 60 + now.getMinutes();
-  const parse = (t: string) => {
-    const [h, m] = t.split(":").map(Number);
-    return h * 60 + (m || 0);
-  };
-  if (from && until) {
-    const f = parse(from);
-    const u = parse(until);
-    return f <= u ? mins >= f && mins <= u : mins >= f || mins <= u;
-  }
-  if (from) return mins >= parse(from);
-  if (until) return mins <= parse(until);
-  return true;
+  return isCatalogWithinHours(from, until);
 }
 
 function formatTimeRange(from: string | null | undefined, until: string | null | undefined): string {
@@ -85,31 +63,52 @@ function formatTimeRange(from: string | null | undefined, until: string | null |
 
 const PublicMenu = () => {
   const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate(); const location = useLocation();
+  const published = usePublicCatalog(slug ?? "");
+  const navigation = useRef({ slug, canonicalSlug: slug, epoch: 0 });
+  if (navigation.current.slug !== slug) {
+    if (navigation.current.canonicalSlug !== slug) navigation.current.epoch++;
+    navigation.current.slug = slug;
+  }
+  if (published.state) navigation.current.canonicalSlug = published.state.catalog.restaurant.slug;
+  const navigationCurrent = !ENV.publicCatalogEventsEnabled || navigation.current.canonicalSlug === slug;
   const [searchParams] = useSearchParams();
   const tableNumber = searchParams.get("table") || searchParams.get("mesa") || "";
 
   const [restaurant, setRestaurant] = useState<RestaurantConfig | null>(null);
   const [items, setItems] = useState<PublicMenuItem[]>([]);
+  useCatalogAvailabilityClock(items, ENV.publicCatalogEventsEnabled);
   const [paymentMode, setPaymentMode] = useState<"open_tab" | "prepaid">("open_tab");
   const [maxPendingOrders, setMaxPendingOrders] = useState(3);
   const [activeCategory, setActiveCategory] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<PublicMenuItem | null>(null);
+  const selectedItemRef = useRef(selectedItem); selectedItemRef.current = selectedItem;
   const [productDrawerOpen, setProductDrawerOpen] = useState(false);
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
   const [myOrdersOpen, setMyOrdersOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"menu" | "orders">("menu");
   const [hasReadyOrder, setHasReadyOrder] = useState(false);
   const [tableSessionId, setTableSessionId] = useState<string | null>(null);
+  const [tableSessionOrderAccess, setTableSessionOrderAccess] = useState<StoredOrderAccess | null>(null);
   const [hasPlacedOrder, setHasPlacedOrder] = useState(false);
-  const [restaurantIdState, setRestaurantIdState] = useState<string | null>(null);
 
   const cart = useCart();
+  const cartItemsRef = useRef(cart.items); cartItemsRef.current = cart.items;
+  const clearCart = cart.clearCart;
+  const catalogTenant = useRef<string | null>(null);
   const prevItemsRef = useRef<Map<string | number, boolean>>(new Map());
+  const itemNamesRef = useRef<Map<string | number, string>>(new Map());
   const readyNotifiedRef = useRef<Set<string>>(new Set());
+  const readyPrimedRef = useRef(false);
+  const currentRestaurantRef = useRef(restaurant?.id);
+  currentRestaurantRef.current = navigationCurrent ? restaurant?.id : undefined;
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   useEffect(() => {
+    if (ENV.publicCatalogEventsEnabled) return;
     const fetchData = async () => {
       if (!slug) {
         setError("URL inválida");
@@ -118,103 +117,68 @@ const PublicMenu = () => {
       }
 
       try {
-        const { data: restData, error: restError } = await supabase
-          .rpc("get_public_restaurant_by_slug", { p_slug: slug })
-          .maybeSingle();
+        const catalog = await vaptApiRequest<PublicCatalogDto>({
+          method: "GET",
+          route: `/public/restaurants/${encodeURIComponent(slug)}/catalog`,
+          requireAuth: false,
+        });
 
-        if (restError || !restData || !restData.local_enabled) {
+        if (!catalog.restaurant.localEnabled) {
           setError("Restaurante não encontrado");
           setLoading(false);
           return;
         }
 
-        const restaurantRow = restData as RestaurantPublicRow;
+        const restaurantRow = catalog.restaurant;
         const config: RestaurantConfig = {
           id: restaurantRow.id,
           name: restaurantRow.name,
           slug: restaurantRow.slug,
-          logoUrl: restaurantRow.logo_url || "",
-          primaryColor: restaurantRow.primary_color || "#0ea573",
-          secondaryColor: restaurantRow.secondary_color || "#1e293b",
-          fontFamily: restaurantRow.font_family || "modern",
+          logoUrl: restaurantRow.logoUrl || "",
+          primaryColor: restaurantRow.primaryColor || "#0ea573",
+          secondaryColor: restaurantRow.secondaryColor || "#1e293b",
+          fontFamily: normalizeFontFamily(restaurantRow.fontFamily),
           activeModules: { menu: true, kds: true, metrics: true },
         };
 
         setRestaurant(config);
-        setRestaurantIdState(restaurantRow.id);
-        setPaymentMode(restaurantRow.payment_mode || "open_tab");
-        setMaxPendingOrders(restaurantRow.max_pending_orders || 3);
+        setPaymentMode(restaurantRow.paymentMode || "open_tab");
+        setMaxPendingOrders(restaurantRow.maxPendingOrders || 3);
 
-        const mode = restaurantRow.payment_mode || "open_tab";
+        const mode = restaurantRow.paymentMode || "open_tab";
         if (mode === "open_tab" && tableNumber) {
           const storedSessionId = localStorage.getItem(`table_session_${restaurantRow.id}_${tableNumber}`);
           if (storedSessionId) {
-            const { data: existingSession } = await supabase
-              .from("table_sessions")
-              .select("id, status")
-              .eq("id", storedSessionId)
-              .in("status", ["open", "check_requested"])
-              .single();
-            if (existingSession) {
-              setTableSessionId(existingSession.id);
-              setHasPlacedOrder(true);
-            } else {
-              localStorage.removeItem(`table_session_${restaurantRow.id}_${tableNumber}`);
-            }
+            setTableSessionId(storedSessionId);
+            setHasPlacedOrder(true);
+            const storedAccesses = readStoredOrderAccess(restaurantRow.id);
+            const linkedAccesses = await Promise.all(
+              storedAccesses.map(async (access) => {
+                const order = await orderClient.get(access.orderId, access.publicToken).catch(() => null);
+                return order?.tableSessionId === storedSessionId ? access : null;
+              }),
+            );
+            setTableSessionOrderAccess(
+              linkedAccesses.find((access): access is StoredOrderAccess => access !== null) ?? null,
+            );
+          } else {
+            setTableSessionId(null);
+            setTableSessionOrderAccess(null);
+            setHasPlacedOrder(false);
           }
-
-          if (!storedSessionId) {
-            const { data: dbSession } = await supabase
-              .from("table_sessions")
-              .select("id")
-              .eq("restaurant_id", restaurantRow.id)
-              .eq("table_number", tableNumber)
-              .in("status", ["open", "check_requested"])
-              .single();
-            if (dbSession) {
-              setTableSessionId(dbSession.id);
-              setHasPlacedOrder(true);
-              localStorage.setItem(`table_session_${restaurantRow.id}_${tableNumber}`, dbSession.id);
-            }
-          }
+        } else {
+          setTableSessionId(null);
+          setTableSessionOrderAccess(null);
+          setHasPlacedOrder(false);
         }
 
-        const { data: menuData } = await supabase.from("menu_items").select("*").eq("restaurant_id", restaurantRow.id);
-        const menuItems: PublicMenuItem[] = ((menuData || []) as MenuItemRow[]).map((m) => ({
-          id: m.id,
-          name: m.name,
-          description: m.description || "",
-          price: Number(m.price),
-          category: m.category || "Geral",
-          imageUrl: m.image_url || undefined,
-          available: m.available,
-          availableFrom: m.available_from || null,
-          availableUntil: m.available_until || null,
-          badge: m.badge || null,
-          isChefSuggestion: m.is_chef_suggestion || false,
-          prepTimeMinutes: m.prep_time_minutes || null,
-        }));
-
-        const itemIds = menuItems.map((item) => String(item.id));
-        if (itemIds.length > 0) {
-          const { data: varData } = await supabase.from("menu_item_variations").select("*").in("menu_item_id", itemIds);
-          if (varData) {
-            const varMap: Record<string, MenuItemVariation[]> = {};
-            for (const v of varData as MenuVariationRow[]) {
-              if (!varMap[v.menu_item_id]) varMap[v.menu_item_id] = [];
-              varMap[v.menu_item_id].push({
-                id: v.id,
-                name: v.name,
-                options: Array.isArray(v.options) ? v.options : [],
-                required: v.required,
-              });
-            }
-            for (const item of menuItems) item.variations = varMap[item.id] || [];
-          }
-        }
+        const menuItems = mapCatalogItems(catalog.items);
 
         const map = new Map<string | number, boolean>();
-        menuItems.forEach((item) => map.set(item.id, item.available));
+        menuItems.forEach((item) => {
+          map.set(item.id, item.available);
+          itemNamesRef.current.set(item.id, item.name);
+        });
         prevItemsRef.current = map;
         setItems(menuItems);
       } catch {
@@ -228,58 +192,35 @@ const PublicMenu = () => {
   }, [slug, tableNumber]);
 
   useEffect(() => {
-    if (!restaurantIdState) return;
+    if (!slug || ENV.publicCatalogEventsEnabled) return;
     const interval = setInterval(async () => {
-      const { data: menuData } = await supabase.from("menu_items").select("*").eq("restaurant_id", restaurantIdState);
-      if (!menuData) return;
+      const catalog = await vaptApiRequest<PublicCatalogDto>({
+        method: "GET",
+        route: `/public/restaurants/${encodeURIComponent(slug)}/catalog`,
+        requireAuth: false,
+      }).catch(() => null);
+      if (!catalog?.restaurant.localEnabled) return;
 
-      const newItems: PublicMenuItem[] = (menuData as MenuItemRow[]).map((m) => ({
-        id: m.id,
-        name: m.name,
-        description: m.description || "",
-        price: Number(m.price),
-        category: m.category || "Geral",
-        imageUrl: m.image_url || undefined,
-        available: m.available,
-        availableFrom: m.available_from || null,
-        availableUntil: m.available_until || null,
-        badge: m.badge || null,
-        isChefSuggestion: m.is_chef_suggestion || false,
-        prepTimeMinutes: m.prep_time_minutes || null,
-      }));
-
-      const itemIds = newItems.map((item) => String(item.id));
-      if (itemIds.length > 0) {
-        const { data: varData } = await supabase.from("menu_item_variations").select("*").in("menu_item_id", itemIds);
-        if (varData) {
-          const varMap: Record<string, MenuItemVariation[]> = {};
-          for (const v of varData as MenuVariationRow[]) {
-            if (!varMap[v.menu_item_id]) varMap[v.menu_item_id] = [];
-            varMap[v.menu_item_id].push({
-              id: v.id,
-              name: v.name,
-              options: Array.isArray(v.options) ? v.options : [],
-              required: v.required,
-            });
-          }
-          for (const item of newItems) item.variations = varMap[item.id] || [];
-        }
-      }
+      const newItems = mapCatalogItems(catalog.items);
 
       const prev = prevItemsRef.current;
+      const currentIds = new Set(newItems.map((item) => item.id));
+      for (const [itemId, wasAvailable] of prev) {
+        if (!wasAvailable || currentIds.has(itemId)) continue;
+        const name = itemNamesRef.current.get(itemId) || "Um item";
+        const inCart = cart.items.some((ci) => ci.item.id === itemId);
+        toast({
+          title: inCart ? "Item indisponível no pedido" : `"${name}" ficou indisponível`,
+          description: inCart
+            ? `"${name}" saiu do cardápio agora. Remova antes de confirmar.`
+            : "Este item não está disponível no momento.",
+          variant: inCart ? "destructive" : undefined,
+        });
+      }
       for (const item of newItems) {
         const wasAvailable = prev.get(item.id);
         if (wasAvailable === undefined) continue;
-        if (wasAvailable && !item.available) {
-          const inCart = cart.items.some((ci) => ci.item.id === item.id);
-          toast({
-            title: inCart ? "Item indisponível no pedido" : `"${item.name}" ficou indisponível`,
-            description: inCart
-              ? `"${item.name}" saiu do cardápio agora. Remova antes de confirmar.`
-              : "Este item não está disponível no momento.",
-            variant: inCart ? "destructive" : undefined,
-          });
-        } else if (!wasAvailable && item.available) {
+        if (!wasAvailable && item.available) {
           toast({
             title: `"${item.name}" voltou ao cardápio`,
             description: "Você já pode adicionar esse item ao pedido.",
@@ -287,14 +228,77 @@ const PublicMenu = () => {
         }
       }
 
-      const newMap = new Map<string | number, boolean>();
-      newItems.forEach((item) => newMap.set(item.id, item.available));
+      const newMap = new Map<string | number, boolean>(prev);
+      for (const itemId of newMap.keys()) newMap.set(itemId, false);
+      newItems.forEach((item) => {
+        newMap.set(item.id, item.available);
+        itemNamesRef.current.set(item.id, item.name);
+      });
       prevItemsRef.current = newMap;
       setItems(newItems);
     }, 8000);
 
     return () => clearInterval(interval);
-  }, [restaurantIdState, cart.items]);
+  }, [slug, cart.items]);
+
+  useEffect(() => {
+    if (!ENV.publicCatalogEventsEnabled) return;
+    const catalog = published.state?.catalog;
+    if (!catalog) {
+      if (!navigationCurrent) setRestaurant(null);
+      setLoading(!currentRestaurantRef.current && published.status === "loading");
+      if (!currentRestaurantRef.current && published.status === "unavailable") setError("Erro ao carregar o cardápio");
+      return;
+    }
+    const row = catalog.restaurant; const sameTenant = catalogTenant.current === row.id;
+    if (catalogTenant.current && !sameTenant) {
+      clearCart(); setSelectedItem(null); setProductDrawerOpen(false); setOrderDrawerOpen(false); setMyOrdersOpen(false);
+      setTableSessionId(null); setTableSessionOrderAccess(null); setHasPlacedOrder(false); setHasReadyOrder(false);
+      readyNotifiedRef.current.clear(); readyPrimedRef.current = false; setActiveCategory("");
+      prevItemsRef.current.clear(); itemNamesRef.current.clear();
+    }
+    catalogTenant.current = row.id;
+    const next = mapCatalogItems(catalog.items);
+    if (selectedItemRef.current) {
+      const fresh = next.find(item => item.id === selectedItemRef.current?.id);
+      setSelectedItem(fresh?.available ? fresh : null);
+      if (!fresh?.available) setProductDrawerOpen(false);
+    }
+    if (sameTenant) {
+      const ids = new Set(next.filter(item => item.available).map(item => item.id));
+      for (const [id, wasAvailable] of prevItemsRef.current) if (wasAvailable && !ids.has(id)) {
+        const inCart = cartItemsRef.current.some(value => value.item.id === id);
+        toast({ title: inCart ? "Item indisponível no pedido" : `"${itemNamesRef.current.get(id) || "Um item"}" ficou indisponível`,
+          description: inCart ? "O item saiu do cardápio. Revise o pedido antes de confirmar." : "Este item não está disponível no momento.", variant: inCart ? "destructive" : undefined });
+      }
+    }
+    prevItemsRef.current = new Map(next.map(item => [item.id, item.available]));
+    itemNamesRef.current = new Map(next.map(item => [item.id, item.name]));
+    setRestaurant({ id: row.id, name: row.name, slug: row.slug, logoUrl: row.logoUrl || "", primaryColor: row.primaryColor || "#0ea573",
+      secondaryColor: row.secondaryColor || "#1e293b", fontFamily: normalizeFontFamily(row.fontFamily), activeModules: { menu: true, kds: true, metrics: true } });
+    setPaymentMode(row.paymentMode); setMaxPendingOrders(row.maxPendingOrders); setItems(next); setError(null); setLoading(false);
+    setActiveCategory(current => next.some(item => item.available && item.category === current) ? current : next.find(item => item.available)?.category ?? "");
+    if (row.slug !== slug) navigate(`/menu/${encodeURIComponent(row.slug)}${location.search}`, { replace: true });
+  }, [published.state, published.status, slug, location.search, navigate, clearCart, navigationCurrent]);
+
+  useEffect(() => {
+    if (!ENV.publicCatalogEventsEnabled || !restaurant?.id) return;
+    let cancelled = false;
+    const restore = async () => {
+      const stored = paymentMode === "open_tab" && tableNumber ? localStorage.getItem(`table_session_${restaurant.id}_${tableNumber}`) : null;
+      setTableSessionId(stored); setTableSessionOrderAccess(null); setHasPlacedOrder(!!stored);
+      if (!stored) return;
+      const accesses = await Promise.all(readStoredOrderAccess(restaurant.id).map(async access => {
+        const order = await orderClient.get(access.orderId, access.publicToken).catch(() => null);
+        return order?.tableSessionId === stored ? access : null;
+      }));
+      if (!cancelled) setTableSessionOrderAccess(accesses.find((value): value is StoredOrderAccess => value !== null) ?? null);
+    };
+    void restore(); return () => { cancelled = true; };
+  }, [restaurant?.id, paymentMode, tableNumber]);
+
+  const orderingEnabled = !ENV.publicCatalogEventsEnabled || (!!published.state && published.state.catalog.restaurant.id === restaurant?.id && published.state.catalog.restaurant.localEnabled);
+  const cartNeedsReview = ENV.publicCatalogEventsEnabled && staleCatalogCartItems(cart.items, items).length > 0;
 
   const categories = useMemo(() => Array.from(new Set(items.filter((i) => i.available).map((i) => i.category))), [items]);
   const availableItems = useMemo(() => items.filter((i) => i.available), [items]);
@@ -316,29 +320,31 @@ const PublicMenu = () => {
   }, [restaurant]);
 
   useEffect(() => {
-    if (!restaurant) return;
-    let cancelled = false;
-    let primed = false;
     readyNotifiedRef.current.clear();
-
-    const getSessionOrderIds = (): string[] => {
-      try { return JSON.parse(sessionStorage.getItem("vapt_current_order_ids") || "[]"); } catch { return []; }
-    };
-
-    const checkReadyOrders = async () => {
-      const currentSessionIds = new Set(getSessionOrderIds());
-      const accesses = readStoredOrderAccess(restaurant.id)
-        .filter((access) => currentSessionIds.has(access.orderId));
+    readyPrimedRef.current = false;
+    setHasReadyOrder(false);
+  }, [restaurant?.id]);
+  const currentRestaurantId = restaurant?.id;
+  const getCurrentOrderAccesses = useCallback(() => {
+    if (!currentRestaurantId) return [];
+    try {
+      const currentSessionIds = new Set<string>(JSON.parse(sessionStorage.getItem("vapt_current_order_ids") || "[]"));
+      return readStoredOrderAccess(currentRestaurantId).slice(0, 24).filter(access => currentSessionIds.has(access.orderId));
+    } catch { return []; }
+  }, [currentRestaurantId]);
+  const checkReadyOrders = useCallback(async () => {
+      if (!currentRestaurantId) return;
+      const isCurrent = () => mountedRef.current && currentRestaurantRef.current === currentRestaurantId;
+      const accesses = getCurrentOrderAccesses();
       if (accesses.length === 0) {
-        if (!cancelled) setHasReadyOrder(false);
-        primed = true;
+        if (isCurrent()) { setHasReadyOrder(false); readyPrimedRef.current = true; }
         return;
       }
 
       const results = await Promise.allSettled(
         accesses.map((access) => orderClient.get(access.orderId, access.publicToken)),
       );
-      if (cancelled) return;
+      if (!isCurrent()) return;
 
       const readyOrders = results
         .filter((result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof orderClient.get>>> => result.status === "fulfilled")
@@ -347,23 +353,18 @@ const PublicMenu = () => {
 
       setHasReadyOrder(readyOrders.length > 0);
       readyOrders.forEach((order) => {
-        if (primed && !readyNotifiedRef.current.has(order.orderId)) {
+        if (readyPrimedRef.current && !readyNotifiedRef.current.has(order.orderId)) {
           setHasReadyOrder(true);
           toast({ title: "Pedido pronto", description: `Seu pedido #${order.displayId} está pronto para retirada.` });
         }
         readyNotifiedRef.current.add(order.orderId);
       });
-      primed = true;
-    };
-
-    void checkReadyOrders();
-    const interval = window.setInterval(() => void checkReadyOrders(), 5000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [restaurant]);
+      readyPrimedRef.current = true;
+  }, [currentRestaurantId, getCurrentOrderAccesses]);
+  const currentOrderAccesses = getCurrentOrderAccesses();
+  useRealtimeRefresh({ scopes: currentOrderAccesses.map(access => ({ mode: "order", orderId: access.orderId, token: access.publicToken })), topics: ["orders"],
+    enabled: ENV.realtimeEnabled, active: !!restaurant && currentOrderAccesses.length > 0,
+    refresh: checkReadyOrders, fallbackMs: 5000 });
 
   const handleSessionCreated = useCallback((sessionId: string) => {
     if (!restaurant) return;
@@ -375,6 +376,7 @@ const PublicMenu = () => {
   const handleOrderPlaced = useCallback((access: StoredOrderAccess) => {
     if (!restaurant) return;
     saveStoredOrderAccess(restaurant.id, access);
+    setTableSessionOrderAccess(access);
 
     try {
       const sessionIds = JSON.parse(sessionStorage.getItem("vapt_current_order_ids") || "[]");
@@ -387,6 +389,7 @@ const PublicMenu = () => {
   }, [restaurant]);
 
   const openProduct = (item: PublicMenuItem) => {
+    if (!orderingEnabled) return;
     setSelectedItem(item);
     setProductDrawerOpen(true);
   };
@@ -420,6 +423,11 @@ const PublicMenu = () => {
           <Button variant="outline" className="h-11 min-w-[136px] justify-between rounded-xl border-border bg-card px-4 text-sm" onClick={() => { setActiveTab("orders"); setMyOrdersOpen(true); setHasReadyOrder(false); }}><span className="flex items-center gap-2"><ClipboardList className="h-4 w-4" />Pedidos</span>{hasReadyOrder && <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: primaryColor }} />}</Button>
         </div>
       </header>
+
+      {!orderingEnabled && <p role="status" className="mx-auto max-w-4xl px-4 py-3 text-sm text-muted-foreground">Novos pedidos na mesa estão pausados.</p>}
+      {ENV.publicCatalogEventsEnabled && published.status !== "ready" && <div role="status" className="mx-auto flex max-w-4xl flex-wrap items-center gap-3 px-4 py-3 text-sm text-muted-foreground">
+        <span>Exibindo a última versão recebida. A conexão com o cardápio está sendo restabelecida.</span><Button type="button" variant="outline" onClick={published.refresh}>Atualizar cardápio</Button>
+      </div>}
 
       <main className="mx-auto max-w-4xl px-4 pb-32 pt-6 sm:px-6 lg:pb-24">
         <section className="mb-6">
@@ -471,16 +479,27 @@ const PublicMenu = () => {
 
           <nav aria-label="Categorias do cardápio" className="sticky top-[72px] z-20 -mx-1 overflow-x-auto px-1 pb-4" style={{ scrollbarWidth: "none" }}><div className="flex gap-2">{categories.map((cat) => { const isActive = activeCategory === cat; return <button key={cat} type="button" aria-pressed={isActive} onClick={() => { setActiveCategory(cat); setActiveTab("menu"); }} className="whitespace-nowrap rounded-full border px-4 py-2.5 text-sm font-medium transition-colors" style={{ backgroundColor: isActive ? `${primaryColor}16` : "hsl(var(--card))", borderColor: isActive ? `${primaryColor}55` : "hsl(var(--border))", color: isActive ? primaryColor : "hsl(var(--foreground))" }}>{cat}</button>; })}</div></nav>
 
+          <fieldset disabled={!orderingEnabled} className="min-w-0">
           <div className="space-y-3"><AnimatePresence mode="popLayout">{filteredItems.map((item, index) => { const inTime = isWithinTimeRange(item.availableFrom, item.availableUntil); const isAvailable = item.available && inTime; return <motion.button key={item.id} type="button" layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.16, delay: index * 0.015 }} className="grid w-full gap-4 rounded-[20px] border border-border bg-card p-4 text-left transition-colors md:grid-cols-[88px_minmax(0,1fr)_auto]" onClick={() => isAvailable && openProduct(item)} disabled={!isAvailable}><div className="relative h-20 overflow-hidden rounded-xl md:h-full" style={{ backgroundColor: `${secondaryColor}14` }}>{item.imageUrl ? <img src={item.imageUrl} alt={item.name} className={`h-full w-full object-cover ${isAvailable ? "" : "opacity-45"}`} /> : <div className="flex h-full w-full items-center justify-center"><UtensilsCrossed className="h-5 w-5 text-muted-foreground" /></div>}</div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className={`text-base font-semibold ${isAvailable ? "text-foreground" : "text-muted-foreground"}`}>{item.name}</h3>{item.badge && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}>{item.badge}</span>}{!isAvailable && <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground" style={{ backgroundColor: `${secondaryColor}14` }}>{!item.available ? "Indisponível" : formatTimeRange(item.availableFrom, item.availableUntil)}</span>}</div>{item.description && <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{item.description}</p>}<div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">{item.prepTimeMinutes && <span className="inline-flex items-center gap-1.5"><Clock className="h-4 w-4" />{item.prepTimeMinutes} min</span>}<span className="mono text-base font-medium" style={{ color: isAvailable ? primaryColor : "hsl(var(--muted-foreground))" }}>R$ {item.price.toFixed(2).replace(".", ",")}</span></div></div><div className="flex items-center justify-between gap-3 md:flex-col md:items-end md:justify-center"><span className="text-sm text-muted-foreground">{isAvailable ? "Ver detalhes" : "Indisponível"}</span>{isAvailable && <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border" style={{ borderColor: `${primaryColor}33`, color: primaryColor, backgroundColor: `${primaryColor}10` }}><Plus className="h-4 w-4" /></span>}</div></motion.button>; })}</AnimatePresence>
             {filteredItems.length === 0 && <div className="rounded-[24px] border border-dashed border-border bg-card px-6 py-12 text-center"><p className="text-base font-medium text-foreground">Nada disponível nessa categoria agora.</p><p className="mt-2 text-sm text-muted-foreground">Troque de categoria ou fale com a equipe se quiser confirmar a disponibilidade.</p></div>}
           </div>
+          </fieldset>
         </section>
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6"><div className="mx-auto grid max-w-4xl gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"><Button variant="outline" className="h-11 rounded-xl border-border bg-card text-sm font-semibold" onClick={() => { setActiveTab("orders"); setMyOrdersOpen(true); setHasReadyOrder(false); }} aria-current={activeTab === "orders" ? "page" : undefined}><ClipboardList className="mr-2 h-4 w-4" />{hasReadyOrder ? "Pedido pronto" : "Acompanhar pedidos"}</Button><Button className="h-11 rounded-xl text-sm font-semibold" style={{ backgroundColor: primaryColor }} onClick={() => setOrderDrawerOpen(true)} aria-current={activeTab === "menu" ? "page" : undefined}><ShoppingBag className="mr-2 h-4 w-4" />{cart.totalItems > 0 ? `Revisar pedido • ${cart.totalItems} ${cart.totalItems === 1 ? "item" : "itens"}` : "Montar pedido"}</Button></div></div>
 
-      <ProductDrawer item={selectedItem} open={productDrawerOpen} onClose={() => setProductDrawerOpen(false)} onAdd={cart.addItem} primaryColor={restaurant.primaryColor} />
+      <ProductDrawer item={selectedItem} open={productDrawerOpen && orderingEnabled} onClose={() => setProductDrawerOpen(false)} onAdd={(item, quantity, notes) => {
+        const fresh = items.find(value => value.id === item.id);
+        if (!orderingEnabled || !fresh?.available || !isWithinTimeRange(fresh.availableFrom, fresh.availableUntil)) {
+          setProductDrawerOpen(false); setSelectedItem(null); return;
+        }
+        cart.addItem(fresh, quantity, notes);
+      }} primaryColor={restaurant.primaryColor} />
       <OrderSummaryDrawer
+        navigationEpoch={navigation.current.epoch}
+        orderingEnabled={orderingEnabled && !cartNeedsReview}
+        reviewMessage={cartNeedsReview ? catalogCartReviewMessage : undefined}
         open={orderDrawerOpen}
         onClose={() => setOrderDrawerOpen(false)}
         items={cart.items}
@@ -509,7 +528,13 @@ const PublicMenu = () => {
         tableSessionId={tableSessionId}
         paymentMode={paymentMode}
       />
-      {paymentMode === "open_tab" && hasPlacedOrder && tableSessionId && <FloatingActions sessionId={tableSessionId} primaryColor={restaurant.primaryColor} />}
+      {paymentMode === "open_tab" && hasPlacedOrder && tableSessionId && (
+        <FloatingActions
+          sessionId={tableSessionId}
+          orderAccess={tableSessionOrderAccess}
+          primaryColor={restaurant.primaryColor}
+        />
+      )}
     </div>
   );
 };

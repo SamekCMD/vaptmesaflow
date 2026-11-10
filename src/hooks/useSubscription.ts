@@ -1,227 +1,55 @@
-import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import {useCallback,useEffect} from 'react';
+import {useQuery,useQueryClient} from '@tanstack/react-query';
+import {useAuth} from '@/contexts/AuthContext';
+import {useAccountBootstrap} from '@/features/auth/use-account-bootstrap';
+import {privateAccountKey} from '@/features/auth/account-bootstrap-query';
+import {billingClient,type BillingPlanStatus} from '@/lib/billing-client';
 
-const SUBSCRIPTION_UPDATED_EVENT = "vapt:subscription-updated";
-
-export type PlanType = "starter" | "pro" | "business" | "trial";
-export type PlanStatus = "trialing" | "active" | "canceled" | "expired";
-
-const featureAccess: Record<string, string[]> = {
-  cashier: ["pro", "business"],
-  open_tab: ["pro", "business"],
-  metrics: ["pro", "business"],
-  multi_user: ["business"],
-  advanced_reports: ["business"],
-};
-
-export interface SubscriptionData {
-  planType: PlanType;
-  planStatus: PlanStatus;
-  trialEndsAt: Date | null;
-  trialDaysLeft: number;
-  isTrialing: boolean;
-  isActive: boolean;
-  restaurantId: string | null;
-  canAccess: (feature: string) => boolean;
-  loading: boolean;
-  refetch: () => void;
+export type PlanType='starter'|'pro'|'business'|'trial';
+export type PlanStatus=BillingPlanStatus;
+export interface SubscriptionData{
+  planType:PlanType;planStatus:PlanStatus;trialEndsAt:Date|null;trialDaysLeft:number;isTrialing:boolean;isActive:boolean;
+  restaurantId:string|null;organizationId:string|null;currentPeriodEnd:Date|null;cancelAtPeriodEnd:boolean;subscriptionCanceledAt:Date|null;
+  canReadBilling:boolean;canManageBilling:boolean;canStartCheckout:boolean;requiresBillingAction:boolean;billingError:string|null;
+  canAccess:(feature:string)=>boolean;loading:boolean;refetch:()=>Promise<void>;
 }
-
-type RestaurantSubscriptionRow = {
-  id: string;
-  plan_type: Exclude<PlanType, "trial"> | null;
-  plan_status: PlanStatus | null;
-  trial_ends_at: string | null;
-};
-
-const normalizePlanType = (
-  planType: string | null | undefined,
-): Exclude<PlanType, "trial"> | "starter" => {
-  if (typeof planType !== "string") return "starter";
-  const normalized = planType.trim().toLowerCase();
-  return normalized === "starter" || normalized === "pro" || normalized === "business"
-    ? normalized
-    : "starter";
-};
-
-const normalizePlanStatus = (planStatus: string | null | undefined): PlanStatus => {
-  if (typeof planStatus !== "string") return "trialing";
-  const normalized = planStatus.trim().toLowerCase();
-
-  if (
-    normalized === "trialing" ||
-    normalized === "active" ||
-    normalized === "canceled" ||
-    normalized === "expired"
-  ) {
-    return normalized;
-  }
-
-  return "trialing";
-};
-
-type SubscriptionSnapshot = {
-  planType: PlanType;
-  planStatus: PlanStatus;
-  trialEndsAt: Date | null;
-  restaurantId: string | null;
-  loading: boolean;
-};
-
-const DEFAULT_SNAPSHOT: SubscriptionSnapshot = {
-  planType: "trial",
-  planStatus: "trialing",
-  trialEndsAt: null,
-  restaurantId: null,
-  loading: true,
-};
-
-let subscriptionSnapshot: SubscriptionSnapshot = DEFAULT_SNAPSHOT;
-let inFlightFetch: Promise<void> | null = null;
-const listeners = new Set<(snapshot: SubscriptionSnapshot) => void>();
-
-const emitSnapshot = () => {
-  listeners.forEach((listener) => listener(subscriptionSnapshot));
-};
-
-const setSnapshot = (partial: Partial<SubscriptionSnapshot>) => {
-  subscriptionSnapshot = { ...subscriptionSnapshot, ...partial };
-  emitSnapshot();
-};
-
-const resetSnapshot = () => {
-  subscriptionSnapshot = { ...DEFAULT_SNAPSHOT, loading: false };
-  emitSnapshot();
-};
-
-async function loadSubscriptionSnapshot(userId: string): Promise<void> {
-  if (inFlightFetch) {
-    return inFlightFetch;
-  }
-
-  inFlightFetch = (async () => {
-    try {
-      const data = await fetchOwnedRestaurant<RestaurantSubscriptionRow & { owner_id: string }>(
-        userId,
-        "id, owner_id, plan_type, plan_status, trial_ends_at, updated_at",
-      );
-
-      if (import.meta.env.DEV) {
-        console.info("[useSubscription] selected restaurant", {
-          userId,
-          restaurant: data,
-        });
-      }
-
-      if (data) {
-        const row = data as RestaurantSubscriptionRow;
-        const planStatus = normalizePlanStatus(row.plan_status);
-        const planType = normalizePlanType(row.plan_type);
-
-        setSnapshot({
-          restaurantId: row.id,
-          planType: planStatus === "trialing" ? "trial" : planType,
-          planStatus,
-          trialEndsAt: row.trial_ends_at ? new Date(row.trial_ends_at) : null,
-          loading: false,
-        });
-      } else {
-        resetSnapshot();
-      }
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error("[useSubscription] failed to fetch restaurant subscription", error);
-      }
-      resetSnapshot();
-    } finally {
-      inFlightFetch = null;
-    }
-  })();
-
-  return inFlightFetch;
-}
-
-export function useSubscription(): SubscriptionData {
-  const { user } = useAuth();
-  const [snapshot, setLocalSnapshot] = useState<SubscriptionSnapshot>(subscriptionSnapshot);
-
-  const fetchPlan = useCallback(async () => {
-    if (!user) {
-      resetSnapshot();
-      return;
-    }
-    setSnapshot({ loading: true });
-    await loadSubscriptionSnapshot(user.id);
-  }, [user]);
-
-  const refetch = useCallback(async () => {
-    await fetchPlan();
-
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent(SUBSCRIPTION_UPDATED_EVENT));
-    }
-  }, [fetchPlan]);
-
-  useEffect(() => {
-    fetchPlan();
-  }, [fetchPlan]);
-
-  useEffect(() => {
-    const listener = (nextSnapshot: SubscriptionSnapshot) => {
-      setLocalSnapshot(nextSnapshot);
-    };
-
-    listeners.add(listener);
-
-    if (typeof window === "undefined") return;
-
-    const handleSubscriptionUpdated = () => {
-      fetchPlan();
-    };
-
-    window.addEventListener(SUBSCRIPTION_UPDATED_EVENT, handleSubscriptionUpdated);
-
-    return () => {
-      listeners.delete(listener);
-      window.removeEventListener(SUBSCRIPTION_UPDATED_EVENT, handleSubscriptionUpdated);
-    };
-  }, [fetchPlan]);
-
-  const now = new Date();
-  const trialDaysLeft = snapshot.trialEndsAt
-    ? Math.max(0, Math.ceil((snapshot.trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
-    : 0;
-
-  const isTrialing =
-    snapshot.planStatus === "trialing" &&
-    snapshot.trialEndsAt !== null &&
-    snapshot.trialEndsAt > now;
-
-  const isActive = snapshot.planStatus === "active" || isTrialing;
-
-  const canAccess = useCallback(
-    (feature: string): boolean => {
-      if (isTrialing) return true;
-      if (snapshot.planStatus !== "active") return false;
-      const allowed = featureAccess[feature];
-      if (!allowed) return true;
-      const actualPlan = snapshot.planType === "trial" ? "starter" : snapshot.planType;
-      return allowed.includes(actualPlan);
-    },
-    [isTrialing, snapshot.planStatus, snapshot.planType]
-  );
-
-  return {
-    planType: snapshot.planType,
-    planStatus: snapshot.planStatus,
-    trialEndsAt: snapshot.trialEndsAt,
-    trialDaysLeft,
-    isTrialing,
-    isActive,
-    restaurantId: snapshot.restaurantId,
-    canAccess,
-    loading: snapshot.loading,
-    refetch,
-  };
+export function useSubscription():SubscriptionData{
+  const {user}=useAuth(),account=useAccountBootstrap(),client=useQueryClient();
+  const userId=user?.id,organizationId=account.isError?null:account.data?.currentOrganizationId??null;
+  const organization=account.data?.organizations.find(value=>value.id===organizationId);
+  const canReadBilling=!!organization?.capabilities.includes('billing.read');
+  const canWriteBilling=!!organization?.capabilities.includes('billing.manage');
+  const key=[...privateAccountKey(userId??'signed-out'),'subscription',organizationId];
+  const query=useQuery({queryKey:key,queryFn:({signal})=>billingClient.getSubscriptionStatus(organizationId!,signal),
+    enabled:!!userId&&canReadBilling&&!account.isPending&&!account.isError,
+    staleTime:60_000,refetchInterval:false,refetchOnWindowFocus:false,retry:false});
+  const billing=canReadBilling&&!query.isError?query.data:undefined;
+  const refetch=useCallback(async()=>{
+    if(!userId)return;
+    await Promise.all([
+      client.invalidateQueries({queryKey:[...privateAccountKey(userId),'account-bootstrap']},{cancelRefetch:false}),
+      ...(canReadBilling?[client.invalidateQueries({queryKey:[...privateAccountKey(userId),'subscription',organizationId],exact:true},{cancelRefetch:false})]:[]),
+    ]);
+  },[client,userId,canReadBilling,organizationId]);
+  useEffect(()=>{
+    const refresh=()=>{void refetch();};window.addEventListener('vapt:subscription-updated',refresh);
+    return()=>window.removeEventListener('vapt:subscription-updated',refresh);
+  },[refetch]);
+  const trialEndsAt=billing?.trialEndsAt?new Date(billing.trialEndsAt):null;
+  const isTrialing=billing?.planStatus==='trialing'&&!!trialEndsAt&&trialEndsAt.getTime()>Date.now();
+  const isActive=canReadBilling?(billing?.planStatus==='active'||isTrialing):(organization?.operationActive??false);
+  const canAccess=useCallback((feature:string)=>{
+    if(!organization||!organization.operationActive||account.isError||canReadBilling&&(!billing||!isActive))return false;
+    return Object.prototype.hasOwnProperty.call(organization.features,feature)
+      ?organization.features[feature as keyof typeof organization.features]:false;
+  },[organization,account.isError,canReadBilling,billing,isActive]);
+  return {organizationId,restaurantId:account.data?.currentRestaurantId??null,canReadBilling,
+    planType:isTrialing?'trial':billing?.planType??'starter',planStatus:billing?.planStatus??'expired',trialEndsAt,
+    trialDaysLeft:trialEndsAt?Math.max(0,Math.ceil((trialEndsAt.getTime()-Date.now())/86_400_000)):0,isTrialing,isActive,
+    currentPeriodEnd:billing?.currentPeriodEnd?new Date(billing.currentPeriodEnd):null,cancelAtPeriodEnd:billing?.cancelAtPeriodEnd??false,
+    subscriptionCanceledAt:billing?.subscriptionCanceledAt?new Date(billing.subscriptionCanceledAt):null,
+    canManageBilling:canWriteBilling&&(billing?.canManageBilling??false),canStartCheckout:canWriteBilling&&(billing?.canStartCheckout??false),
+    requiresBillingAction:billing?.requiresBillingAction??false,
+    billingError:account.isError||canReadBilling&&query.isError?'Não foi possível carregar sua assinatura. Tente novamente.':null,
+    loading:!!userId&&(account.isPending||canReadBilling&&query.isPending),canAccess,refetch};
 }

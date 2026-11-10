@@ -7,16 +7,18 @@ import {
   DrawerFooter,
   DrawerClose,
 } from "@/components/ui/drawer";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, Trash2, X, CheckCircle2, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/hooks/use-toast";
 import type { CartItem } from "@/hooks/use-cart";
+import type { PublicMenuItem } from "@/lib/restaurant-config";
 import {
   createOrderIdempotencyKey,
   orderClient,
   readStoredOrderAccess,
+  saveStoredOrderAccess,
   type StoredOrderAccess,
 } from "@/lib/order-client";
 import { paymentClient, savePendingCheckout } from "@/lib/payment-client";
@@ -24,12 +26,15 @@ import { parseHostedCheckoutUrl } from "@/lib/hosted-checkout-url";
 import { VaptApiClientError } from "@/lib/vapt-api-client";
 
 interface OrderSummaryDrawerProps {
+  reviewMessage?: string;
+  navigationEpoch?: number;
+  orderingEnabled?: boolean;
   open: boolean;
   onClose: () => void;
   items: CartItem[];
   totalPrice: number;
-  onUpdateQuantity: (id: number, qty: number) => void;
-  onRemove: (id: number) => void;
+  onUpdateQuantity: (id: PublicMenuItem["id"], qty: number) => void;
+  onRemove: (id: PublicMenuItem["id"]) => void;
   onClearCart: () => void;
   primaryColor: string;
   restaurantId?: string;
@@ -43,6 +48,9 @@ interface OrderSummaryDrawerProps {
 }
 
 const OrderSummaryDrawer = ({
+  reviewMessage,
+  navigationEpoch = 0,
+  orderingEnabled = true,
   open,
   onClose,
   items,
@@ -63,6 +71,11 @@ const OrderSummaryDrawer = ({
   const [sent, setSent] = useState(false);
 
   const idempotencyKeyRef = useRef<string | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const orderingRef = useRef({ enabled: orderingEnabled, restaurantId, restaurantSlug, navigationEpoch });
+  orderingRef.current = { enabled: orderingEnabled, restaurantId, restaurantSlug, navigationEpoch };
+  useEffect(() => { setSending(false); setSent(false); idempotencyKeyRef.current = null; }, [restaurantId, navigationEpoch]);
 
   const checkPendingOrdersLimit = async (): Promise<boolean> => {
     if (paymentMode !== "open_tab" || !restaurantId) return true;
@@ -93,13 +106,16 @@ const OrderSummaryDrawer = ({
   };
 
   const handleSendOrder = async () => {
+    const sameTenant = () => mounted.current && orderingRef.current.navigationEpoch === navigationEpoch && orderingRef.current.restaurantId === restaurantId;
+    const sameContext = () => sameTenant() && orderingRef.current.restaurantSlug === restaurantSlug;
+    if (!orderingRef.current.enabled || !sameContext()) return;
     if (!restaurantId || !restaurantSlug) {
       toast({ title: "Erro", description: "Restaurante não identificado.", variant: "destructive" });
       return;
     }
 
     const canProceed = await checkPendingOrdersLimit();
-    if (!canProceed) return;
+    if (!canProceed || !orderingRef.current.enabled || !sameContext()) return;
 
     setSending(true);
 
@@ -121,6 +137,11 @@ const OrderSummaryDrawer = ({
         idempotencyKeyRef.current,
       );
 
+      if (!sameTenant()) {
+        if (order.restaurantId === restaurantId) saveStoredOrderAccess(restaurantId, { orderId: order.orderId, publicToken: order.publicToken });
+        return;
+      }
+
       onOrderPlaced?.({ orderId: order.orderId, publicToken: order.publicToken });
       if (order.tableSessionId) onSessionCreated?.(order.tableSessionId);
 
@@ -130,6 +151,7 @@ const OrderSummaryDrawer = ({
           order.publicToken,
           `checkout-${idempotencyKeyRef.current}`,
         );
+        if (!sameTenant()) return;
         const checkoutUrl = parseHostedCheckoutUrl(checkout.checkoutUrl);
 
         savePendingCheckout({
@@ -153,12 +175,14 @@ const OrderSummaryDrawer = ({
         });
 
         setTimeout(() => {
+          if (!sameTenant()) return;
           setSent(false);
           onClearCart();
           onClose();
         }, 2500);
       }
     } catch (err: unknown) {
+      if (!sameTenant()) return;
       setSending(false);
       const description =
         err instanceof VaptApiClientError
@@ -310,10 +334,11 @@ const OrderSummaryDrawer = ({
                       R$ {totalPrice.toFixed(2).replace(".", ",")}
                     </motion.span>
                   </div>
+                  {reviewMessage && <p role="alert" className="text-sm text-destructive">{reviewMessage}</p>}
                   <Button
                     className="w-full h-12 text-sm font-semibold transition-transform active:scale-[0.98]"
                     style={{ backgroundColor: primaryColor }}
-                    disabled={items.length === 0 || sending}
+                    disabled={items.length === 0 || sending || !orderingEnabled}
                     onClick={handleSendOrder}
                   >
                     {sending ? (

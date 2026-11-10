@@ -1,4 +1,7 @@
-import { Link } from "react-router-dom";
+import {useState} from "react";
+import {useActivationProgress} from "@/features/onboarding/use-activation-progress";
+import {useTenantContinuation} from "@/features/restaurants/RestaurantScopeBoundary";
+import { Link,useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GUIDE_MODULES, type GuideModule } from "@/lib/onboarding";
@@ -8,7 +11,7 @@ type OnboardingGuideCardProps = {
   title: string;
   description: string;
   nextHref?: string | null;
-  onComplete: () => void;
+  restaurantId: string;
 };
 
 export default function OnboardingGuideCard({
@@ -16,8 +19,16 @@ export default function OnboardingGuideCard({
   title,
   description,
   nextHref,
-  onComplete,
+  restaurantId,
 }: OnboardingGuideCardProps) {
+  const navigate=useNavigate(),capture=useTenantContinuation();
+  const activation=useActivationProgress(restaurantId);
+  const [error,setError]=useState<string|null>(null);
+  const complete=async()=>{
+    if(activation.completing)return;const isCurrent=capture();if(!isCurrent())return;setError(null);
+    try{await activation.complete(module);if(isCurrent())navigate(nextHref??'/dashboard?restaurantId='+restaurantId,{replace:true});}
+    catch{if(isCurrent())setError('Não foi possível salvar o progresso. Tente novamente.');}
+  };
   const step = GUIDE_MODULES.indexOf(module) + 1;
 
   return (
@@ -30,11 +41,12 @@ export default function OnboardingGuideCard({
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 sm:flex-row">
-        <Button onClick={onComplete}>
-          {nextHref ? "Concluir e continuar" : "Concluir guia"}
+        {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
+        <Button disabled={activation.completing} onClick={()=>void complete()}>
+          {activation.completing?"Salvando…":nextHref ? "Concluir e continuar" : "Concluir guia"}
         </Button>
         <Button asChild variant="outline">
-          <Link to="/dashboard">Voltar ao overview</Link>
+          <Link to={"/dashboard?restaurantId="+restaurantId}>Voltar ao overview</Link>
         </Button>
       </CardContent>
     </Card>

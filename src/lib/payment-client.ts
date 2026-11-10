@@ -1,3 +1,4 @@
+import {restaurantRoute} from "@/lib/restaurants";
 import { vaptApiRequest } from "@/lib/vapt-api-client";
 import { parseHostedCheckoutUrl } from "@/lib/hosted-checkout-url";
 
@@ -126,12 +127,13 @@ export const paymentClient = {
   },
 
   confirmManual(
+    restaurantId:string,
     orderId: string,
     paymentMethod: ManualPaymentMethod,
     idempotencyKey: string,
   ) {
     return vaptApiRequest<ManualPaymentResponse>({
-      route: `/orders/${encodeURIComponent(orderId)}/payments/manual-confirmation`,
+      route: `${restaurantRoute(restaurantId)}/orders/${encodeURIComponent(orderId)}/payments/manual-confirmation`,
       headers: {
         "Idempotency-Key": idempotencyKey,
       },

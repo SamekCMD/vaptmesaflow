@@ -21,7 +21,7 @@ const getOrderMock = vi.mocked(orderClient.get);
 
 const order = (paymentStatus: string | null) => ({
   orderId: "20000000-0000-4000-8000-000000000001",
-  displayId: 42,
+  displayId: "42",
   restaurantId: "30000000-0000-4000-8000-000000000001",
   tableSessionId: null,
   totalPrice: "51.80",

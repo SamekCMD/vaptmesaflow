@@ -30,6 +30,9 @@ const orders = [
 function renderDialog(onConfirmed = vi.fn()) {
   render(
     <ManualPaymentDialog
+      sessionId="synthetic-session"
+      restaurantId="30000000-0000-4000-8000-000000000001"
+      canOperate
       open
       onOpenChange={vi.fn()}
       orders={orders}
@@ -58,9 +61,10 @@ describe("manual payment dialog", () => {
 
     await waitFor(() => expect(paymentClient.confirmManual).toHaveBeenCalledTimes(2));
     for (const call of vi.mocked(paymentClient.confirmManual).mock.calls) {
-      expect(call).toHaveLength(3);
-      expect(call[1]).toBe("cash");
-      expect(call[2]).toMatch(/^manual-/);
+      expect(call).toHaveLength(4);
+      expect(call[0]).toBe("30000000-0000-4000-8000-000000000001");
+      expect(call[2]).toBe("cash");
+      expect(call[3]).toMatch(/^manual-/);
       expect(call.flat()).not.toContain(23);
       expect(call.flat()).not.toContain(19.5);
     }

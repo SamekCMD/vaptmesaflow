@@ -4,6 +4,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "@/pages/Index";
 
+// Copy tests use an anonymous session boundary. Real Better Auth lifecycle is
+// covered by auth-session tests; its delayed store cleanup otherwise outlives
+// this jsdom environment and can throw after teardown.
+vi.mock("@/lib/auth-client", () => {
+  const success = async () => ({ data: null, error: null });
+  return { authClient: { useSession: () => ({ data: null, error: null, isPending: false, isRefetching: false, refetch: success }),
+    signIn: { email: success }, signUp: { email: success }, signOut: success, requestPasswordReset: success,
+    resetPassword: success, updateUser: success, changePassword: success } };
+});
+
 class MockIntersectionObserver {
   observe() {}
   unobserve() {}

@@ -1,3 +1,4 @@
+import {withRestaurantScope,useTenantContinuation} from "@/features/restaurants/RestaurantScopeBoundary";
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,104 +21,39 @@ import { toast } from "@/hooks/use-toast";
 import { MenuTableSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { supabase } from "@/lib/supabase";
-import { buildSupabaseStoragePublicUrl } from "@/lib/env";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { useCurrentRestaurant } from "@/features/restaurants/current-restaurant";
+import { ENV } from "@/lib/env";
+import { deleteMenuImage, uploadMenuImage, reconcileMenuImages } from "@/lib/menu-image-storage";
+import { catalogWriterEnabled } from "@/lib/catalog/flags";
+import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
+import { CatalogPublicationFeedback } from "@/components/menu/CatalogPublicationStatus";
+import type { MenuItemDto } from "@/lib/business-api.types";
+import {
+  createMenuItem,
+  deleteMenuItem,
+  listOwnedMenuItems,
+  type MenuItemInput,
+  type MenuVariationInput,
+  updateMenuItem,
+} from "@/lib/menu-items";
 import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import {
-  completeGuideModule,
   getGuideModuleHref,
   getNextGuideModule,
   GUIDE_MODULE_CONTENT,
 } from "@/lib/onboarding";
 
-interface Variation {
-  id?: string;
-  name: string;
-  options: string[];
-  required: boolean;
-}
+type MenuItem = MenuItemDto;
+type Variation = MenuVariationInput;
+type MenuBadge = NonNullable<MenuItemInput["badge"]> | "none";
 
-interface MenuItem {
-  id: string;
-  name: string;
-  price: number;
-  category: string;
-  available: boolean;
-  image_url: string | null;
-  available_from: string | null;
-  available_until: string | null;
-  badge: string | null;
-  is_chef_suggestion: boolean;
-  prep_time_minutes: number | null;
-  variations: Variation[];
-}
-
-type MenuItemRow = {
-  id: string;
-  name: string;
-  price: number | string;
-  category: string | null;
-  available: boolean;
-  image_url: string | null;
-  available_from: string | null;
-  available_until: string | null;
-  badge: string | null;
-  is_chef_suggestion: boolean | null;
-  prep_time_minutes: number | null;
-};
-
-type MenuVariationRow = {
-  id: string;
-  menu_item_id: string;
-  name: string;
-  options: unknown;
-  required: boolean;
-};
-
-type MenuItemUpdateData = {
-  name: string;
-  price: number;
-  category: string;
-  available_from: string | null;
-  available_until: string | null;
-  badge: string | null;
-  is_chef_suggestion: boolean;
-  prep_time_minutes: number | null;
-  image_url?: string | null;
-};
-
-// --- Image resize utility ---
-function resizeImage(file: File, maxSize = 1200): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      let { width, height } = img;
-      if (width <= maxSize && height <= maxSize) {
-        resolve(file);
-        return;
-      }
-      const ratio = Math.min(maxSize / width, maxSize / height);
-      width = Math.round(width * ratio);
-      height = Math.round(height * ratio);
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, 0, width, height);
-      canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error("Canvas toBlob failed"))),
-        "image/jpeg",
-        0.85
-      );
-    };
-    img.onerror = reject;
-    img.src = URL.createObjectURL(file);
-  });
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Tente novamente.";
 }
 
 const MenuManagement = () => {
   const { user } = useAuth();
+  const userId=user?.id;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<MenuItem[]>([]);
@@ -126,8 +62,11 @@ const MenuManagement = () => {
   const [editItem, setEditItem] = useState<MenuItem | null>(null);
   const [form, setForm] = useState({ name: "", price: "", category: "" });
   const [loading, setLoading] = useState(true);
+  const [loadError,setLoadError]=useState(false);
   const [saving, setSaving] = useState(false);
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const {scope} = useCurrentRestaurant();
+  const capture=useTenantContinuation();
+  const restaurantId=scope?.restaurantId??null;
 
   // Extended form state
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -136,85 +75,59 @@ const MenuManagement = () => {
   const [availableFrom, setAvailableFrom] = useState("");
   const [availableUntil, setAvailableUntil] = useState("");
   const [timeRestricted, setTimeRestricted] = useState(false);
-  const [badge, setBadge] = useState<string>("none");
+  const [badge, setBadge] = useState<MenuBadge>("none");
   const [isChefSuggestion, setIsChefSuggestion] = useState(false);
   const [variations, setVariations] = useState<Variation[]>([]);
   const [newOptionInputs, setNewOptionInputs] = useState<Record<number, string>>({});
   const [prepTimeMinutes, setPrepTimeMinutes] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadLease = useRef<{ file: File; ownerId: string; restaurantId: string; itemId: string; operationId: string } | null>(null);
+  const cleanupIdentity = useRef({ ownerId: userId, restaurantId });
+  if (cleanupIdentity.current.ownerId !== userId || cleanupIdentity.current.restaurantId !== restaurantId) cleanupIdentity.current = { ownerId: userId, restaurantId };
+  const cleanupMounted = useRef(true);
+  useEffect(() => { cleanupMounted.current = true; return () => { cleanupMounted.current = false; }; }, []);
+  const [cleanupResult, setCleanupResult] = useState<string | null>(null);
+  useEffect(() => { setCleanupResult(null); setSaving(false); }, [userId, restaurantId]);
+  useEffect(() => () => { uploadLease.current = null; }, [userId]);
+  const publication = useCatalogPublication(scope, async isCurrent => {
+    const refreshed = await listOwnedMenuItems(restaurantId!); if (!isCurrent()) return;
+    setItems(refreshed); setDialogOpen(false);
+    if (imageFile) toast({ title: "Item publicado", description: "Abra a edição do item para concluir o envio da imagem." });
+    resetForm();
+  });
 
   useEffect(() => {
+    let active=true;
     const fetchItems = async () => {
-      if (!user) return;
+      if (!userId || !restaurantId) {setItems([]);setLoading(false);return;}
       try {
-        const rest = await fetchOwnedRestaurant<{ id: string; owner_id: string; updated_at: string }>(
-          user.id,
-          "id, owner_id, updated_at"
-        );
-
-        if (!rest) { setLoading(false); return; }
-        setRestaurantId(rest.id);
-
-        const { data: menuData, error } = await supabase
-          .from("menu_items")
-          .select("*")
-          .eq("restaurant_id", rest.id)
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-
-        // Fetch variations for all items
-        const itemIds = ((menuData || []) as MenuItemRow[]).map((m) => m.id);
-        const variationsMap: Record<string, Variation[]> = {};
-        if (itemIds.length > 0) {
-          const { data: varData } = await supabase
-            .from("menu_item_variations")
-            .select("*")
-            .in("menu_item_id", itemIds);
-          if (varData) {
-            for (const v of varData as MenuVariationRow[]) {
-              if (!variationsMap[v.menu_item_id]) variationsMap[v.menu_item_id] = [];
-              variationsMap[v.menu_item_id].push({
-                id: v.id,
-                name: v.name,
-                options: Array.isArray(v.options) ? v.options : [],
-                required: v.required,
-              });
-            }
-          }
-        }
-
-        setItems(
-          ((menuData || []) as MenuItemRow[]).map((m) => ({
-            id: m.id,
-            name: m.name,
-            price: Number(m.price),
-            category: m.category || "Geral",
-            available: m.available,
-            image_url: m.image_url || null,
-            available_from: m.available_from || null,
-            available_until: m.available_until || null,
-            badge: m.badge || null,
-            is_chef_suggestion: m.is_chef_suggestion || false,
-            prep_time_minutes: m.prep_time_minutes || null,
-            variations: variationsMap[m.id] || [],
-          }))
-        );
+        const items = await listOwnedMenuItems(restaurantId);
+        if (active) setItems(items);
       } catch (err: unknown) {
-        toast({ title: "Erro ao carregar cardápio", description: err.message, variant: "destructive" });
+        if(!active)return;setLoadError(true);
+        toast({ title: "Erro ao carregar cardápio", description: errorMessage(err), variant: "destructive" });
       } finally {
-        setLoading(false);
+        if(active)setLoading(false);
       }
     };
     fetchItems();
-  }, [user]);
+    return ()=>{active=false;};
+  }, [userId,restaurantId]);
 
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("menu");
 
-  const handleGuideComplete = () => {
-    completeGuideModule("menu");
-    navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
+  const handleImageCleanup = async () => {
+    if (!userId || !restaurantId || saving || publication.blocked) return;
+    const identity = cleanupIdentity.current;
+    const isCurrent = () => cleanupMounted.current && cleanupIdentity.current === identity;
+    setSaving(true); setCleanupResult(null);
+    try {
+      const result = await reconcileMenuImages(restaurantId); if (!isCurrent()) return;
+      setCleanupResult(`${result.retired} uploads liberados; ${result.protected} ainda usados pelo catálogo. ${result.checked === 10 ? "Há até 10 verificações por clique; repita para verificar outros uploads." : "Verificação concluída."}`);
+    } catch (error: unknown) {
+      if (isCurrent()) toast({ title: "Limpeza não concluída", description: errorMessage(error), variant: "destructive" });
+    } finally { if (isCurrent()) setSaving(false); }
   };
 
   const filtered = items.filter(
@@ -224,6 +137,7 @@ const MenuManagement = () => {
   );
 
   const resetForm = () => {
+    uploadLease.current = null;
     setForm({ name: "", price: "", category: "" });
     setEditItem(null);
     setImageFile(null);
@@ -240,123 +154,71 @@ const MenuManagement = () => {
   };
 
   const handleSave = async () => {
-    if (!form.name || !form.price || !form.category || !restaurantId) return;
+    if (!userId || publication.blocked || saving || !form.name || !form.price || !form.category || !restaurantId) return;
+    const isCurrent=capture();if(!isCurrent())return;
     setSaving(true);
 
     try {
-      const updateData: MenuItemUpdateData = {
+      const input: MenuItemInput = {
         name: form.name,
-        price: parseFloat(form.price),
+        price: form.price,
+        description: editItem?.description ?? null,
         category: form.category,
-        available_from: timeRestricted && availableFrom ? availableFrom : null,
-        available_until: timeRestricted && availableUntil ? availableUntil : null,
+        available: editItem?.available ?? true,
+        imageUrl: removeImage ? null : (editItem?.imageUrl ?? null),
+        availableFrom: timeRestricted && availableFrom ? availableFrom : null,
+        availableUntil: timeRestricted && availableUntil ? availableUntil : null,
         badge: badge === "none" ? null : badge,
-        is_chef_suggestion: isChefSuggestion,
-        prep_time_minutes: prepTimeMinutes ? parseInt(prepTimeMinutes) : null,
+        isChefSuggestion,
+        prepTimeMinutes: prepTimeMinutes ? parseInt(prepTimeMinutes, 10) : null,
+        variations,
       };
+      let savedItem = editItem
+        ? catalogWriterEnabled() ? await updateMenuItem(restaurantId,editItem.id, input, publication) : await updateMenuItem(restaurantId,editItem.id, input)
+        : catalogWriterEnabled() ? await createMenuItem(restaurantId,input, publication) : await createMenuItem(restaurantId,input);
+      if(!isCurrent())return;
 
-      // If chef suggestion is on, unset others first
-      if (isChefSuggestion) {
-        await supabase
-          .from("menu_items")
-          .update({ is_chef_suggestion: false })
-          .eq("restaurant_id", restaurantId)
-          .neq("id", editItem?.id || "");
+      if (!catalogWriterEnabled() && removeImage && editItem?.imageUrl) {
+        try { await deleteMenuImage({ restaurantId, itemId: editItem.id }); }
+        catch (error: unknown) { if(isCurrent())toast({ title: "Item salvo; limpeza da imagem pendente", description: errorMessage(error) }); }
       }
 
-      let itemId: string;
-
-      if (editItem) {
-        // Handle image removal
-        if (removeImage && editItem.image_url) {
-          const path = `${restaurantId}/${editItem.id}`;
-          await supabase.storage.from("menu-images").remove([path]);
-          updateData.image_url = null;
-        }
-
-        const { error } = await supabase
-          .from("menu_items")
-          .update(updateData)
-          .eq("id", editItem.id);
-        if (error) throw error;
-        itemId = editItem.id;
-      } else {
-        const { data, error } = await supabase
-          .from("menu_items")
-          .insert({ restaurant_id: restaurantId, ...updateData, available: true })
-          .select()
-          .single();
-        if (error) throw error;
-        itemId = data.id;
-      }
-
-      // Handle image upload
+      if(!isCurrent())return;
       if (imageFile) {
-        const resized = await resizeImage(imageFile);
-        const path = `${restaurantId}/${itemId}`;
-        const { error: upErr } = await supabase.storage
-          .from("menu-images")
-          .upload(path, resized, { upsert: true, contentType: "image/jpeg" });
-        if (upErr) throw upErr;
-        const publicUrl = buildSupabaseStoragePublicUrl("menu-images", path);
-        await supabase.from("menu_items").update({ image_url: publicUrl }).eq("id", itemId);
-        updateData.image_url = publicUrl;
-      }
-
-      // Handle variations: delete existing and insert new
-      await supabase.from("menu_item_variations").delete().eq("menu_item_id", itemId);
-      if (variations.length > 0) {
-        const validVariations = variations.filter(v => v.name.trim() && v.options.length > 0);
-        if (validVariations.length > 0) {
-          const { error: varErr } = await supabase.from("menu_item_variations").insert(
-            validVariations.map((v) => ({
-              menu_item_id: itemId,
-              name: v.name,
-              options: v.options,
-              required: v.required,
-            }))
-          );
-          if (varErr) throw varErr;
+        // Once creation is confirmed, a failed upload must resume editing this
+        // item, never issue another POST and accidentally create a duplicate.
+        if (!editItem) { setEditItem(savedItem); setItems(current => [savedItem, ...current.filter(item => item.id !== savedItem.id)]); }
+        if (catalogWriterEnabled() && (uploadLease.current?.file !== imageFile || uploadLease.current.ownerId !== userId
+          || uploadLease.current.restaurantId !== restaurantId || uploadLease.current.itemId !== savedItem.id)) {
+          uploadLease.current = { file: imageFile, ownerId: userId, restaurantId, itemId: savedItem.id, operationId: crypto.randomUUID() };
         }
+        const publicUrl = await uploadMenuImage({ restaurantId, itemId: savedItem.id, image: imageFile,
+          ...(catalogWriterEnabled() ? { operationId: uploadLease.current!.operationId } : {}) });
+        if(!isCurrent())return;
+        savedItem = catalogWriterEnabled() ? await updateMenuItem(restaurantId,savedItem.id, { imageUrl: publicUrl }, publication)
+          : await updateMenuItem(restaurantId,savedItem.id, { imageUrl: publicUrl });
+        if(!isCurrent())return;
       }
 
-      // Refresh variations for the item
-      const { data: freshVars } = await supabase
-        .from("menu_item_variations")
-        .select("*")
-        .eq("menu_item_id", itemId);
-      const itemVariations: Variation[] = ((freshVars || []) as MenuVariationRow[]).map((v) => ({
-        id: v.id, name: v.name, options: v.options, required: v.required,
-      }));
+      if (catalogWriterEnabled() && editItem?.imageUrl && (removeImage || imageFile)) {
+        try { await deleteMenuImage({ restaurantId, itemId: editItem.id, imageUrl: editItem.imageUrl }); }
+        catch (error: unknown) { if(isCurrent())toast({ title: "Item salvo; limpeza da imagem pendente", description: errorMessage(error) }); }
+      }
 
-      const finalItem: MenuItem = {
-        id: itemId,
-        name: form.name,
-        price: parseFloat(form.price),
-        category: form.category,
-        available: editItem ? editItem.available : true,
-        image_url: removeImage ? null : (imageFile ? updateData.image_url : (editItem?.image_url || null)),
-        available_from: updateData.available_from,
-        available_until: updateData.available_until,
-        badge: updateData.badge,
-        is_chef_suggestion: isChefSuggestion,
-        prep_time_minutes: prepTimeMinutes ? parseInt(prepTimeMinutes) : null,
-        variations: itemVariations,
-      };
-
+      if(!isCurrent())return;
       if (editItem) {
         setItems((prev) => prev.map((i) => {
-          if (i.id === editItem.id) return finalItem;
-          if (isChefSuggestion && i.is_chef_suggestion) return { ...i, is_chef_suggestion: false };
+          if (i.id === editItem.id) return savedItem;
+          if (savedItem.isChefSuggestion && i.isChefSuggestion) return { ...i, isChefSuggestion: false };
           return i;
         }));
         toast({ title: "Item atualizado", description: `"${form.name}" foi editado com sucesso.` });
       } else {
         setItems((prev) => {
-          const updated = isChefSuggestion
-            ? prev.map(i => i.is_chef_suggestion ? { ...i, is_chef_suggestion: false } : i)
+          const updated = savedItem.isChefSuggestion
+            ? prev.map(i => i.isChefSuggestion ? { ...i, isChefSuggestion: false } : i)
             : prev;
-          return [finalItem, ...updated];
+          return [savedItem, ...updated.filter(item => item.id !== savedItem.id)];
         });
         toast({ title: "Item adicionado", description: `"${form.name}" foi adicionado ao cardápio.` });
       }
@@ -364,41 +226,57 @@ const MenuManagement = () => {
       resetForm();
       setDialogOpen(false);
     } catch (err: unknown) {
-      toast({ title: "Erro ao salvar", description: err.message, variant: "destructive" });
+      if(!isCurrent())return;
+      if (isCatalogPublicationDeferred(err)) { setDialogOpen(false); return; }
+      toast({ title: "Erro ao salvar", description: errorMessage(err), variant: "destructive" });
     } finally {
-      setSaving(false);
+      if(isCurrent())setSaving(false);
     }
   };
 
   const handleEdit = (item: MenuItem) => {
+    uploadLease.current = null;
     setEditItem(item);
     setForm({ name: item.name, price: String(item.price), category: item.category });
-    setImagePreview(item.image_url);
+    setImagePreview(item.imageUrl);
     setImageFile(null);
     setRemoveImage(false);
-    setTimeRestricted(!!(item.available_from || item.available_until));
-    setAvailableFrom(item.available_from || "");
-    setAvailableUntil(item.available_until || "");
+    setTimeRestricted(!!(item.availableFrom || item.availableUntil));
+    setAvailableFrom(item.availableFrom || "");
+    setAvailableUntil(item.availableUntil || "");
     setBadge(item.badge || "none");
-    setIsChefSuggestion(item.is_chef_suggestion);
-    setPrepTimeMinutes(item.prep_time_minutes ? String(item.prep_time_minutes) : "");
-    setVariations(item.variations.map(v => ({ ...v })));
+    setIsChefSuggestion(item.isChefSuggestion);
+    setPrepTimeMinutes(item.prepTimeMinutes ? String(item.prepTimeMinutes) : "");
+    setVariations(item.variations.map(({ name, options, required }) => ({ name, options, required })));
     setNewOptionInputs({});
     setDialogOpen(true);
   };
 
   const handleDelete = async (item: MenuItem) => {
+    if (!userId || !restaurantId || publication.blocked || saving) return;
+    const isCurrent=capture();if(!isCurrent())return;
+    setSaving(true);
     try {
-      if (item.image_url) {
-        await supabase.storage.from("menu-images").remove([`${restaurantId}/${item.id}`]);
+      // The legacy endpoint still authorizes through the existing item and uses
+      // a mutable key. Only the versioned protocol can safely retire after ready.
+      if (!catalogWriterEnabled() && item.imageUrl && ENV.menuImageStorageMode === "r2") {
+        await deleteMenuImage({ restaurantId, itemId: item.id });
       }
-      const { error } = await supabase.from("menu_items").delete().eq("id", item.id);
-      if (error) throw error;
-      setItems(items.filter((i) => i.id !== item.id));
+      if(!isCurrent())return;
+      if (catalogWriterEnabled()) await deleteMenuItem(restaurantId,item.id, publication); else await deleteMenuItem(restaurantId,item.id);
+      if(!isCurrent())return;
+      setItems((current) => current.filter((i) => i.id !== item.id));
+      if (catalogWriterEnabled() && item.imageUrl) {
+        try { await deleteMenuImage({ restaurantId, itemId: item.id, imageUrl: item.imageUrl }); }
+        catch (error: unknown) { if(isCurrent())toast({ title: "Item removido; limpeza da imagem pendente", description: errorMessage(error) }); }
+      }
+      if(!isCurrent())return;
       toast({ title: "Item removido", description: `"${item.name}" foi removido do cardápio.`, variant: "destructive" });
     } catch (err: unknown) {
-      toast({ title: "Erro ao remover", description: err.message, variant: "destructive" });
-    }
+      if(!isCurrent())return;
+      if (isCatalogPublicationDeferred(err)) return;
+      toast({ title: "Erro ao remover", description: errorMessage(err), variant: "destructive" });
+    } finally { if(isCurrent())setSaving(false); }
   };
 
   const openNew = () => {
@@ -471,23 +349,29 @@ const MenuManagement = () => {
 
   return (
     <div className="space-y-6">
+      <CatalogPublicationFeedback publication={publication} authenticated={!!user} />
       {guideMode && (
         <OnboardingGuideCard
           module="menu"
           title={GUIDE_MODULE_CONTENT.menu.title}
           description={GUIDE_MODULE_CONTENT.menu.description}
-          nextHref={guideNextModule ? getGuideModuleHref(guideNextModule) : null}
-          onComplete={handleGuideComplete}
+          nextHref={guideNextModule ? getGuideModuleHref(guideNextModule,restaurantId) : null}
+          restaurantId={restaurantId!}
         />
       )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Gestão de Cardápio</h1>
           <p className="text-muted-foreground text-sm">{items.length} itens cadastrados</p>
+          {catalogWriterEnabled() && <div className="mt-2 space-y-1">
+            <Button variant="outline" size="sm" disabled={!userId || !restaurantId || saving || publication.blocked} onClick={handleImageCleanup}>Limpar uploads antigos</Button>
+            <p className="text-muted-foreground text-xs">Recupere espaço de uploads expirados e sem uso, inclusive envios interrompidos. Imagens das versões atual e anterior são preservadas.</p>
+            {cleanupResult && <p role="status" className="text-sm">{cleanupResult}</p>}
+          </div>}
         </div>
         <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
           <DialogTrigger asChild>
-            <Button onClick={openNew}>
+            <Button onClick={openNew} disabled={publication.blocked || saving || !user}>
               <Plus className="h-4 w-4 mr-2" />
               Adicionar Item
             </Button>
@@ -520,7 +404,7 @@ const MenuManagement = () => {
                         className="w-full h-24 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-primary hover:text-primary transition-colors"
                       >
                         <Upload className="h-5 w-5" />
-                        <span className="text-xs">JPG, PNG ou WebP (máx 5MB)</span>
+                        <span className="text-xs">JPG, PNG ou WebP · até 5 MiB · compressão automática</span>
                       </button>
                     )}
                     <input
@@ -563,7 +447,7 @@ const MenuManagement = () => {
                 {/* Badge */}
                 <div>
                   <Label>Badge</Label>
-                  <Select value={badge} onValueChange={setBadge}>
+                  <Select value={badge} onValueChange={(value) => setBadge(value as MenuBadge)}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -656,7 +540,7 @@ const MenuManagement = () => {
                   ))}
                 </div>
 
-                <Button onClick={handleSave} className="w-full" disabled={saving}>
+                <Button onClick={handleSave} className="w-full" disabled={saving || publication.blocked || !user}>
                   {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Salvar
                 </Button>
@@ -688,8 +572,8 @@ const MenuManagement = () => {
               {filtered.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>
-                    {item.image_url ? (
-                      <img src={item.image_url} alt={item.name} className="h-10 w-10 rounded object-cover" />
+                    {item.imageUrl ? (
+                      <img src={item.imageUrl} alt={item.name} className="h-10 w-10 rounded object-cover" />
                     ) : (
                       <div className="h-10 w-10 rounded bg-muted flex items-center justify-center text-muted-foreground text-xs">—</div>
                     )}
@@ -702,11 +586,11 @@ const MenuManagement = () => {
                           {getBadgeIcon(item.badge)}
                         </span>
                       )}
-                      {item.is_chef_suggestion && <ChefHat className="h-3.5 w-3.5 text-amber-600" />}
+                      {item.isChefSuggestion && <ChefHat className="h-3.5 w-3.5 text-amber-600" />}
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{item.category}</TableCell>
-                  <TableCell>R$ {item.price.toFixed(2)}</TableCell>
+                  <TableCell>R$ {Number(item.price).toFixed(2)}</TableCell>
                   <TableCell>
                     <Badge variant={item.available ? "default" : "secondary"} className={item.available ? "bg-primary/10 text-primary border-0" : ""}>
                       {item.available ? "Disponível" : "Indisponível"}
@@ -714,10 +598,10 @@ const MenuManagement = () => {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
+                      <Button variant="ghost" size="icon" disabled={publication.blocked || saving || !user} aria-label={`Editar ${item.name}`} onClick={() => handleEdit(item)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
+                      <Button variant="ghost" size="icon" disabled={publication.blocked || saving || !user} aria-label={`Remover ${item.name}`} onClick={() => handleDelete(item)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
@@ -739,4 +623,5 @@ const MenuManagement = () => {
   );
 };
 
-export default MenuManagement;
+const ScopedMenuManagement=withRestaurantScope(MenuManagement,"restaurant.manage");
+export default function MenuManagementRoute(){return <ScopedMenuManagement/>;}

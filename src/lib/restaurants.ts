@@ -1,62 +1,91 @@
-import { supabase } from "@/lib/supabase";
+import type { RestaurantDto } from "@/lib/business-api.types";
+import { VaptApiClientError, vaptApiRequest } from "@/lib/vapt-api-client";
+import type { CatalogMutationExecutor } from "@/lib/catalog-mutations";
+import {z} from 'zod';
+export function restaurantRoute(restaurantId:string):string{
+  const parsed=z.string().uuid().safeParse(restaurantId);
+  if(!parsed.success)throw new VaptApiClientError('invalid_restaurant_scope','Selecione um restaurante válido.',400);
+  return `/restaurants/${parsed.data.toLowerCase()}`;
+}
+export async function checkRestaurantSlug(restaurantId:string,slug:string,signal?:AbortSignal):Promise<boolean>{
+  const value=z.string().trim().min(2).max(60).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).parse(slug);
+  const raw=await vaptApiRequest<unknown>({method:'GET',route:restaurantRoute(restaurantId)+'/slug-availability',query:{slug:value},requireAuth:true,...(signal?{signal}:{})});
+  const parsed=z.object({available:z.boolean()}).strict().safeParse(raw);
+  if(!parsed.success)throw new VaptApiClientError('invalid_slug_response','Não foi possível verificar o endereço.',502);return parsed.data.available;
+}
+export async function fetchRestaurant(restaurantId:string,signal?:AbortSignal):Promise<RestaurantDto>{
+  const route=restaurantRoute(restaurantId);
+  const result=await vaptApiRequest<RestaurantDto>({method:'GET',route,...(signal?{signal}:{})});
+  if(result.id!==restaurantId.toLowerCase())throw new VaptApiClientError('invalid_restaurant_response','Não foi possível confirmar o restaurante.',502);
+  return result;
+}
+export function updateRestaurant(restaurantId:string,patch:OwnedRestaurantPatch,publication?:CatalogMutationExecutor):Promise<RestaurantDto>{
+  const route=restaurantRoute(restaurantId);
+  if(publication)return publication.run<RestaurantDto>({method:'PATCH',route,body:patch},()=>fetchRestaurant(restaurantId));
+  return vaptApiRequest<RestaurantDto>({method:'PATCH',route,body:patch});
+}
 
-type RestaurantLike = {
-  owner_id: string;
-  plan_status?: string | null;
-  trial_ends_at?: string | null;
-  updated_at?: string | null;
+export type OnboardingInput = {
+  restaurantName: string;
+  slug: string;
+  dishName: string;
+  dishPrice: string;
 };
 
-const normalizePlanStatus = (planStatus: string | null | undefined): string | null => {
-  if (typeof planStatus !== "string") return null;
-  const normalized = planStatus.trim().toLowerCase();
-  return normalized.length > 0 ? normalized : null;
-};
+export type OwnedRestaurantPatch = Partial<Pick<
+  RestaurantDto,
+  | "name"
+  | "slug"
+  | "cnpj"
+  | "whatsapp"
+  | "address"
+  | "phone"
+  | "hours"
+  | "description"
+  | "primaryColor"
+  | "secondaryColor"
+  | "fontFamily"
+  | "logoUrl"
+  | "totalTables"
+  | "maxTables"
+  | "paymentMode"
+  | "maxPendingOrders"
+  | "localEnabled"
+  | "deliveryEnabled"
+>>;
 
-const getRestaurantPriority = (restaurant: RestaurantLike): number => {
-  const planStatus = normalizePlanStatus(restaurant.plan_status);
-
-  if (planStatus === "active") return 3;
-
-  if (planStatus === "trialing") {
-    if (!restaurant.trial_ends_at) return 2;
-
-    const trialEndsAt = new Date(restaurant.trial_ends_at);
-    if (!Number.isNaN(trialEndsAt.getTime()) && trialEndsAt > new Date()) {
-      return 2;
-    }
-  }
-
-  return 1;
-};
-
-const compareRestaurants = (left: RestaurantLike, right: RestaurantLike): number => {
-  const priorityDelta = getRestaurantPriority(right) - getRestaurantPriority(left);
-  if (priorityDelta !== 0) return priorityDelta;
-
-  const leftUpdatedAt = left.updated_at ? new Date(left.updated_at).getTime() : 0;
-  const rightUpdatedAt = right.updated_at ? new Date(right.updated_at).getTime() : 0;
-
-  return rightUpdatedAt - leftUpdatedAt;
-};
-
-export async function fetchOwnedRestaurant<T extends RestaurantLike>(
-  ownerId: string,
-  select: string,
-): Promise<T | null> {
-  const { data, error } = await supabase
-    .from("restaurants")
-    .select(select)
-    .eq("owner_id", ownerId);
-
-  if (error) {
+export async function fetchOwnedRestaurant(): Promise<RestaurantDto | null> {
+  try {
+    return await vaptApiRequest<RestaurantDto>({
+      method: "GET",
+      route: "/restaurants/me",
+    });
+  } catch (error) {
+    if (error instanceof VaptApiClientError && error.status === 404) return null;
     throw error;
   }
+}
 
-  if (!data || data.length === 0) {
-    return null;
-  }
+export function createOnboarding(input: OnboardingInput, publication?: CatalogMutationExecutor): Promise<RestaurantDto> {
+  if (publication) return publication.run<RestaurantDto>({ method: "POST", route: "/onboarding", body: input }, reloadOwnedRestaurant);
+  return vaptApiRequest<RestaurantDto>({
+    method: "POST",
+    route: "/onboarding",
+    body: input,
+  });
+}
 
-  const restaurants = (data as T[]).slice().sort(compareRestaurants);
-  return restaurants[0] ?? null;
+export function updateOwnedRestaurant(patch: OwnedRestaurantPatch, publication?: CatalogMutationExecutor): Promise<RestaurantDto> {
+  if (publication) return publication.run<RestaurantDto>({ method: "PATCH", route: "/restaurants/me", body: patch }, reloadOwnedRestaurant);
+  return vaptApiRequest<RestaurantDto>({
+    method: "PATCH",
+    route: "/restaurants/me",
+    body: patch,
+  });
+}
+
+async function reloadOwnedRestaurant(): Promise<RestaurantDto> {
+  const restaurant = await fetchOwnedRestaurant();
+  if (!restaurant) throw new VaptApiClientError("catalog_result_unavailable", "Alteração publicada, mas não foi possível recarregar o restaurante.", 503);
+  return restaurant;
 }

@@ -11,18 +11,16 @@ import {
 
 type InlineOrderRatingCardProps = {
   orderId: string;
-  restaurantId: string;
-  displayId: number;
+  publicToken: string;
+  displayId: string | number;
   primaryColor: string;
-  feedbackWebhookUrl?: string;
 };
 
 const InlineOrderRatingCard = ({
   orderId,
-  restaurantId,
+  publicToken,
   displayId,
   primaryColor,
-  feedbackWebhookUrl,
 }: InlineOrderRatingCardProps) => {
   const [hasRatedBefore] = useState(() => !shouldPromptForOrderFeedback({ orderId, status: "completed" }));
   const [rating, setRating] = useState(0);
@@ -51,11 +49,10 @@ const InlineOrderRatingCard = ({
     try {
       await submitOrderFeedback({
         orderId,
-        restaurantId,
+        publicToken,
         rating,
         reasons: selectedReasons,
         comment: comment.trim() || null,
-        feedbackWebhookUrl,
       });
       markOrderAsRated(orderId);
       setSubmitted(true);

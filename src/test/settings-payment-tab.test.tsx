@@ -1,29 +1,32 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SettingsPage from "@/pages/dashboard/SettingsPage";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { fetchRestaurant, updateRestaurant } from "@/lib/restaurants";
 
+const { authUser, changePassword, updateName } = vi.hoisted(() => ({
+  authUser: {
+    id: "20000000-0000-4000-8000-000000000001",
+    email: "gestor@vapt.test",
+    name: "Gestor Vapt",
+  },
+  changePassword: vi.fn(),
+  updateName: vi.fn(),
+}));
+
+vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:authUser.id?{userId:authUser.id,restaurantId:"10000000-0000-4000-8000-000000000001"}:null,organizationId:"test-org",restaurant:{id:"10000000-0000-4000-8000-000000000001"},capabilities:["restaurant.read","restaurant.operate","restaurant.manage","billing.read","billing.manage"],loading:false,error:null})}));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
-    user: {
-      id: "20000000-0000-4000-8000-000000000001",
-      email: "gestor@vapt.test",
-      user_metadata: { full_name: "Gestor Vapt" },
-    },
+    user: authUser,
+    changePassword,
+    updateName,
   }),
 }));
 
 vi.mock("@/lib/restaurants", () => ({
-  fetchOwnedRestaurant: vi.fn(),
-}));
-
-vi.mock("@/lib/supabase", () => ({
-  supabase: {
-    from: vi.fn(),
-    auth: { updateUser: vi.fn() },
-  },
+  fetchRestaurant: vi.fn(),
+  updateRestaurant: vi.fn(),
 }));
 
 vi.mock("@/hooks/use-toast", () => ({
@@ -38,27 +41,39 @@ vi.mock("@/components/payments/MercadoPagoSettingsCard", () => ({
   default: () => <div>Mercado Pago de teste</div>,
 }));
 
-const mockedFetchOwnedRestaurant = vi.mocked(fetchOwnedRestaurant);
+const mockedFetchOwnedRestaurant = vi.mocked(fetchRestaurant);
+const mockedUpdateOwnedRestaurant = vi.mocked(updateRestaurant);
 
 describe("aba de pagamentos nas configuracoes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedFetchOwnedRestaurant.mockResolvedValue({
       id: "10000000-0000-4000-8000-000000000001",
-      owner_id: "20000000-0000-4000-8000-000000000001",
-      updated_at: "2026-08-29T12:00:00.000Z",
+      updatedAt: "2026-08-29T12:00:00.000Z",
       cnpj: null,
       name: "Restaurante Teste",
+      slug: "restaurante-teste",
+      whatsapp: null,
       address: "Rua Teste, 1",
       phone: "61999999999",
       hours: "18h as 23h",
       description: "Restaurante de teste",
-      payment_mode: "prepaid",
-      max_pending_orders: 3,
-      max_tables: 20,
-      local_enabled: true,
-      delivery_enabled: true,
+      primaryColor: "#0ea573",
+      secondaryColor: "#1e293b",
+      fontFamily: "modern",
+      logoUrl: null,
+
+      totalTables: 1,
+      maxTables: 20,
+      paymentMode: "prepaid",
+      maxPendingOrders: 3,
+      localEnabled: true,
+      deliveryEnabled: true,
+      onboardingCompleted: true,
     });
+    mockedUpdateOwnedRestaurant.mockResolvedValue({ id: "restaurant-1" } as never);
+    updateName.mockResolvedValue({ error: null });
+    changePassword.mockResolvedValue({ error: null });
   });
 
   it("separa pagamentos e mantem as tres abas acessiveis no mobile", async () => {
@@ -69,6 +84,7 @@ describe("aba de pagamentos nas configuracoes", () => {
     );
 
     const restaurantTab = await screen.findByRole("tab", { name: "Restaurante" });
+    expect(mockedFetchOwnedRestaurant).toHaveBeenCalledWith("10000000-0000-4000-8000-000000000001",expect.any(AbortSignal));
     const paymentsTab = screen.getByRole("tab", { name: "Pagamentos" });
     const accountTab = screen.getByRole("tab", { name: "Conta" });
 
@@ -92,5 +108,83 @@ describe("aba de pagamentos nas configuracoes", () => {
     expect(await screen.findByText("Meios atuais de teste")).toBeInTheDocument();
     expect(screen.getByText("Mercado Pago de teste")).toBeInTheDocument();
     expect(screen.queryByText("Canais Ativos")).not.toBeInTheDocument();
+  });
+
+  it("saves restaurant and payment settings through the owner-scoped API", async () => {
+    render(
+      <MemoryRouter>
+        <SettingsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByDisplayValue("Restaurante Teste");
+    fireEvent.change(screen.getByDisplayValue("Restaurante Teste"), {
+      target: { value: "Novo Restaurante" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar Alterações" }));
+
+    await waitFor(() => expect(mockedUpdateOwnedRestaurant).toHaveBeenCalledWith("10000000-0000-4000-8000-000000000001",expect.objectContaining({
+      name: "Novo Restaurante",
+      address: "Rua Teste, 1",
+      maxTables: 20,
+      deliveryEnabled: true,
+    })));
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar fluxo do pedido" }));
+    await waitFor(() => expect(mockedUpdateOwnedRestaurant).toHaveBeenCalledWith("10000000-0000-4000-8000-000000000001",{
+      paymentMode: "prepaid",
+      maxPendingOrders: 3,
+    }));
+  });
+
+  it("updates the Better Auth name and requires the current password for an 8-character password", async () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/settings?tab=account"]}>
+        <SettingsPage />
+      </MemoryRouter>,
+    );
+
+    const nameInput = await screen.findByLabelText("Nome do titular");
+    fireEvent.change(nameInput, { target: { value: "Novo Gestor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar nome" }));
+    await waitFor(() => expect(updateName).toHaveBeenCalledWith("Novo Gestor"));
+
+    fireEvent.change(screen.getByLabelText("Nova senha"), {
+      target: { value: "12345678" },
+    });
+    fireEvent.change(screen.getByLabelText("Confirmar nova senha"), {
+      target: { value: "12345678" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Alterar Senha" }));
+    expect(await screen.findByText("Informe sua senha atual")).toBeInTheDocument();
+    expect(changePassword).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Senha atual"), {
+      target: { value: "senha-atual" },
+    });
+    fireEvent.change(screen.getByLabelText("Nova senha"), {
+      target: { value: "1234567" },
+    });
+    fireEvent.change(screen.getByLabelText("Confirmar nova senha"), {
+      target: { value: "1234567" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Alterar Senha" }));
+    expect(await screen.findByText("A senha deve ter no mínimo 8 caracteres")).toBeInTheDocument();
+    expect(changePassword).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Nova senha"), {
+      target: { value: "nova-senha-segura" },
+    });
+    fireEvent.change(screen.getByLabelText("Confirmar nova senha"), {
+      target: { value: "nova-senha-segura" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Alterar Senha" }));
+
+    await waitFor(() => {
+      expect(changePassword).toHaveBeenCalledWith(
+        "senha-atual",
+        "nova-senha-segura",
+      );
+    });
   });
 });

@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vapt-web",
+  "account_id": "3ce69408aa5112617a282957aba71932",
+  "keep_vars": true,
+  "compatibility_date": "2026-09-24",
+  "workers_dev": false,
+  "preview_urls": true,
+  "routes": [{ "pattern": "vapt.app.br", "custom_domain": true }],
+  "assets": {
+    "directory": "./dist-production-realtime",
+    "not_found_handling": "single-page-application"
+  }
+}

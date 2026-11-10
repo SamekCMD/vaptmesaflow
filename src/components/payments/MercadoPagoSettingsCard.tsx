@@ -1,3 +1,4 @@
+import {useBoundContinuation} from "@/features/restaurants/tenant-continuation";
 import { useEffect, useState } from "react";
 import {
   BadgeCheck,
@@ -33,6 +34,8 @@ type ConnectionView = "loading" | "connected" | "disconnected" | "error";
 
 type MercadoPagoSettingsCardProps = {
   restaurantId: string;
+  canRead:boolean;
+  canManage:boolean;
   environment: PaymentEnvironment;
   onAuthorizationUrl?: (url: string) => void;
 };
@@ -54,11 +57,14 @@ function getConnectionView(status: MercadoPagoConnectionStatus): ConnectionView 
   return status.connected && status.status === "active" ? "connected" : "disconnected";
 }
 
-export default function MercadoPagoSettingsCard({
+function MercadoPagoSettingsCardContent({
   restaurantId,
+  canRead,
+  canManage,
   environment,
   onAuthorizationUrl = (url) => window.location.assign(url),
 }: MercadoPagoSettingsCardProps) {
+  const capture=useBoundContinuation(restaurantId+":"+environment+":"+canRead+":"+canManage);
   const [view, setView] = useState<ConnectionView>("loading");
   const [reloadKey, setReloadKey] = useState(0);
   const [connecting, setConnecting] = useState(false);
@@ -66,6 +72,7 @@ export default function MercadoPagoSettingsCard({
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    if(!canRead)return;
     let active = true;
     setView("loading");
     setActionMessage(null);
@@ -82,9 +89,11 @@ export default function MercadoPagoSettingsCard({
     return () => {
       active = false;
     };
-  }, [environment, reloadKey, restaurantId]);
+  }, [canRead,environment, reloadKey, restaurantId]);
 
   const handleConnect = async () => {
+    if(!canRead||!canManage)return;
+    const isCurrent=capture();if(!isCurrent())return;
     setConnecting(true);
     setActionMessage(null);
     try {
@@ -93,28 +102,34 @@ export default function MercadoPagoSettingsCard({
         environment,
         window.location.origin,
       );
+      if(!isCurrent())return;
       onAuthorizationUrl(parseAuthorizationUrl(result.authorizationUrl));
     } catch {
+      if(!isCurrent())return;
       setActionMessage("Não foi possível iniciar a conexão");
     } finally {
-      setConnecting(false);
+      if(isCurrent())setConnecting(false);
     }
   };
 
   const handleDisconnect = async () => {
+    if(!canRead||!canManage)return;
+    const isCurrent=capture();if(!isCurrent())return;
     setDisconnecting(true);
     setActionMessage(null);
     try {
       await paymentConnectionClient.disconnectMercadoPago(restaurantId, environment);
+      if(!isCurrent())return;
       setView("disconnected");
       setActionMessage("Mercado Pago desconectado");
     } catch {
       setActionMessage("Não foi possível desconectar agora. Tente novamente.");
     } finally {
-      setDisconnecting(false);
+      if(isCurrent())setDisconnecting(false);
     }
   };
 
+  if(!canRead)return <p className="text-sm text-muted-foreground">Sem permissão para consultar a conexão de pagamento.</p>;
   return (
     <Card>
       <CardHeader className="space-y-3">
@@ -169,7 +184,7 @@ export default function MercadoPagoSettingsCard({
                 Suas credenciais não ficam expostas no navegador.
               </div>
             </div>
-            <Button type="button" onClick={handleConnect} disabled={connecting} className="w-full md:w-auto">
+            <Button type="button" onClick={handleConnect} disabled={connecting||!canManage} className="w-full md:w-auto">
               {connecting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
               ) : (
@@ -194,7 +209,7 @@ export default function MercadoPagoSettingsCard({
 
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button type="button" variant="outline" className="w-full md:w-auto">
+                <Button type="button" variant="outline" disabled={!canManage} className="w-full md:w-auto">
                   <Unplug className="mr-2 h-4 w-4" aria-hidden="true" />
                   Desconectar
                 </Button>
@@ -209,7 +224,7 @@ export default function MercadoPagoSettingsCard({
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Manter conectado</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDisconnect} disabled={disconnecting}>
+                  <AlertDialogAction onClick={handleDisconnect} disabled={disconnecting||!canManage}>
                     {disconnecting && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
                     Desconectar Mercado Pago
                   </AlertDialogAction>
@@ -230,4 +245,7 @@ export default function MercadoPagoSettingsCard({
       </CardContent>
     </Card>
   );
+}
+export default function MercadoPagoSettingsCard(props:MercadoPagoSettingsCardProps){
+  return <MercadoPagoSettingsCardContent key={[props.restaurantId,props.environment,props.canRead,props.canManage].join(":")} {...props}/>;
 }

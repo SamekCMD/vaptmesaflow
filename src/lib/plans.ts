@@ -1,10 +1,8 @@
-import { STRIPE_PRICE_STARTER, STRIPE_PRICE_PRO, STRIPE_PRICE_BUSINESS } from '@/lib/constants';
-
 export interface PlanDefinition {
   id: "starter" | "pro" | "business";
   name: string;
   price: number;
-  priceId: string;
+  maxRestaurants:number;
   features: string[];
   blockedFeatures: string[];
   highlighted: boolean;
@@ -15,8 +13,9 @@ export const PLANS: PlanDefinition[] = [
     id: "starter",
     name: "Starter",
     price: 97,
-    priceId: STRIPE_PRICE_STARTER,
+    maxRestaurants:1,
     features: [
+      "1 restaurante",
       "Cardápio digital ilimitado",
       "QR Codes para mesas",
       "KDS - Monitor de Cozinha",
@@ -30,8 +29,9 @@ export const PLANS: PlanDefinition[] = [
     id: "pro",
     name: "Pro",
     price: 197,
-    priceId: STRIPE_PRICE_PRO,
+    maxRestaurants:1,
     features: [
+      "1 restaurante",
       "Tudo do Starter",
       "Caixa e Comanda Aberta",
       "Dashboard de métricas",
@@ -44,8 +44,9 @@ export const PLANS: PlanDefinition[] = [
     id: "business",
     name: "Business",
     price: 347,
-    priceId: STRIPE_PRICE_BUSINESS,
+    maxRestaurants:25,
     features: [
+      "Até 25 restaurantes por organização",
       "Tudo do Pro",
       "Multi-usuários",
       "Relatórios avançados",

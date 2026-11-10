@@ -1,6 +1,6 @@
-﻿import { useState, useEffect } from "react";
+﻿import {withRestaurantScope,useTenantContinuation} from "@/features/restaurants/RestaurantScopeBoundary";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,43 +16,19 @@ import OnboardingGuideCard from "@/components/dashboard/OnboardingGuideCard";
 import CurrentPaymentMethodsCard from "@/components/payments/CurrentPaymentMethodsCard";
 import MercadoPagoSettingsCard from "@/components/payments/MercadoPagoSettingsCard";
 import { ENV } from "@/lib/env";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import { catalogWriterEnabled } from "@/lib/catalog/flags";
+import { fetchRestaurant, updateRestaurant } from "@/lib/restaurants";
+import { useCurrentRestaurant } from "@/features/restaurants/current-restaurant";
+import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
+import { CatalogPublicationFeedback } from "@/components/menu/CatalogPublicationStatus";
 import {
-  completeGuideModule,
   getGuideModuleHref,
   getNextGuideModule,
   GUIDE_MODULE_CONTENT,
 } from "@/lib/onboarding";
 
-type RestaurantSettingsRow = {
-  id: string;
-  cnpj: string | null;
-  name: string | null;
-  address: string | null;
-  phone: string | null;
-  hours: string | null;
-  description: string | null;
-  payment_mode: "open_tab" | "prepaid" | null;
-  max_pending_orders: number | null;
-  max_tables: number | null;
-  local_enabled: boolean | null;
-  delivery_enabled: boolean | null;
-};
-
-type RestaurantSettingsUpdate = {
-  name?: string;
-  address?: string;
-  phone?: string;
-  hours?: string;
-  description?: string;
-  max_tables?: number;
-  payment_mode?: "open_tab" | "prepaid";
-  max_pending_orders?: number;
-  delivery_enabled?: boolean;
-};
-
 const SettingsPage = () => {
-  const { user } = useAuth();
+  const { user, updateName, changePassword } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
@@ -78,55 +54,66 @@ const SettingsPage = () => {
   const [accountForm, setAccountForm] = useState({
     full_name: "",
     email: "",
+    current_password: "",
     new_password: "",
     confirm_password: "",
   });
+  const [accountErrors, setAccountErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const [loadError,setLoadError]=useState(false);
+  const [loadAttempt,setLoadAttempt]=useState(0);
+  const {scope,capabilities}=useCurrentRestaurant();
+  const capture=useTenantContinuation();
+  const restaurantId=scope?.restaurantId??null;
+  const canEdit=capabilities.includes("restaurant.manage")&&!loading&&!loadError;
   const [saving, setSaving] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
   const [savingAccount, setSavingAccount] = useState(false);
+  const publication = useCatalogPublication(scope, async isCurrent => {
+    const data = await fetchRestaurant(restaurantId!); if (!isCurrent()) return;
+    setForm({ name: data.name, address: data.address || "", phone: data.phone || "", hours: data.hours || "", description: data.description || "", max_tables: data.maxTables || 20 });
+    setPaymentForm({ payment_mode: data.paymentMode, max_pending_orders: data.maxPendingOrders || 3 });
+    setChannelsForm({ local_enabled: data.localEnabled, delivery_enabled: data.deliveryEnabled });
+  });
 
   useEffect(() => {
+    const controller=new AbortController(),isCurrent=capture();
+    setLoading(true);setLoadError(false);
     const fetchData = async () => {
-      if (!user) return;
+      if (!user || !restaurantId) {setLoading(false);return;}
 
       try {
-        const data = await fetchOwnedRestaurant<
-          RestaurantSettingsRow & { owner_id: string; updated_at: string }
-        >(
-          user.id,
-          "id, owner_id, updated_at, name, cnpj, address, phone, hours, description, payment_mode, max_pending_orders, max_tables, local_enabled, delivery_enabled"
-        );
+        const data = await fetchRestaurant(restaurantId,controller.signal);
+        if(!isCurrent())return;
 
         if (data) {
-          const row = data as RestaurantSettingsRow;
-          setRestaurantId(row.id ?? null);
           setForm({
-            name: row.name || "",
-            address: row.address || "",
-            phone: row.phone || "",
-            hours: row.hours || "",
-            description: row.description || "",
-            max_tables: row.max_tables || 20,
+            name: data.name,
+            address: data.address || "",
+            phone: data.phone || "",
+            hours: data.hours || "",
+            description: data.description || "",
+            max_tables: data.maxTables || 20,
           });
           setPaymentForm({
-            payment_mode: row.payment_mode || "open_tab",
-            max_pending_orders: row.max_pending_orders || 3,
+            payment_mode: data.paymentMode,
+            max_pending_orders: data.maxPendingOrders || 3,
           });
           setChannelsForm({
-            local_enabled: row.local_enabled ?? true,
-            delivery_enabled: row.delivery_enabled ?? false,
+            local_enabled: data.localEnabled,
+            delivery_enabled: data.deliveryEnabled,
           });
         }
 
         setAccountForm({
-          full_name: user.user_metadata?.full_name || "",
+          full_name: user.name || "",
           email: user.email || "",
+          current_password: "",
           new_password: "",
           confirm_password: "",
         });
       } catch (error: unknown) {
+        if(!isCurrent())return;setLoadError(true);
         if (import.meta.env.DEV) console.error("Error fetching restaurant data:", error);
         const description =
           error instanceof Error ? error.message : "Não foi possível carregar as configurações";
@@ -136,126 +123,151 @@ const SettingsPage = () => {
           variant: "destructive",
         });
       } finally {
-        setLoading(false);
+        if(isCurrent())setLoading(false);
       }
     };
 
     fetchData();
-  }, [user]);
+    return()=>controller.abort();
+  }, [user,restaurantId,capture,loadAttempt]);
 
   const guideMode = searchParams.get("guide") === "1";
   const guideNextModule = getNextGuideModule("settings");
 
-  const handleGuideComplete = () => {
-    completeGuideModule("settings");
-    navigate(guideNextModule ? getGuideModuleHref(guideNextModule) : "/dashboard", { replace: true });
-  };
-
   const handleSave = async () => {
-    if (!user || !restaurantId) return;
+    if (!user || !restaurantId || !canEdit || saving || publication.blocked) return;
+    const isCurrent=capture();if(!isCurrent())return;
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("restaurants")
-        .update({
-          name: form.name,
-          address: form.address,
-          phone: form.phone,
-          hours: form.hours,
-          description: form.description,
-          max_tables: form.max_tables,
-          delivery_enabled: channelsForm.delivery_enabled,
-        } satisfies RestaurantSettingsUpdate)
-        .eq("id", restaurantId);
-
-      if (error) throw error;
+      const patch = {
+        name: form.name,
+        address: form.address,
+        phone: form.phone,
+        hours: form.hours,
+        description: form.description,
+        maxTables: form.max_tables,
+        deliveryEnabled: channelsForm.delivery_enabled,
+      };
+      if (catalogWriterEnabled()) await updateRestaurant(restaurantId,patch, publication); else await updateRestaurant(restaurantId,patch);
+      if(!isCurrent())return;
       toast({ title: "Configurações salvas", description: "As alterações foram aplicadas com sucesso." });
     } catch (error: unknown) {
+      if(!isCurrent())return;
+      if (isCatalogPublicationDeferred(error)) return;
       const description = error instanceof Error ? error.message : "Não foi possível salvar agora.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
-      setSaving(false);
+      if(isCurrent())setSaving(false);
     }
   };
 
   const handleSavePayment = async () => {
-    if (!user || !restaurantId) return;
+    if (!user || !restaurantId || !canEdit || savingPayment || publication.blocked) return;
+    const isCurrent=capture();if(!isCurrent())return;
     setSavingPayment(true);
     try {
-      const updatePayload: RestaurantSettingsUpdate = {
-        payment_mode: paymentForm.payment_mode,
-        max_pending_orders: paymentForm.max_pending_orders,
+      const patch = {
+        paymentMode: paymentForm.payment_mode,
+        maxPendingOrders: paymentForm.max_pending_orders,
       };
-
-      const { error } = await supabase
-        .from("restaurants")
-        .update(updatePayload)
-        .eq("id", restaurantId);
-
-      if (error) throw error;
+      if (catalogWriterEnabled()) await updateRestaurant(restaurantId,patch, publication); else await updateRestaurant(restaurantId,patch);
+      if(!isCurrent())return;
 
       toast({ title: "Fluxo de pagamento salvo", description: "O novo modo já vale para os próximos pedidos." });
     } catch (error: unknown) {
+      if(!isCurrent())return;
+      if (isCatalogPublicationDeferred(error)) return;
       const description = error instanceof Error ? error.message : "Não foi possível salvar agora.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
-      setSavingPayment(false);
+      if(isCurrent())setSavingPayment(false);
     }
   };
 
-  const handleSaveAccount = async () => {
+  const handleSaveName = async () => {
+    const isCurrent=capture();if(!isCurrent())return;
     if (!user) return;
+    const name = accountForm.full_name.trim();
+    if (name.length < 2) {
+      setAccountErrors({ name: "Informe um nome válido" });
+      return;
+    }
+
+    setAccountErrors({});
     setSavingAccount(true);
     try {
-      // Update name
-      if (accountForm.full_name !== user.user_metadata?.full_name) {
-        const { error } = await supabase.auth.updateUser({
-          data: { full_name: accountForm.full_name },
-        });
+      if (name !== user.name) {
+        const { error } = await updateName(name);
+        if(!isCurrent())return;
         if (error) throw error;
       }
-
-      // Update password if provided
-      if (accountForm.new_password) {
-        if (accountForm.new_password !== accountForm.confirm_password) {
-          toast({ title: "As senhas não coincidem", variant: "destructive" });
-          setSavingAccount(false);
-          return;
-        }
-        if (accountForm.new_password.length < 6) {
-          toast({ title: "A senha deve ter no mínimo 6 caracteres", variant: "destructive" });
-          setSavingAccount(false);
-          return;
-        }
-        const { error } = await supabase.auth.updateUser({
-          password: accountForm.new_password,
-        });
-        if (error) throw error;
-        setAccountForm(prev => ({ ...prev, new_password: "", confirm_password: "" }));
-      }
-
-      toast({ title: "Conta atualizada", description: "Suas informações foram salvas." });
+      toast({ title: "Nome atualizado", description: "Sua conta foi atualizada." });
     } catch (error: unknown) {
+      if(!isCurrent())return;
       const description = error instanceof Error ? error.message : "Não foi possível salvar agora.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
-      setSavingAccount(false);
+      if(isCurrent())setSavingAccount(false);
     }
   };
 
+  const handleChangePassword = async () => {
+    const isCurrent=capture();if(!isCurrent())return;
+    const errors: Record<string, string> = {};
+    if (!accountForm.current_password) {
+      errors.currentPassword = "Informe sua senha atual";
+    }
+    if (accountForm.new_password.length < 8) {
+      errors.newPassword = "A senha deve ter no mínimo 8 caracteres";
+    }
+    if (accountForm.new_password !== accountForm.confirm_password) {
+      errors.confirmPassword = "As senhas não coincidem";
+    }
+    if (Object.keys(errors).length > 0) {
+      setAccountErrors(errors);
+      return;
+    }
+
+    setAccountErrors({});
+    setSavingAccount(true);
+    try {
+      const { error } = await changePassword(
+        accountForm.current_password,
+        accountForm.new_password,
+      );
+      if(!isCurrent())return;
+      if (error) throw error;
+      setAccountForm((previous) => ({
+        ...previous,
+        current_password: "",
+        new_password: "",
+        confirm_password: "",
+      }));
+      toast({ title: "Senha atualizada", description: "Use a nova senha no próximo acesso." });
+    } catch (error: unknown) {
+      if(!isCurrent())return;
+      const description = error instanceof Error ? error.message : "Não foi possível salvar agora.";
+      toast({ title: "Erro ao salvar", description, variant: "destructive" });
+    } finally {
+      if(isCurrent())setSavingAccount(false);
+    }
+  };
+
+  if(loadError)return <div className="space-y-3"><p role="alert">Não foi possível carregar o restaurante. Tente novamente.</p><Button onClick={()=>setLoadAttempt(value=>value+1)}>Tentar novamente</Button></div>;
   if (loading) {
     return <SettingsFormSkeleton />;
   }
 
   return (
     <div className="space-y-6 max-w-2xl">
+      <CatalogPublicationFeedback publication={publication} authenticated={!!user} />
       {guideMode && (
         <OnboardingGuideCard
           module="settings"
           title={GUIDE_MODULE_CONTENT.settings.title}
           description={GUIDE_MODULE_CONTENT.settings.description}
-          nextHref={guideNextModule ? getGuideModuleHref(guideNextModule) : null}
-          onComplete={handleGuideComplete}
+          nextHref={guideNextModule ? getGuideModuleHref(guideNextModule,restaurantId) : null}
+          restaurantId={restaurantId!}
         />
       )}
       <div>
@@ -288,6 +300,7 @@ const SettingsPage = () => {
         </TabsList>
 
         <TabsContent value="restaurant" className="pt-6 space-y-6">
+          <fieldset disabled={!canEdit} className="space-y-6">
           {/* Restaurant Info Card */}
           <Card>
             <CardHeader>
@@ -326,7 +339,7 @@ const SettingsPage = () => {
                 />
               </div>
 
-              <Button onClick={handleSave} disabled={saving}>
+              <Button onClick={handleSave} disabled={saving || publication.blocked || !user}>
                 {saving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</>) : "Salvar Alterações"}
               </Button>
             </CardContent>
@@ -373,7 +386,7 @@ const SettingsPage = () => {
                 </p>
               </div>
 
-              <Button onClick={handleSave} disabled={saving}>
+              <Button onClick={handleSave} disabled={saving || publication.blocked || !user}>
                 {saving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</>) : "Salvar Canais Ativos"}
               </Button>
             </CardContent>
@@ -440,7 +453,7 @@ const SettingsPage = () => {
                 </div>
               )}
 
-              <Button onClick={handleSavePayment} disabled={savingPayment} className="w-full sm:w-auto">
+              <Button onClick={handleSavePayment} disabled={savingPayment || publication.blocked || !user} className="w-full sm:w-auto">
                 {savingPayment ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -452,14 +465,17 @@ const SettingsPage = () => {
               </Button>
             </CardContent>
           </Card>
+          </fieldset>
         </TabsContent>
 
         <TabsContent value="payments" className="space-y-6 pt-6">
           <CurrentPaymentMethodsCard />
 
-          {restaurantId && (
+          {restaurantId && capabilities.includes("billing.read") && (
             <MercadoPagoSettingsCard
               restaurantId={restaurantId}
+              canRead={capabilities.includes("billing.read")}
+              canManage={capabilities.includes("billing.manage")}
               environment={ENV.paymentEnvironment}
             />
           )}
@@ -472,20 +488,22 @@ const SettingsPage = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label>Nome do titular</Label>
+                <Label htmlFor="account-name">Nome do titular</Label>
                 <Input
+                  id="account-name"
                   value={accountForm.full_name}
                   onChange={(e) => setAccountForm({ ...accountForm, full_name: e.target.value })}
                 />
+                {accountErrors.name && <p className="text-xs text-destructive">{accountErrors.name}</p>}
               </div>
               <div>
-                <Label>E-mail</Label>
-                <Input value={accountForm.email} disabled className="bg-muted/50" />
+                <Label htmlFor="account-email">E-mail</Label>
+                <Input id="account-email" value={accountForm.email} disabled className="bg-muted/50" />
                 <p className="text-[11px] text-muted-foreground mt-1">O e-mail não pode ser alterado.</p>
               </div>
 
-              <Button onClick={handleSaveAccount} disabled={savingAccount}>
-                {savingAccount ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</>) : "Salvar"}
+              <Button onClick={handleSaveName} disabled={savingAccount}>
+                {savingAccount ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</>) : "Salvar nome"}
               </Button>
             </CardContent>
           </Card>
@@ -496,26 +514,43 @@ const SettingsPage = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label>Nova senha</Label>
+                <Label htmlFor="current-password">Senha atual</Label>
                 <Input
+                  id="current-password"
+                  type="password"
+                  value={accountForm.current_password}
+                  onChange={(e) => setAccountForm({ ...accountForm, current_password: e.target.value })}
+                  autoComplete="current-password"
+                />
+                {accountErrors.currentPassword && <p className="text-xs text-destructive">{accountErrors.currentPassword}</p>}
+              </div>
+              <div>
+                <Label htmlFor="new-password">Nova senha</Label>
+                <Input
+                  id="new-password"
                   type="password"
                   value={accountForm.new_password}
                   onChange={(e) => setAccountForm({ ...accountForm, new_password: e.target.value })}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="Mínimo 8 caracteres"
+                  autoComplete="new-password"
                 />
+                {accountErrors.newPassword && <p className="text-xs text-destructive">{accountErrors.newPassword}</p>}
               </div>
               <div>
-                <Label>Confirmar nova senha</Label>
+                <Label htmlFor="confirm-new-password">Confirmar nova senha</Label>
                 <Input
+                  id="confirm-new-password"
                   type="password"
                   value={accountForm.confirm_password}
                   onChange={(e) => setAccountForm({ ...accountForm, confirm_password: e.target.value })}
                   placeholder="Repita a nova senha"
+                  autoComplete="new-password"
                 />
+                {accountErrors.confirmPassword && <p className="text-xs text-destructive">{accountErrors.confirmPassword}</p>}
               </div>
 
               <Button
-                onClick={handleSaveAccount}
+                onClick={handleChangePassword}
                 disabled={savingAccount || !accountForm.new_password}
                 variant="outline"
               >
@@ -529,6 +564,7 @@ const SettingsPage = () => {
   );
 };
 
-export default SettingsPage;
+const ScopedSettingsPage=withRestaurantScope(SettingsPage,"restaurant.read");
+export default function SettingsPageRoute(){return <ScopedSettingsPage/>;}
 
 

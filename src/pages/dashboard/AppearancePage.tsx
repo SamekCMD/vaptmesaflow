@@ -1,4 +1,9 @@
-import { useState, useRef, useEffect } from "react";
+import {withRestaurantScope,useTenantContinuation} from "@/features/restaurants/RestaurantScopeBoundary";
+import {QueryClientContext} from "@tanstack/react-query";
+import {restaurantQueryKey,privateAccountKey} from "@/features/auth/account-bootstrap-query";
+import type {AccountBootstrap} from "@/features/auth/account-client";
+import type {RestaurantDto} from "@/lib/business-api.types";
+import { useContext,useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,17 +15,38 @@ import { fontFamilyLabels, fontFamilyMap, type RestaurantConfig } from "@/lib/re
 import { toast } from "@/hooks/use-toast";
 import { Upload, Smartphone, ExternalLink, Loader2, UtensilsCrossed } from "lucide-react";
 import { AppearanceFormSkeleton } from "@/components/skeletons/DashboardSkeletons";
+import {useCurrentRestaurant} from "@/features/restaurants/current-restaurant";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/lib/supabase";
-import { fetchOwnedRestaurant } from "@/lib/restaurants";
+import {optimizeMenuImage} from "@/lib/menu-image-optimization";
+import {uploadRestaurantLogo,retireRestaurantAsset,restaurantBrandingKey} from "@/lib/restaurant-assets";
+import {VaptApiClientError} from "@/lib/vapt-api-client";
+import { fetchRestaurant, updateRestaurant,checkRestaurantSlug } from "@/lib/restaurants";
+import { catalogWriterEnabled } from "@/lib/catalog/flags";
+import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
+import { CatalogPublicationFeedback } from "@/components/menu/CatalogPublicationStatus";
 
 const AppearancePage = () => {
   const { user } = useAuth();
+  const {scope,organizationId}=useCurrentRestaurant();
+  const queryClient=useContext(QueryClientContext);
+  const capture=useTenantContinuation();
+  const restaurantId=scope?.restaurantId;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading] = useState(true);
+  const [loadError,setLoadError]=useState(false);
+  const [loadAttempt,setLoadAttempt]=useState(0);
   const [saving, setSaving] = useState(false);
+  const [confirmedSlug,setConfirmedSlug]=useState("");
+  const [slugStatus,setSlugStatus]=useState<"checking"|"available"|"conflict"|"invalid"|"error"|null>(null);
+  const slugEpoch=useRef(0),slugController=useRef<AbortController|null>(null);
+  useEffect(()=>()=>{slugEpoch.current++;slugController.current?.abort();},[]);
   const [logoPreview, setLogoPreview] = useState("");
+  const [logoFile,setLogoFile]=useState<File|null>(null);
+  const previewRef=useRef<string|null>(null);
+  const retirePending=useRef<string|null>(null);
+  const logoLease=useRef<{file:File;operationId:string;publicUrl?:string;optimizedImage?:Blob}|null>(null);
+  useEffect(()=>()=>{if(previewRef.current)URL.revokeObjectURL(previewRef.current);},[]);
   const [deliveryEnabled, setDeliveryEnabled] = useState(false);
   const [config, setConfig] = useState<RestaurantConfig>({
     id: "",
@@ -37,92 +63,147 @@ const AppearancePage = () => {
     setConfig((prev) => ({ ...prev, ...partial }));
   };
 
+  const cacheConfirmedRestaurant=(saved:RestaurantDto)=>{
+    if(!queryClient||!user||!organizationId||saved.id!==restaurantId)return;
+    queryClient.setQueryData(restaurantQueryKey(user.id,organizationId,restaurantId),saved);
+    queryClient.setQueriesData<AccountBootstrap>({queryKey:[...privateAccountKey(user.id),'account-bootstrap']},current=>current?{
+      ...current,restaurants:current.restaurants.map(value=>value.id===restaurantId&&value.organizationId===organizationId?{...value,name:saved.name,slug:saved.slug}:value),
+    }:current);
+  };
+  const settleLogo=async(logoUrl:string|null,isCurrent:()=>boolean)=>{
+    if(!isCurrent())return;
+    setConfig(current=>({...current,logoUrl:logoUrl??""}));setLogoFile(null);logoLease.current=null;
+    if(previewRef.current){URL.revokeObjectURL(previewRef.current);previewRef.current=null;}setLogoPreview(logoUrl??"");
+    const previous=retirePending.current;retirePending.current=null;
+    if(previous&&previous!==logoUrl&&restaurantId){
+      const objectKey=restaurantBrandingKey(previous,restaurantId);
+      if(objectKey)try{await retireRestaurantAsset({restaurantId,objectKey});}catch{if(isCurrent())toast({title:"Logo salvo; limpeza pendente",description:"A imagem anterior será mantida enquanto houver referências."});}
+    }
+  };
+  const publication = useCatalogPublication(scope, async isCurrent => {
+    const data = await fetchRestaurant(restaurantId!); if (!isCurrent()) return;
+    cacheConfirmedRestaurant(data);
+    setConfig(current => ({ ...current, id: data.id, name: data.name, slug: data.slug, logoUrl: data.logoUrl || "",
+      primaryColor: data.primaryColor, secondaryColor: data.secondaryColor,
+      fontFamily: data.fontFamily === "classic" || data.fontFamily === "rounded" ? data.fontFamily : "modern" }));
+    setConfirmedSlug(data.slug);setSlugStatus(null);
+    setDeliveryEnabled(data.deliveryEnabled);await settleLogo(data.logoUrl,isCurrent);
+  });
+
   // Fetch restaurant data
   useEffect(() => {
+    const controller=new AbortController(),isCurrent=capture();
+    setLoading(true);setLoadError(false);
     const fetch = async () => {
-      if (!user) return;
+      if (!user || !restaurantId) {setLoading(false);return;}
       try {
-        const data = await fetchOwnedRestaurant<{
-          id: string;
-          owner_id: string;
-          updated_at: string;
-          name: string | null;
-          slug: string | null;
-          logo_url: string | null;
-          primary_color: string | null;
-          secondary_color: string | null;
-          font_family: string | null;
-          delivery_enabled: boolean | null;
-        }>(
-          user.id,
-          "id, owner_id, updated_at, name, slug, logo_url, primary_color, secondary_color, font_family, delivery_enabled"
-        );
+        const data = await fetchRestaurant(restaurantId!,controller.signal);
+        if(!isCurrent())return;
 
         if (data) {
-          setDeliveryEnabled(Boolean(data.delivery_enabled));
+          setConfirmedSlug(data.slug);
+          setDeliveryEnabled(data.deliveryEnabled);
           setConfig({
             id: data.id,
-            name: data.name || "",
-            slug: data.slug || "",
-            logoUrl: data.logo_url || "",
-            primaryColor: data.primary_color || "#0ea573",
-            secondaryColor: data.secondary_color || "#1e293b",
-            fontFamily: (data.font_family as RestaurantConfig["fontFamily"]) || "modern",
+            name: data.name,
+            slug: data.slug,
+            logoUrl: data.logoUrl || "",
+            primaryColor: data.primaryColor || "#0ea573",
+            secondaryColor: data.secondaryColor || "#1e293b",
+            fontFamily: (data.fontFamily as RestaurantConfig["fontFamily"]) || "modern",
             activeModules: { menu: true, kds: true, metrics: true },
           });
-          setLogoPreview(data.logo_url || "");
+          setLogoPreview(data.logoUrl || "");
         }
       } catch (err: unknown) {
+        if(!isCurrent())return;setLoadError(true);
         if (import.meta.env.DEV) {
           console.error("Error fetching restaurant:", err);
         }
       } finally {
-        setLoading(false);
+        if(isCurrent())setLoading(false);
       }
     };
     fetch();
-  }, [user]);
+    return()=>controller.abort();
+  }, [user,restaurantId,capture,loadAttempt]);
 
+  const validSlug=(value:string)=>value.length>=2&&value.length<=60&&/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
+  const checkSlug=async(value:string)=>{
+    const isCurrent=capture(),epoch=++slugEpoch.current;slugController.current?.abort();
+    if(!isCurrent())return false;
+    if(!validSlug(value)){setSlugStatus("invalid");return false;}
+    const controller=new AbortController();slugController.current=controller;setSlugStatus("checking");
+    try{
+      const available=await checkRestaurantSlug(restaurantId!,value,controller.signal);
+      if(!isCurrent()||epoch!==slugEpoch.current)return false;
+      setSlugStatus(available?"available":"conflict");return available;
+    }catch{
+      if(isCurrent()&&epoch===slugEpoch.current)setSlugStatus("error");return false;
+    }
+  };
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setLogoPreview(url);
-    updateConfig({ logoUrl: url });
+    if(saving||publication.blocked)return;
+    if(!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size<1||file.size>5_242_880){
+      toast({title:"Imagem inválida",description:"Use JPG, PNG ou WebP de até 5 MiB.",variant:"destructive"});return;
+    }
+    if(previewRef.current)URL.revokeObjectURL(previewRef.current);
+    const url=URL.createObjectURL(file);previewRef.current=url;setLogoPreview(url);setLogoFile(file);logoLease.current=null;
   };
 
   const handleSave = async () => {
-    if (!user || !config.id) return;
+    if (!user || !restaurantId || config.id!==restaurantId || saving || publication.blocked) return;
+    const isCurrent=capture();if(!isCurrent())return;
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("restaurants")
-        .update({
-          name: config.name,
-          slug: config.slug,
-          primary_color: config.primaryColor,
-          secondary_color: config.secondaryColor,
-          font_family: config.fontFamily,
-          logo_url: config.logoUrl,
-        })
-        .eq("id", config.id);
-
-      if (error) throw error;
+      if(!validSlug(config.slug)){setSlugStatus("invalid");return;}
+      if(config.slug!==confirmedSlug&&!await checkSlug(config.slug))return;
+      if(!isCurrent())return;
+      let logoUrl=config.logoUrl||null;
+      if(logoFile){
+        if(logoLease.current?.file!==logoFile)logoLease.current={file:logoFile,operationId:crypto.randomUUID()};
+        const lease=logoLease.current;
+        if(!lease.optimizedImage){const encoded=await optimizeMenuImage(logoFile);if(!isCurrent())return;lease.optimizedImage=encoded;}
+        logoUrl=lease.publicUrl??await uploadRestaurantLogo({restaurantId,image:logoFile,operationId:lease.operationId,optimizedImage:lease.optimizedImage});
+        if(!isCurrent())return;lease.publicUrl=logoUrl;
+      }
+      retirePending.current=config.logoUrl!==logoUrl?config.logoUrl:null;
+      const patch = {
+        name: config.name,
+        slug: config.slug,
+        primaryColor: config.primaryColor,
+        secondaryColor: config.secondaryColor,
+        fontFamily: config.fontFamily,
+        logoUrl,
+      };
+      const saved=catalogWriterEnabled()?await updateRestaurant(restaurantId,patch,publication):await updateRestaurant(restaurantId,patch);
+      if(!isCurrent())return;
+      cacheConfirmedRestaurant(saved);
+      setConfirmedSlug(saved.slug);setConfig(current=>({...current,slug:saved.slug}));setSlugStatus(null);
+      await settleLogo(logoUrl,isCurrent);
+      if(!isCurrent())return;
       toast({ title: "Aparencia salva", description: "As alteracoes de marca foram aplicadas." });
     } catch (err: unknown) {
+      if(!isCurrent())return;
+      if (isCatalogPublicationDeferred(err)) return;
+      if(err instanceof VaptApiClientError&&err.status===409&&err.code==="slug_conflict"){setSlugStatus("conflict");return;}
       const description = err instanceof Error ? err.message : "Tente novamente.";
       toast({ title: "Erro ao salvar", description, variant: "destructive" });
     } finally {
-      setSaving(false);
+      if(isCurrent())setSaving(false);
     }
   };
 
+  if(loadError)return <div className="space-y-3"><p role="alert">Não foi possível carregar o restaurante. Tente novamente.</p><Button onClick={()=>setLoadAttempt(value=>value+1)}>Tentar novamente</Button></div>;
   if (loading) {
     return <AppearanceFormSkeleton />;
   }
 
   return (
     <div className="space-y-6">
+      <CatalogPublicationFeedback publication={publication} authenticated={!!user} />
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Aparencia & Marca</h1>
         <p className="text-muted-foreground text-sm">Personalize a identidade visual do seu Cardapio publico</p>
@@ -140,20 +221,25 @@ const AppearancePage = () => {
                 <Input value={config.name} onChange={(e) => updateConfig({ name: e.target.value })} />
               </div>
               <div>
-                <Label>Slug da URL</Label>
+                <Label htmlFor="restaurant-slug">Slug da URL</Label>
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="text-sm text-muted-foreground whitespace-nowrap">/menu/</span>
                   <Input
-                    value={config.slug}
-                    onChange={(e) => updateConfig({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })}
+                    id="restaurant-slug" value={config.slug} disabled={saving||publication.blocked}
+                    aria-invalid={slugStatus==="conflict"||slugStatus==="invalid"} aria-describedby="slug-feedback"
+                    onBlur={()=>{if(!saving&&!publication.blocked)void checkSlug(config.slug);}}
+                    onChange={e=>{slugEpoch.current++;slugController.current?.abort();setSlugStatus(null);updateConfig({slug:e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,"")});}}
                     className="min-w-0"
                   />
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Endereco publico: /menu/{config.slug}</p>
+                <p id="slug-feedback" aria-live="polite" className={slugStatus==="conflict"||slugStatus==="invalid"||slugStatus==="error"?"mt-1 text-xs text-destructive":"mt-1 text-xs text-muted-foreground"}>
+                  {slugStatus==="checking"?"Verificando endereço…":slugStatus==="conflict"?"Este endereço já está em uso. Escolha outro.":slugStatus==="invalid"?"Use de 2 a 60 caracteres: letras minúsculas, números e hífens simples.":slugStatus==="available"?"Endereço disponível.":slugStatus==="error"?"Não foi possível verificar o endereço. Tente novamente.":null}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">Prévia do endereço: /menu/{config.slug}</p>
               </div>
               <div>
                 <Label>Logo</Label>
-                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleLogoUpload} />
                 <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                   <div
                     className="h-16 w-16 rounded-lg border-2 border-dashed border-border flex items-center justify-center cursor-pointer hover:border-primary transition-colors overflow-hidden"
@@ -214,11 +300,11 @@ const AppearancePage = () => {
           </Card>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:flex">
-            <Button onClick={handleSave} disabled={saving} className="h-11 w-full sm:w-auto">
+            <Button onClick={handleSave} disabled={saving || publication.blocked || !user} className="h-11 w-full sm:w-auto">
               {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : "Salvar alteracoes"}
             </Button>
             <Button variant="outline" asChild className="h-11 w-full sm:w-auto">
-              <a href={`/menu/${config.slug}`} target="_blank" rel="noopener noreferrer">
+              <a href={`/menu/${confirmedSlug}`} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Ver Menu publico
               </a>
@@ -229,7 +315,7 @@ const AppearancePage = () => {
             >
               {deliveryEnabled ? (
                 <Button variant="outline" asChild className="h-11 w-full sm:w-auto">
-                  <a href={`/delivery/${config.slug}`} target="_blank" rel="noopener noreferrer">
+                  <a href={`/delivery/${confirmedSlug}`} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4 mr-2" />
                     Ver delivery publico
                   </a>
@@ -378,6 +464,7 @@ const CurrentMenuPreview = ({ config, logoPreview }: { config: RestaurantConfig;
   );
 };
 
-export default AppearancePage;
+const ScopedAppearancePage=withRestaurantScope(AppearancePage,"restaurant.manage");
+export default function AppearancePageRoute(){return <ScopedAppearancePage/>;}
 
 
