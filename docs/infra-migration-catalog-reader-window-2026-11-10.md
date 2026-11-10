@@ -48,3 +48,20 @@ A janela acima foi executada uma única vez. O executor fixado saiu com código 
 Recibo `production-catalog-reader-v1-activate-result.json`, SHA-256 `469256cdd7681eab32851b11fc2384938b36d267866f1cbbd711566811368a4a`, e provas exclusivas de fases no workspace local do plano. A autorização de ativação foi consumida; não repetir a janela. Qualquer rollback continua uma operação explícita e separada.
 
 **Situação:** ativação do reader em produção confirmada. Entrega de eventos com dados reais, economia observada e encerramento da migração/integração com `main` não são certificados por esta janela.
+
+## Primeiro recorte agregado pós-ativação
+
+Uma consulta GraphQL somente leitura às 01:32:43 de Brasília, HTTP 200 sem erros, comparou dois recortes fechados à esquerda de cinco minutos: antes `04:14–04:19 UTC` e depois `04:23–04:28 UTC`. A manutenção ficou fora de ambos. A consulta filtrou as versões exatas da API e os recursos existentes de produção. Não criou tráfego de aplicação, acesso direto ao Neon, novos tokens, logs ou mudança de configuração.
+
+| Fonte | Antes | Depois |
+| --- | --- | --- |
+| Worker API, versão exata | Sem grupos | 2 invocações, 0 erros de execução, intervalo de amostragem 1, CPU máxima observada 11,272 ms |
+| Durable Object do catálogo | Sem grupos | Sem grupos |
+| Bucket privado do catálogo | Sem grupos | 1 `GetObject` com classe `userError` |
+| Hyperdrive de produção | Sem grupos | Sem grupos |
+
+A leitura R2 sem sucesso é compatível com o GET de verificação para um slug inexistente, que retornou o 404 esperado. Não é atribuição por requisição individual. O status de execução do Worker não é o status HTTP. “Sem grupos” significa ausência de amostras retornadas neste recorte, não contagem certificada de zero operações. Hyperdrive é um agregado por configuração, não um contador de SQL por endpoint e não inclui conexões diretas ao Neon. O recorte não permite inferir economia, fatura, máximo sob carga, alarmes sem trabalho ou entrega de eventos. Referências: [Workers](https://developers.cloudflare.com/analytics/graphql-api/tutorials/querying-workers-metrics/), [R2](https://developers.cloudflare.com/r2/platform/metrics-analytics/) e [Hyperdrive](https://developers.cloudflare.com/hyperdrive/observability/metrics/).
+
+Evidência: `production-catalog-reader-aggregate-2026-11-10.json`, SHA-256 `45a5c4aca8188de23cff1447c394025e76d5038737b2f072880608fa0bacae76`. Operador de diagnóstico de uma execução no workspace do plano, sem agendamento. Esta é uma linha de base pós-ativação, não um teste positivo do cardápio.
+
+Para a prova positiva, observar uma visita e uma alteração autorizadas de um catálogo existente: conferir a revisão inicial, o sinal WebSocket e a revisão após uma única alteração, além de medir ociosidade sem GET recorrente. Atribuição de SQL por fluxo precisa de recorte e contagem controlados; os agregados acima sozinhos não bastam. Se não houver catálogo, manter a lacuna explícita ou usar uma janela sintética separada com escopo e limpeza próprios. Não fabricar um bootstrap nem repetir janelas já encerradas.
