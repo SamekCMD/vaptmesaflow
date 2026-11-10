@@ -28,3 +28,23 @@ Em 10/11, testes de regressão reproduziram os dois achados antes da correção.
 ## Próxima operação
 
 Somente após autorização da janela: verificar a baseline e a condição de catálogo vazio novamente, colocar a API em manutenção temporária, publicar o frontend preparado e reabrir a mesma API com reader ligado e writer preservado. Se houver divergência, interromper sem tentar novamente; se a resposta final for incerta, inspecionar antes de decidir qualquer nova escrita. Não autoriza rollout de outros recursos, recriação de fixtures, execução de rollback nem merge.
+
+## Execução autorizada — 10/11/2026
+
+A janela acima foi executada uma única vez. O executor fixado saiu com código 0, confirmando manutenção, frontend e API final, sem tentativa incerta, retry ou rollback. API final com `PUBLIC_CATALOG_READER_ENABLED=true` e `PUBLIC_CATALOG_WRITER_ENABLED=true`; frontend com eventos habilitados.
+
+| Fase | Deployment | Versão a 100% |
+| --- | --- | --- |
+| Manutenção da API | `94834b16-919f-475b-a2df-9f2242ca1bb5` | `10c87ed2-6526-4f8a-8257-1350b062d02e` |
+| Frontend | `85092412-e68e-496d-9c8f-f2882790f40b` | `372e0bb3-7716-41cb-9c71-bb3a03d84dd3` |
+| API reaberta | `c2a310e8-e424-43fa-ba36-5c162c4b827a` | `0aadb532-3a6d-4ad0-a8e2-bf4f688df589` |
+
+- O journal registrou a tentativa de manutenção às 01:20:02 e confirmou a API reaberta às 01:22:31 (Brasília). São horários do journal, não uma medição exata de indisponibilidade.
+- As duas inspeções Neon somente leitura confirmaram as nove contagens zeradas, antes da manutenção e antes da reabertura; ambas encerraram as duas sessões. Sem bootstrap, fixture ou escrita SQL. Recibos `production-catalog-reader-database-2026-11-10T04-19-11.949Z.json` e `production-catalog-reader-database-2026-11-10T04-21-30.762Z.json`.
+- Os 90 assets públicos foram conferidos byte a byte, 85 com cache imutável, arquivos privados não servidos. Upload incremental de 82 assets em 3 lotes. Sete chamadas de escrita no controle Cloudflare, limitadas à janela autorizada.
+- Após o executor fechar, três GETs públicos sem sessão confirmaram API `/health` 200, frontend 200 com index idêntico, e `/catalog-state` para slug inexistente retornando `404 not_found` / `Restaurant not found`, `Cache-Control: no-store`, sem cookie. É prova do caminho de leitura para catálogo vazio, não de entrega de eventos com um restaurante real.
+- O readback final preservou billing, cron/fila, domínios, recursos, secrets e proteções configuradas. Sem mudança de DNS, plano, schema, dados ou `main`.
+
+Recibo `production-catalog-reader-v1-activate-result.json`, SHA-256 `469256cdd7681eab32851b11fc2384938b36d267866f1cbbd711566811368a4a`, e provas exclusivas de fases no workspace local do plano. A autorização de ativação foi consumida; não repetir a janela. Qualquer rollback continua uma operação explícita e separada.
+
+**Situação:** ativação do reader em produção confirmada. Entrega de eventos com dados reais, economia observada e encerramento da migração/integração com `main` não são certificados por esta janela.
