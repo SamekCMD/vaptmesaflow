@@ -12,7 +12,14 @@ import {
 import MenuManagement from "@/pages/dashboard/MenuManagement";
 
 const { authUser } = vi.hoisted(() => ({ authUser: { id: "owner-1" } }));
+const storage = vi.hoisted(() => ({ mode: "r2" as "r2" | "disabled" }));
 
+vi.mock("@/lib/env", async original => ({
+  ENV: {
+    ...(await original<typeof import("@/lib/env")>()).ENV,
+    get menuImageStorageMode() { return storage.mode; },
+  },
+}));
 vi.mock("@/features/restaurants/current-restaurant",()=>({useCurrentRestaurant:()=>({scope:authUser.id?{userId:authUser.id,restaurantId:restaurant.id}:null,organizationId:"test-org",restaurant:{id:restaurant.id},capabilities:["restaurant.read","restaurant.operate","restaurant.manage","billing.read","billing.manage"],loading:false,error:null})}));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: authUser }),
@@ -66,6 +73,8 @@ const existingItem: MenuItemDto = {
 describe("menu management API cutover", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(deleteMenuImage).mockReset();
+    storage.mode = "r2";
     vi.mocked(fetchOwnedRestaurant).mockResolvedValue(restaurant);
     vi.mocked(listOwnedMenuItems).mockResolvedValue([existingItem]);
     vi.mocked(createMenuItem).mockImplementation(async (_restaurantId,input) => ({
@@ -139,5 +148,19 @@ describe("menu management API cutover", () => {
     fireEvent.click(screen.getByRole("button", { name: "Remover X-Salada" }));
     await waitFor(() => expect(deleteMenuItem).toHaveBeenCalledWith(restaurant.id,existingItem.id));
     expect(vi.mocked(deleteMenuImage).mock.invocationCallOrder.at(-1)).toBeLessThan(vi.mocked(deleteMenuItem).mock.invocationCallOrder.at(-1)!);
+  });
+
+  it("removes an item with an existing image when R2 is disabled", async () => {
+    storage.mode = "disabled";
+    vi.mocked(listOwnedMenuItems).mockResolvedValue([{ ...existingItem, imageUrl: "https://assets.test/legacy.webp" }]);
+    vi.mocked(deleteMenuImage).mockRejectedValueOnce(new Error("R2 indisponível"));
+    render(<MemoryRouter><MenuManagement /></MemoryRouter>);
+    await screen.findByText("X-Salada");
+
+    fireEvent.click(screen.getByRole("button", { name: "Remover X-Salada" }));
+
+    await waitFor(() => expect(screen.queryByText("X-Salada")).not.toBeInTheDocument());
+    expect(deleteMenuItem).toHaveBeenCalledWith(restaurant.id, existingItem.id);
+    expect(deleteMenuImage).not.toHaveBeenCalled();
   });
 });

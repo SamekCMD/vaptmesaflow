@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { PublicCatalogDto } from "@/lib/business-api.types";
 import { orderClient } from "@/lib/order-client";
 import { paymentClient, savePendingCheckout } from "@/lib/payment-client";
 import { vaptApiRequest } from "@/lib/vapt-api-client";
@@ -10,7 +11,9 @@ import type { RealtimeScope } from "@/lib/realtime/contracts";
 import type { subscribeRealtime } from "@/lib/realtime/client";
 
 const realtime = vi.hoisted(() => ({ consumers: [] as Array<{ scope: RealtimeScope; signal: Parameters<typeof subscribeRealtime>[1] }> }));
-vi.mock("@/lib/env", async original => ({ ENV: { ...(await original<typeof import("@/lib/env")>()).ENV, realtimeEnabled: true } }));
+vi.mock("@/lib/env", async original => ({
+  ENV: { ...(await original<typeof import("@/lib/env")>()).ENV, realtimeEnabled: true, publicCatalogEventsEnabled: false },
+}));
 vi.mock("@/lib/realtime/client", () => ({ subscribeRealtime: (scope, signal, state) => {
   const consumer = { scope, signal }; realtime.consumers.push(consumer); state("fallback");
   return () => { realtime.consumers = realtime.consumers.filter(item => item !== consumer); };
@@ -70,6 +73,8 @@ vi.mock("@/lib/payment-client", async (importOriginal) => {
 });
 
 describe("checkout online do delivery", () => {
+  let legacyCatalog: PublicCatalogDto;
+
   beforeEach(() => {
     vi.clearAllMocks();
     realtime.consumers = [];
@@ -113,7 +118,7 @@ describe("checkout online do delivery", () => {
       checkoutUrl: "javascript:invalid-checkout",
       expiresAt: null,
     });
-    vi.mocked(vaptApiRequest).mockResolvedValue({
+    legacyCatalog = {
       restaurant: {
         id: restaurant.id,
         name: restaurant.name,
@@ -153,7 +158,20 @@ describe("checkout online do delivery", () => {
         updatedAt: "2026-09-25T12:00:00.000Z",
         variations: [],
       }],
-    });
+    };
+    vi.mocked(vaptApiRequest).mockResolvedValue(legacyCatalog);
+  });
+
+  it("oculta itens indisponíveis no catálogo de fallback", async () => {
+    const unavailable = { ...legacyCatalog.items[0], id: "10000000-0000-4000-8000-000000000002", name: "Prato esgotado", available: false };
+    vi.mocked(vaptApiRequest).mockResolvedValue({ ...legacyCatalog, items: [unavailable, ...legacyCatalog.items] });
+
+    render(<MemoryRouter initialEntries={["/delivery/restaurante-teste"]}><Routes>
+      <Route path="/delivery/:slug" element={<PublicDelivery />} />
+    </Routes></MemoryRouter>);
+
+    expect(await screen.findByText("Prato Teste")).toBeInTheDocument();
+    expect(screen.queryByText("Prato esgotado")).not.toBeInTheDocument();
   });
 
   it("atualiza o acompanhamento somente do ultimo pedido autorizado por sinal", async () => {

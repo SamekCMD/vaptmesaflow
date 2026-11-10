@@ -210,7 +210,7 @@ const PublicDelivery = () => {
         }
 
         setRestaurant(catalog.restaurant);
-        const parsedItems = catalog.items.map((menuItem): DeliveryMenuItem => ({
+        const parsedItems = catalog.items.filter((menuItem) => menuItem.available).map((menuItem): DeliveryMenuItem => ({
           id: menuItem.id,
           name: menuItem.name,
           description: menuItem.description,

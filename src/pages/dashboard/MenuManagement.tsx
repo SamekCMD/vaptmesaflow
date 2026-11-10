@@ -22,6 +22,7 @@ import { MenuTableSkeleton } from "@/components/skeletons/DashboardSkeletons";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useCurrentRestaurant } from "@/features/restaurants/current-restaurant";
+import { ENV } from "@/lib/env";
 import { deleteMenuImage, uploadMenuImage, reconcileMenuImages } from "@/lib/menu-image-storage";
 import { catalogWriterEnabled } from "@/lib/catalog/flags";
 import { useCatalogPublication, isCatalogPublicationDeferred } from "@/hooks/use-catalog-publication";
@@ -258,7 +259,9 @@ const MenuManagement = () => {
     try {
       // The legacy endpoint still authorizes through the existing item and uses
       // a mutable key. Only the versioned protocol can safely retire after ready.
-      if (!catalogWriterEnabled() && item.imageUrl) await deleteMenuImage({ restaurantId, itemId: item.id });
+      if (!catalogWriterEnabled() && item.imageUrl && ENV.menuImageStorageMode === "r2") {
+        await deleteMenuImage({ restaurantId, itemId: item.id });
+      }
       if(!isCurrent())return;
       if (catalogWriterEnabled()) await deleteMenuItem(restaurantId,item.id, publication); else await deleteMenuItem(restaurantId,item.id);
       if(!isCurrent())return;
