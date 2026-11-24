@@ -1,44 +1,46 @@
-# Fechamento da migração — estado em 24/11/2026
+# Fechamento da migração — 24/11/2026
 
-Este é o resumo atual de encerramento. Seções de outubro e checklists sem marcação no plano original são histórico e critérios de aceitação, não uma nova lista de trabalho a repetir.
+Este é o estado atual. Checklists de outubro e fotografias anteriores são histórico, não instruções para repetir gates concluídos.
 
-## Delta recente preparado para integração
+## Infraestrutura e integração
 
-As branches de trabalho foram avançadas por fast-forward às mains já existentes, após comprovar que as árvores commitadas eram idênticas; alterações locais foram preservadas. A API recebeu o commit `1a391f4153a25147a29fcc37d0dcda0acf05cb68` e o [PR#2](https://github.com/SamekCMD/vapt-api/pull/2), separado dos PRs principais já merged. A documentação desta continuação segue em PR próprio no frontend. Esse é o único delta novo a integrar, sem refazer os merges anteriores.
+A migração principal foi integrada em10/11: [frontend#4](https://github.com/SamekCMD/vaptmesaflow/pull/4) e [API#1](https://github.com/SamekCMD/vapt-api/pull/1). O titular excluiu o servidor Hetzner e o projeto ficou vazio; site/API continuaram funcionando. Não há tarefa de resgatar Vercel, Easypanel, Coolify ou o antigo Supabase.
 
-Verificação local atual: API712/712, runtime Workers32/32, guards/operador66/66, frontend385/385, TypeScript API e dry-run do perfil Live aprovados. Revisão independente do delta API sem achados acionáveis. CI remoto do novo SHA está em acompanhamento; os testes locais não substituem esse resultado. Nenhum arquivo pessoal ou alteração local alheia foi incluído por inferência.
+O delta da nova conta Stripe foi integrado: [API#2](https://github.com/SamekCMD/vapt-api/pull/2), main`c15a07b532918696e76c86b89f895897249bee39`, e [frontend/docs#5](https://github.com/SamekCMD/vaptmesaflow/pull/5), main`8b597e8a12e47c3b817b7a8ef975033b6467a132`, com CI aprovado. Os diagnósticos da API foram integrados no [PR#3](https://github.com/SamekCMD/vapt-api/pull/3), main`d4660e27a606f0a4190445c0fc9e1368daa6c622`; push/PR do SHA`d1fa9ed` passaram nos runs45334187208/45334287270. Este último delta de billing e documentação corresponde ao [frontend#6](https://github.com/SamekCMD/vaptmesaflow/pull/6). Seu merge encerra a integração técnica; para continuidade, consultar o status desse PR, sem reabrir os merges anteriores.
 
-## Concluído com evidência
-
-| Frente | Evidência atual |
+| Frente | Evidência |
 | --- | --- |
-| Consolidação principal frontend/API | GETs GitHub em24/11, antes dos novos PRs de fechamento, confirmaram frontend#4 e API#1 merged em10/11 e listas abertas vazias |
-| Main frontend | `04a3e75f00c867796a6351bb60aaeed711eda294`, merge de `2fe605e` |
-| Main API | `12596fa0a4fa098aaeaaff03b048bf3320ef4759`, merge de `068b0fb` |
-| Produção na Cloudflare | Site/API publicados; correções da main publicadas em10/11 e Stripe Live configurado em24/11 |
-| Neon, Hyperdrive, Better Auth, R2, catálogo e realtime | Arquitetura nova em produção; catálogo reader/writer/realtime ligados e recursos separados por ambiente |
-| Billing assíncrono | Consumidores/fila/Cron30min já preparados e retomados; não contratar/recriar recursos para encerrar o plano |
-| Backup e restauração | Dump production10/11 restaurado e comparado em30tabelas; recibo e hash no registro próprio |
-| Aposentadoria Hetzner/Coolify | Servidor excluído pelo usuário, projeto sem recursos remanescentes e testes públicos após exclusão em10/11 |
-| Stripe Test | Pagamento Pro, webhooks reais, estado Neon/API e cancelamento validados; fixture aposentada |
-| Stripe Live técnico | API versão41 com sete bindings Live, webhook habilitado e recursos preservados; nenhum pagamento real realizado |
+| Cloudflare/Neon/Hyperdrive/Better Auth | Produção na nova arquitetura; ambientes separados |
+| R2/imagens/catálogo/realtime | Reader/writer/realtime ligados; compressão automática e quota100MiB por restaurante; gates anteriores preservados |
+| Billing | Queue/consumer/DLQ existentes; Cron30min e retry preservados |
+| Backup/restauração | Dump10/11 restaurado e comparado em30tabelas; hash/tamanho conferidos novamente sem repetir restore |
+| Stripe Test | Checkout Pro, estado Neon/API, webhooks reais e cancelamento comprovados |
+| Stripe Live | Conexão instalada, endpoint habilitado, entrega real de evento comprovada; nenhuma cobrança real |
+| Diagnóstico privado | API e billing publicados com códigos fixos no Analytics Engine; logs/traces/Issues desligados |
+| Proteção de custo | Limites nativos de US$1 de excedente Workers e US$1 Durable Objects salvos e conferidos no painel |
 
-Fontes: [PR frontend#4](https://github.com/SamekCMD/vaptmesaflow/pull/4), [PR API#1](https://github.com/SamekCMD/vapt-api/pull/1), [produção e aposentadoria](infra-migration-production-stability-2026-11-10.md), [backup restaurado](infra-migration-production-backup-2026-11-10.md), [catálogo ao vivo](infra-migration-catalog-live-production-2026-11-10.md), [Stripe Test](infra-migration-stripe-test-new-account.md), [Stripe Live](infra-migration-stripe-live-readiness.md).
+## Manifesto publicado
 
-## Duas frentes técnicas restantes
+| Produtor | Versão | Deployment | SHA256 do módulo |
+| --- | --- | --- | --- |
+| API `vapt-api-production` |42, `d18863be-4d77-461c-9cc3-0dabd706b365` | `05c38e62-fac4-440e-b3ac-d080ac767f45` | `3be50f2c47a61892978c37f4c8e1616b1f9ecd9f73f7bd0c006cf9a0bf8cd495` |
+| Billing `vapt-billing-email-production` |7, `f16fed43-6763-4dfe-996a-ff536eac2d09` | `fa31894f-f1de-40ea-a3ee-38f0b78146e4` | `4183c93d458720ebf17c5a2ca6920b3d40bc025e1d8b9e741de502b432098983` |
 
-1. **Integrar o delta recente.** O código e as configurações da nova conta Stripe e seus registros ainda têm alterações locais. Conferir refs atuais, testar/revisar somente esse delta, versionar arquivos pertinentes e integrar com CI. Preservar alterações alheias, branches antigas e worktrees. Os dois PRs principais já integrados não precisam de novo merge. O novo perfil Live agora foi incluído no workflow local de CI com teste e dry-run, sem deploy automático.
-2. **Fechar a conferência operacional.** Reconciliar a definição de pronto com os recibos existentes; conferir o estado atual de uso/limites e observabilidade/diagnóstico, os procedimentos de recuperação e o manifesto final das versões. Registrar lacunas reais e comprová-las sem repetir os canários, restaurações ou janelas já aprovados. O registro de observabilidade de outubro contém pendências de logs/alertas que exigem reconciliação; métricas agregadas não equivalem a logs sanitizados ou teto financeiro.
+Publicação100% com comparação das versões, código remoto byte a byte, bindings/secrets opacos preservados, settings/schedules conferidos e outros Workers/Preview inalterados. O primeiro upload parou antes do deploy porque a comparação da resposta do PATCH não passou; GETs completos comprovaram o delta restrito e a versão42 foi retomada sem novo upload. Recibo local ignorado `.superpowers/ops-closure/publication-result.json` aprovado.
 
-O consumo confortável informado é US$10–15 e a capacidade financeira máxima é US$20; nenhum limite monetário global foi comprovado. Verificação de consumo é parte do encerramento operacional. Não contratar serviços, garantir teto de fatura ou ativar persistência de logs com dados de requisição por inferência.
+Validação: API720/720, runtime workerd32/32, perfil13/13, billing64passou/3skips PostgreSQL preexistentes, TypeScript e dry-runs aprovados. Revisão independente sem achados no código; melhoria do recibo parcial do operador aplicada antes da publicação. Sonda privada comprovou7pontos e44colunas sem sentinelas de request/erro e foi removida. Readback final confirmou ambos deployments, logs desligados, Preview isolado, site/health200, webhook sem assinatura401 e consulta privada disponível com resultado vazio. Não induzir falhas em produção; resultado vazio não certifica zero falhas.
 
-## Duas pendências para cobrança comercial
+## Custo e recuperação
 
-- **Stripe liberar o cadastro.** Último GET confirmou cadastro enviado, zero campos atualmente devidos e verificações pendentes; recebimentos e saques ainda desabilitados. A conexão técnica está instalada. Uma entrega real Live e o ciclo de cobrança comercial ainda não foram comprovados; não criar pagamento real automaticamente.
-- **Definição fiscal brasileira.** Preços já são totais finais com impostos incluídos. Categoria SaaS apresentada ao titular ainda não confirmada; Stripe Tax não cobre o Brasil na consulta registrada, e nenhuma alíquota ou automação de recolhimento foi inventada. Esta frente exige definição fiscal própria, sem reabrir a migração de banco/infra.
+Painel Cloudflare: ciclo24/11–23/12, WorkersUS$0/US$1 e DurableObjectsUS$0/US$1 após salvar os bloqueios. Titular autorizou o email de cobrança já cadastrado para avisos. Não houve contratação nem carga artificial para testar o bloqueio. Mensalidade WorkersUS$5 e outros produtos ficam fora do limite Workers; armazenamento DO fica fora do limite DO. Medição/enforcement têm atraso. **Não existe teto global deUS$20 comprovado.**
 
-## Escopo e estimativa
+Neon Launch já contratado: quota216000segundos=60CUh, contador182284 no ciclo01/11–01/12UTC; endpoints idle, min=max0,25CU, autosuspend padrão5min. Quota não foi elevada. Controles reduzem exposição e não transformam orçamento em garantia financeira. Meta do titularUS$10–15, capacidade máximaUS$20.
 
-A infraestrutura principal já foi migrada e a integração principal das branches já aconteceu. O restante técnico é fechamento do delta recente e aceites operacionais, não uma nova implantação de todos os serviços. Não há medida de horas ou percentual global suficientemente confiável para prometer um prazo. O tempo de análise cadastral da Stripe e a definição fiscal não são controlados pela execução do código.
+Consultas privadas, interpretação dos códigos, backlog/DLQ, incidentes, quota e recuperação: [runbook operacional](infra-migration-operational-runbook-2026-11-24.md). Não habilitar logs brutos nem replay, purge ou restore automático. [Backup verificado](infra-migration-production-backup-2026-11-10.md).
 
-Preços trimestrais/semestrais/anuais futuros permanecem preparados e inativos em Test, conforme solicitado. Disponibilizá-los no produto exige um trabalho futuro de periodicidade; não reabrir essa expansão como condição para encerrar a migração atual. UI completa de convites de equipe não foi comprovada como funcionalidade anterior e não deve ser declarada restaurada nem criada silenciosamente neste encerramento.
+## Pendências externas para cobrança comercial
+
+1. **Análise cadastral Stripe.** Cadastro enviado; nenhum campo atualmente devido, seis verificações pendentes; `charges_enabled=false`, `payouts_enabled=false`. Liberação depende da Stripe. Evento Live real`evt_1UfBrhH4hY0s7wXrZWai0MGV` foi entregue e registrado como`ignored`, tentativa1, sem associação de negócio/outbox; comprova transporte/assinatura, não assinatura paga. Não criar cobrança real automaticamente.
+2. **Regularização fiscal.** Titular informou pessoa física no DF, sem ISS/CFDF nem orientação. Categoria técnica`txcd_10103001` aplicada nos seis produtos; todos os15preços Test/Live inclusivos. `automatic_tax` não habilitado; nenhum cadastro/alíquota/recolhimento inventado. [Roteiro fiscal com consulta pronta e fontes oficiais](infra-migration-fiscal-pessoa-fisica-df.md). Enquadramento PF/PJ, ISS, cadastro e emissão precisam ser definidos fora do código.
+
+Essas pendências não reabrem a migração. Preços futuros trimestrais/semestrais/anuais continuam inativos em Test; oferecê-los na UI é expansão futura. Não declarar UI completa de convites de equipe restaurada sem comprovação.
