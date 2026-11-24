@@ -1,5 +1,11 @@
 # Migração — reconciliação das branches locais
 
+## Encerramento — 24/11/2026
+
+Reconciliação e integração da migração CONCLUÍDAS. PRs principais e deltas integrados; branches/worktrees e WIPs alheios preservados. As divergências abaixo são snapshots históricos, não pendências para merge. [Status final e evidências](infra-migration-closure-status-2026-11-24.md).
+
+## Registro histórico
+
 ## Releitura22/10 — sem integração automática
 
 As12refs F e13refs A foram conferidas novamente, sem fetch. Main F9b576c1/Acebaed4 e todos os tips das famílias antigas permanecem os mesmos. Antes do checkpoint da tarefa16, candidata F0c94394 tem0/175 commits na comparação main…HEAD; A986e4c4 tem0/166. Contagens não equivalem a funcionalidades ou certificação remota.

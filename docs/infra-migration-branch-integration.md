@@ -1,10 +1,15 @@
 # Consolidação da migração — situação e integração
 
-## Estado atual —24/11
+## Status: INTEGRAÇÃO CONCLUÍDA — 24/11/2026
 
-Conferência independente do GitHub corrigiu a leitura dos resumos antigos: os PRs frontend#4/API#1 já foram merged em10/11, e as listas abertas estão vazias nos dois repositórios. Mains remotas atuais: F`04a3e75`/A`12596fa`. Os HEADs locais das branches de infraestrutura são os pais dos merges; as refs locais de main ainda estão antigas, portanto não usá-las como retrato do remoto. A integração pendente é somente do delta local recente, incluindo Stripe Test/Live e documentos; não reintegrar toda a migração. [Fechamento atual](infra-migration-closure-status-2026-11-24.md).
+- [x] Migração principal: frontend#4 e API#1 merged em10/11.
+- [x] Nova conta Stripe: frontend#5 e API#2 merged em24/11.
+- [x] Diagnósticos e fechamento: API#3 e frontend#6 merged em24/11, com CI aprovado.
+- [x] Mains do fechamento: frontend `7321290bc93c33a526fa7b5dbc11aa1f35d0c4ea`, API `d4660e27a606f0a4190445c0fc9e1368daa6c622`. Alterações locais alheias e branches/worktrees antigas preservadas.
 
-Atualização24/11: nova conta Stripe Test validada no Preview/Neon preview e conta Live conectada à API/Neon production, com webhook Live habilitado. Versão production41 `cdf86ce5-452f-4506-bbbc-563f59950d61`, mesmos recursos/CPU/flags; perfil atual `wrangler.worker-stripe-live-production.jsonc` preparado na API, com66 testes de guards e dry-run aprovados. O cadastro Stripe Live ainda está em verificação e nenhum pagamento Live foi realizado. [Estado atual, IDs e limites da prova](infra-migration-stripe-live-readiness.md). Estes gates não encerram a migração inteira nem autorizam declarar todos os PRs integrados; nenhum merge/push/main foi feito nesta continuação.
+Não há integração pendente da migração. Atualizações documentais posteriores apenas registram o encerramento. Consultar o [estado concluído](infra-migration-closure-status-2026-11-24.md); não reintegrar branches antigas por frases abaixo.
+
+## Histórico dos checkpoints
 
 Atualização25/10: [janela de promoção preparada localmente](infra-migration-production-promotion-preparation-2026-10-25.md), com inventário GET atual e montador de manutenção503 sem novos recursos.26testes novos/344operadores/704API/build0; workerd local com fonte da versão production atual. **Sem upload, pausa, DDL, push ou merge.** Próximo: operador restrito da janela, depois gate explícito de manutenção/drain e promoção pareada; teste local não é ativação.
 

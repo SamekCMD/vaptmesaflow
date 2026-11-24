@@ -1,5 +1,13 @@
 # Stripe Live — preparação da conta Vapt
 
+## Status final: CONCLUÍDO — 24/11/2026
+
+Nova consulta oficial à conta **Vapt Live** confirmou pagamentos e saques ativos: `charges_enabled=true`, `payouts_enabled=true`, `details_submitted=true`, zero campos devidos, zero verificações pendentes e `disabled_reason=null`. A análise cadastral está encerrada. Conexão, webhook real e integração do código já concluídos; não foi realizada cobrança Live como teste. [Fechamento da migração](infra-migration-closure-status-2026-11-24.md).
+
+Registros anteriores com flags false são fotografias históricas superadas. O roteiro fiscal é referência administrativa fora do escopo da migração.
+
+## Histórico
+
 ## Atualização consolidada — 24/11/2026
 
 Checkpoints abaixo conservam seu estado histórico. Integrações API#2/frontend#5 concluídas; ver o [estado atual](infra-migration-closure-status-2026-11-24.md).
