@@ -2,7 +2,7 @@
 
 ## Estado atual de encerramento — 24/11/2026
 
-Infraestrutura principal migrada e consolidação principal já integrada: GETs GitHub confirmaram frontend#4/API#1 merged em10/11 e zero PRs abertos em24/11. Hetzner/Coolify já aposentados e backup production restaurado em10/11. Restam duas frentes técnicas: integrar o delta recente de Stripe/configuração/documentação e fechar a conferência operacional atual (uso/limites, observabilidade, recuperação e aceites). Para cobrança comercial, a Stripe ainda verifica o cadastro e a definição fiscal brasileira permanece própria. Não repetir os merges principais, o cancelamento da VPS ou os canários já encerrados. [Resumo atual, fontes e limites](infra-migration-closure-status-2026-11-24.md).
+Infraestrutura principal migrada e integrada em10/11; delta Stripe API#2/frontend#5 também integrado. API#3 acrescentou diagnóstico privado já publicado na API e no billing; código billing e documentação final seguem em integração própria. Limites nativos WorkersUS$1/DOUS$1 salvos no painel com avisos autorizados. Entrega real de webhook Live comprovada sem cobrança. Restam a análise cadastral da Stripe e a regularização fiscal: titular pessoa física no DF, sem inscrição/orientação; categoria técnica confirmada e preços inclusivos não substituem essas obrigações. Não repetir merges principais, canários, backup/restauração ou aposentadoria Hetzner/Coolify. Seções antigas abaixo são fotografias históricas; o [resumo atual](infra-migration-closure-status-2026-11-24.md) prevalece na continuidade.
 
 ## Stripe Live conectado à API de produção — 24/11/2026
 

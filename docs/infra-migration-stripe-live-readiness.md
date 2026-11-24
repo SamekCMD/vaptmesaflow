@@ -1,5 +1,15 @@
 # Stripe Live — preparação da conta Vapt
 
+## Atualização consolidada — 24/11/2026
+
+Checkpoints abaixo conservam seu estado histórico. Integrações API#2/frontend#5 concluídas; ver o [estado atual](infra-migration-closure-status-2026-11-24.md).
+
+Entrega Live real comprovada sem cobrança: o endpoint recebeu temporariamente somente o evento adicional `product.updated`; a atualização necessária do Starter gerou `evt_1UfBrhH4hY0s7wXrZWai0MGV`. A lista original dos seis eventos foi restaurada e conferida com endpoint habilitado. Leitura SQL independente em transação somente leitura confirmou `type=product.updated`, `status=ignored`, tentativa1, produto Starter correto, organização nula e zero outbox para o evento. `pending_webhooks=0` foi corroborado pelo recibo no Neon. Isso comprova entrega/assinatura/API/banco, não assinatura Live paga. Nenhum Customer, Checkout, invoice, pagamento ou email foi criado neste ensaio.
+
+Após confirmação do titular, os seis produtos Test/Live receberam `tax_code=txcd_10103001`, default_price mensal e metadata do ambiente/plano corretos. Todos os15preços inclusivos foram conferidos sem mudar valores/intervalos/flags. Titular pessoa física no DF, sem inscrição nem orientação: [roteiro fiscal](infra-migration-fiscal-pessoa-fisica-df.md). Cálculo automático e registros tributários não foram ativados. Última conta: cadastro enviado, nenhum campo atualmente devido, seis verificações pendentes e recebimentos/saques desabilitados.
+
+API produção agora versão42 por acréscimo do diagnóstico privado, preservando os bindings Stripe da41. Billing versão7; manifesto no fechamento. Preview permanece Stripe Test/Neon preview.
+
 Conferência em 23/11/2026, horário de Brasília. Esta preparação continua a [validação Stripe Test no Preview](infra-migration-stripe-test-new-account.md).
 
 ## Conexão instalada e webhook habilitado — 24/11/2026
