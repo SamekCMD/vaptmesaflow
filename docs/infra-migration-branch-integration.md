@@ -1,5 +1,13 @@
 # Consolidação da migração — situação e integração
 
+## Estado atual —24/11
+
+Conferência independente do GitHub corrigiu a leitura dos resumos antigos: os PRs frontend#4/API#1 já foram merged em10/11, e as listas abertas estão vazias nos dois repositórios. Mains remotas atuais: F`04a3e75`/A`12596fa`. Os HEADs locais das branches de infraestrutura são os pais dos merges; as refs locais de main ainda estão antigas, portanto não usá-las como retrato do remoto. A integração pendente é somente do delta local recente, incluindo Stripe Test/Live e documentos; não reintegrar toda a migração. [Fechamento atual](infra-migration-closure-status-2026-11-24.md).
+
+Atualização24/11: nova conta Stripe Test validada no Preview/Neon preview e conta Live conectada à API/Neon production, com webhook Live habilitado. Versão production41 `cdf86ce5-452f-4506-bbbc-563f59950d61`, mesmos recursos/CPU/flags; perfil atual `wrangler.worker-stripe-live-production.jsonc` preparado na API, com66 testes de guards e dry-run aprovados. O cadastro Stripe Live ainda está em verificação e nenhum pagamento Live foi realizado. [Estado atual, IDs e limites da prova](infra-migration-stripe-live-readiness.md). Estes gates não encerram a migração inteira nem autorizam declarar todos os PRs integrados; nenhum merge/push/main foi feito nesta continuação.
+
+Atualização25/10: [janela de promoção preparada localmente](infra-migration-production-promotion-preparation-2026-10-25.md), com inventário GET atual e montador de manutenção503 sem novos recursos.26testes novos/344operadores/704API/build0; workerd local com fonte da versão production atual. **Sem upload, pausa, DDL, push ou merge.** Próximo: operador restrito da janela, depois gate explícito de manutenção/drain e promoção pareada; teste local não é ativação.
+
 Atualização24/10,15:38: ensaio local das migrations009–012 e grants próprios de production **aprovado** no [mesmo backup restaurado](infra-migration-production-backup-2026-10-24.md), incluindo integridade e permissões efetivas. Sem escrita ou publicação remota. Próximo: admissões/drain e promoção pareada schema/API/B/F; não migrar isoladamente enquanto componentes legados podem escrever. Nenhum push/merge/main neste gate.
 
 Atualização24/10,15:33: [backup production restaurado localmente e validado](infra-migration-production-backup-2026-10-24.md), incluindo owners/ACLs e20tabelas vazias no snapshot. Nenhuma mudança remota de schema/código/flags ou integração Git. Próximo gate preparatório é ensaio local das migrations/grants production; promoção pareada e merge continuam próprios. Backup não precisa ser repetido neste checkpoint.
