@@ -61,8 +61,8 @@ Analytics Engine usa amostragem adaptativa: manter o peso `_sample_interval`; re
 
 Orçamento informado: US$10–15/mês, máximo desejado US$20, sem planos novos. Workers Paid base US$5 e compute Neon limitado a 60CUh não cobrem todos os itens da fatura. O controle abaixo reduz exposição, mas **não garante teto global de US$20**.
 
-- Workers: limite planejado US$1 de excesso de requests/CPU após franquia, aplicado à conta inteira. Exclui base US$5 e demais produtos; pode bloquear API, Cron, consumidores Queue e chamadas Worker→Worker.
-- Durable Objects: limite separado planejado US$1 de operações/duração/leituras/escritas; **armazenamento fica excluído e pode continuar cobrado durante pausa**. Dependências podem falhar quando outro produto está bloqueado.
+- Workers: limite configurado US$1 de excesso de requests/CPU após franquia, aplicado à conta inteira. Exclui base US$5 e demais produtos; pode bloquear API, Cron, consumidores Queue e chamadas Worker→Worker.
+- Durable Objects: limite separado configurado US$1 de operações/duração/leituras/escritas; **armazenamento fica excluído e pode continuar cobrado durante pausa**. Dependências podem falhar quando outro produto está bloqueado.
 - Medição e bloqueio têm atraso; trabalho em andamento/falhas de enforcement podem exceder o limite. O ciclo é o da assinatura, não necessariamente mês civil. Limite habilitado persiste no próximo ciclo; pausar/despausar não zera gasto.
 - Antes de aplicar: conferir saldo e policies existentes, obter destinatário autorizado exigido pela UI, preservar controles e fazer readback de produto/action `usage_block`/enabled/threshold 100 centavos. Não provocar gasto para testar bloqueio. Status habilitado ou threshold alcançado não comprova propagação na borda.
 

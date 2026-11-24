@@ -6,7 +6,7 @@ Este é o estado atual. Checklists de outubro e fotografias anteriores são hist
 
 A migração principal foi integrada em10/11: [frontend#4](https://github.com/SamekCMD/vaptmesaflow/pull/4) e [API#1](https://github.com/SamekCMD/vapt-api/pull/1). O titular excluiu o servidor Hetzner e o projeto ficou vazio; site/API continuaram funcionando. Não há tarefa de resgatar Vercel, Easypanel, Coolify ou o antigo Supabase.
 
-O delta da nova conta Stripe foi integrado: [API#2](https://github.com/SamekCMD/vapt-api/pull/2), main`c15a07b532918696e76c86b89f895897249bee39`, e [frontend/docs#5](https://github.com/SamekCMD/vaptmesaflow/pull/5), main`8b597e8a12e47c3b817b7a8ef975033b6467a132`, com CI aprovado. Os diagnósticos da API foram integrados no [PR#3](https://github.com/SamekCMD/vapt-api/pull/3), main`d4660e27a606f0a4190445c0fc9e1368daa6c622`; push/PR do SHA`d1fa9ed` passaram nos runs45334187208/45334287270. Billing e documentação desta última frente seguem no delta próprio do frontend; conferir o respectivo PR antes de afirmar integração final.
+O delta da nova conta Stripe foi integrado: [API#2](https://github.com/SamekCMD/vapt-api/pull/2), main`c15a07b532918696e76c86b89f895897249bee39`, e [frontend/docs#5](https://github.com/SamekCMD/vaptmesaflow/pull/5), main`8b597e8a12e47c3b817b7a8ef975033b6467a132`, com CI aprovado. Os diagnósticos da API foram integrados no [PR#3](https://github.com/SamekCMD/vapt-api/pull/3), main`d4660e27a606f0a4190445c0fc9e1368daa6c622`; push/PR do SHA`d1fa9ed` passaram nos runs45334187208/45334287270. Este último delta de billing e documentação corresponde ao [frontend#6](https://github.com/SamekCMD/vaptmesaflow/pull/6). Seu merge encerra a integração técnica; para continuidade, consultar o status desse PR, sem reabrir os merges anteriores.
 
 | Frente | Evidência |
 | --- | --- |
@@ -28,7 +28,7 @@ O delta da nova conta Stripe foi integrado: [API#2](https://github.com/SamekCMD/
 
 Publicação100% com comparação das versões, código remoto byte a byte, bindings/secrets opacos preservados, settings/schedules conferidos e outros Workers/Preview inalterados. O primeiro upload parou antes do deploy porque a comparação da resposta do PATCH não passou; GETs completos comprovaram o delta restrito e a versão42 foi retomada sem novo upload. Recibo local ignorado `.superpowers/ops-closure/publication-result.json` aprovado.
 
-Validação: API720/720, runtime workerd32/32, perfil13/13, billing64passou/3skips PostgreSQL preexistentes, TypeScript e dry-runs aprovados. Revisão independente sem achados no código; melhoria do recibo parcial do operador aplicada antes da publicação. Sonda privada comprovou7pontos e44colunas sem sentinelas de request/erro e foi removida. Não induzir falhas em produção para criar o dataset; ausência de tabela/pontos não significa zero falhas.
+Validação: API720/720, runtime workerd32/32, perfil13/13, billing64passou/3skips PostgreSQL preexistentes, TypeScript e dry-runs aprovados. Revisão independente sem achados no código; melhoria do recibo parcial do operador aplicada antes da publicação. Sonda privada comprovou7pontos e44colunas sem sentinelas de request/erro e foi removida. Readback final confirmou ambos deployments, logs desligados, Preview isolado, site/health200, webhook sem assinatura401 e consulta privada disponível com resultado vazio. Não induzir falhas em produção; resultado vazio não certifica zero falhas.
 
 ## Custo e recuperação
 

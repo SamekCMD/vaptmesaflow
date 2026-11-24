@@ -2,7 +2,7 @@
 
 ## Estado atual de encerramento — 24/11/2026
 
-Infraestrutura principal migrada e integrada em10/11; delta Stripe API#2/frontend#5 também integrado. API#3 acrescentou diagnóstico privado já publicado na API e no billing; código billing e documentação final seguem em integração própria. Limites nativos WorkersUS$1/DOUS$1 salvos no painel com avisos autorizados. Entrega real de webhook Live comprovada sem cobrança. Restam a análise cadastral da Stripe e a regularização fiscal: titular pessoa física no DF, sem inscrição/orientação; categoria técnica confirmada e preços inclusivos não substituem essas obrigações. Não repetir merges principais, canários, backup/restauração ou aposentadoria Hetzner/Coolify. Seções antigas abaixo são fotografias históricas; o [resumo atual](infra-migration-closure-status-2026-11-24.md) prevalece na continuidade.
+Infraestrutura principal migrada e integrada em10/11; delta Stripe API#2/frontend#5 também integrado. API#3 acrescentou diagnóstico privado já publicado na API e no billing; [frontend#6](https://github.com/SamekCMD/vaptmesaflow/pull/6) encerra o delta final de billing/documentação quando merged. Limites nativos WorkersUS$1/DOUS$1 salvos no painel com avisos autorizados. Entrega real de webhook Live comprovada sem cobrança. Pendências externas: análise cadastral da Stripe e regularização fiscal; titular pessoa física no DF, sem inscrição/orientação. Categoria técnica e preços inclusivos não substituem essas obrigações. Não repetir merges principais, canários, backup/restauração ou aposentadoria Hetzner/Coolify. Seções antigas abaixo são históricas; o [resumo atual](infra-migration-closure-status-2026-11-24.md) prevalece na continuidade.
 
 ## Stripe Live conectado à API de produção — 24/11/2026
 
