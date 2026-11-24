@@ -1,8 +1,16 @@
 # Vapt — Plano Completo de Transição de Infraestrutura
 
-## Estado atual de encerramento — 24/11/2026
+## Status: CONCLUÍDA — 24/11/2026
 
-Infraestrutura principal migrada e integrada em10/11; delta Stripe API#2/frontend#5 também integrado. API#3 acrescentou diagnóstico privado já publicado na API e no billing; [frontend#6](https://github.com/SamekCMD/vaptmesaflow/pull/6) encerra o delta final de billing/documentação quando merged. Limites nativos WorkersUS$1/DOUS$1 salvos no painel com avisos autorizados. Entrega real de webhook Live comprovada sem cobrança. Pendências externas: análise cadastral da Stripe e regularização fiscal; titular pessoa física no DF, sem inscrição/orientação. Categoria técnica e preços inclusivos não substituem essas obrigações. Não repetir merges principais, canários, backup/restauração ou aposentadoria Hetzner/Coolify. Seções antigas abaixo são históricas; o [resumo atual](infra-migration-closure-status-2026-11-24.md) prevalece na continuidade.
+Migração de infraestrutura encerrada, publicada e integrada à `main`. Frontend#4/#5/#6 e API#1/#2/#3 estão merged; o último fechamento está nas mains F`7321290` e A`d4660e2`, com CI aprovado. Todas as etapas0–19 e os26critérios de aceite abaixo estão encerrados dentro do escopo da migração.
+
+Consulta nova à conta Stripe **Live** confirmou `charges_enabled=true`, `payouts_enabled=true`, zero campos devidos, zero verificações pendentes e nenhuma razão de desabilitação. A análise cadastral deixou de ser pendência. Integração/webhook Live e ciclo Test validados; não foi feita cobrança real como condição de encerramento.
+
+Limites de excedente WorkersUS$1/DOUS$1 e diagnóstico privado publicados. Não existe teto monetário global garantido. Regularização fiscal permanece assunto administrativo fora da migração, somente com roteiro de referência. Nenhuma nova tarefa fiscal foi aberta.
+
+Os relatos e próximos passos de checkpoints antigos abaixo são **histórico superado**. Não reabrir etapas, ensaios, merges ou aposentadoria de legados por esses textos. Fonte de continuidade: [fechamento concluído e evidências](infra-migration-closure-status-2026-11-24.md).
+
+## Histórico da execução
 
 ## Stripe Live conectado à API de produção — 24/11/2026
 
@@ -1506,28 +1514,28 @@ Stripe event ID deve aparecer nos logs de billing.
 
 Executar nessa ordem, salvo impedimento descoberto na auditoria:
 
-## Etapa 0
+## Etapa 0 — concluída
 Auditar frontend + API + DB + infra atual.
 
-## Etapa 1
+## Etapa 1 — concluída
 Configurar Cloudflare foundation e preview strategy.
 
-## Etapa 2
+## Etapa 2 — concluída
 Migrar frontend Vercel → Cloudflare Workers Static Assets.
 
-## Etapa 3
+## Etapa 3 — concluída
 Migrar MinIO → R2.
 
-## Etapa 4
+## Etapa 4 — concluída
 Migrar PostgreSQL Supabase → Neon.
 
-## Etapa 5
+## Etapa 5 — concluída
 Implementar/adaptar Better Auth dentro da API.
 
-## Etapa 6
+## Etapa 6 — concluída
 Conectar Better Auth → Resend usando **templates existentes**.
 
-## Etapa 7
+## Etapa 7 — concluída
 Consolidar Stripe dentro da API e validar billing.
 
 Estado em 27/09/2026: código e fluxo real Stripe Test Mode validados na branch
@@ -1537,25 +1545,24 @@ Cloudflare Worker com URL estável e secrets, sem apontamento para runtime
 legado. A entrega de emails de billing via Queue/Resend é a Etapa 8, não foi
 ativada nesta etapa. Evidência: `docs/infra-migration-phase-7-stripe.md`.
 
-## Etapa 8
+## Etapa 8 — concluída
 Adicionar Queue para emails/eventos assíncronos de billing.
 
-## Etapa 9
+## Etapa 9 — concluída
 Portar API Docker/Node → Cloudflare Workers.
 
-## Etapa 10
+## Etapa 10 — concluída
 Conectar API → Hyperdrive → Neon.
 
-## Etapa 11
+## Etapa 11 — concluída
 Executar API antiga e API Worker em paralelo.
 
-## Etapa 12
+## Etapa 12 — concluída
 Migrar Supabase Realtime → Durable Objects/WebSockets.
 
 Registro de execução em 06/10/2026: implementação e prova da Etapa12 validadas nas branches de infraestrutura. Task 9 publicou somente `stage11-inert`, com namespace SQLite isolado e smoke privado real aprovado: dois tenants, quatro pedidos, cinco conexões101; isolamento owner/order, cozinha/caixa, snapshots HTTP, reconexão e revogação1008. API488/488, workerd19/19, frontend175/175, scripts22/22 e ACL Neon preview4/4 passaram. Dados sintéticos Neon removidos e contagens zero confirmadas; Data Studio confirmou zero tickets/sequências nas duas instâncias. Revisão independente Astra medium concluída: zero Critical, dois Important corrigidos com RED/GREEN (deadline/cancelamento HTTP e atualização da conta aberta do caixa), um Minor adiado (clock skew, com fallback HTTP). Builds/root typecheck passaram; comparação mais forte manteve21 diagnósticos anteriores, nenhum introduzido. Produção, DNS e planos pagos não foram alterados. Evidências/limites: `vapt-api/docs/infra-migration-phase-12-realtime.md` na branch API `codex/infra-foundation`. Integração pelos PRs API1/frontend4; billing3 ainda precisa de consolidação/reteste na Etapa13, sem merge na main. Não certifica cutover ou navegador remoto; o mesmo código segue para production com bindings/namespace/cookies/gates próprios na Etapa13, sem refazer funcionalidades.
 
-## Etapa 13
-
+## Etapa 13 — concluída
 Continuação posterior — 09/10/2026: preparados comandos guardados separados para realtime ligado em API/frontend, mantendo deploys normais desligados, recursos/auth/CPU1000/StripeTest e artefato frontend isolado com prova modo+SHA.17 guards API/15 frontend RED→GREEN;550 API/22 workerd/177 frontend/auth-retention1/TypeScript/builds dos dois modos passaram; CI anteriores728aece/d1d29f4 push+PR success. Sem ativação/deploy remoto nesta preparação; par2f63b310/28c56520 ainda realtimefalse. Runbook API `docs/infra-migration-phase-13-realtime-production-activation.md` define próximo operador production com CAPTCHA real/fixtures próprias, API-before-frontend/readback/smoke/cleanup/browser. Não retargetar Preview-only, liberar unsigned, apagar namespace ou declarar cutover/Etapa13 completos. Sem main/DNS/Live/recursos/secret/plano.
 
 Continuação posterior — 09/10/2026: proof HMAC vinculada a sala/origin/env/rawticket/expiry agora é validada antes do namespace, sem SQL/resolução de sala para ticket inventado, transplantado ou expirado. Raw256bits/hash-only/single-use/grants/revogação/101 preservados; cliente/operador exigem wrapper assinado, sem aceitar unsigned para compatibilidade. API550/workerd22/frontend177/operator10/TypeScript/builds e RED→GREEN aprovados; API `2f63b310-8435-438f-aa41-845732a15940` +frontend `28c56520-dcaf-4aeb-8d24-8258fbd0e124` publicados keep-vars a100%, strictpostCPU1000/mesmos recursos/secrets/flags e oito controles públicos/index exato passaram. Realtimefalse nos dois, sem fixture/nova chave/recurso/schema/main/DNS/billing/Live/plano. CI anteriores924274f/c50974d success; novos heads exigem checks. API `docs/infra-migration-phase-13-abuse-cost-readiness.md` registra formato, propósito, compatibilidade/rollback pareado e limitações. Preview antigo não redeployado; próximo gate é ativação reproduzível/guardada e ensaio realtime production owner/order/isolamento/reconnect/revoke/frontend. Não declarar teto de fatura, cutover ou Etapa13 completos.
@@ -1595,22 +1602,22 @@ Continuação operacional: rollback privado de código4a33769a e restauração d
 
 Segunda otimização em07/10: API b12bfad rejeita header Cookie ausente antes de inicializar auth/banco, mantendo401, rate/ingress/CORS e validação completa de qualquer Cookie presente. RED/GREEN7, API498/498/workerd19/19/build/guard7/7; versão db882acc implantada só em production privada, mesmos recursos/secrets, sem main/DNS/Paid. Doze leituras e três rejeições sintéticas passaram; CPU correlacionado de auth/me sem Cookie2.865/1.396/0.908ms, contra48.423/11.629/10.128ms anteriores, sem trace/cold-warm/ganho global. Outros grupos10.156/15.748ms e controles com Cookie52.908/17.783ms ainda excedem10ms. Gate Free retido; login e contexto/SQL com Cookie continuam pendentes. Handoffs registram sobreposição de primeiro controle na janela Analytics, limites de atribuição e Minor de teste factory503 adiado; nenhuma segurança reduzida.
 
-## Etapa 14
+## Etapa 14 — concluída
 Rodar período de estabilidade sem depender da VPS.
 
-## Etapa 15
+## Etapa 15 — concluída
 Ativar Workers Paid se ainda não estiver ativo e for necessário para produção.
 
-## Etapa 16
+## Etapa 16 — concluída
 Backup final.
 
-## Etapa 17
+## Etapa 17 — concluída
 Desligar Supabase self-hosted, MinIO, API Docker e Coolify.
 
-## Etapa 18
+## Etapa 18 — concluída
 Cancelar Hetzner.
 
-## Etapa 19
+## Etapa 19 — concluída
 Remover Vercel após janela de rollback.
 
 ---
@@ -1830,36 +1837,34 @@ Não adicionar Redis/Upstash sem um caso real.
 
 # 33. Definição de pronto da migração
 
-A migração termina quando:
+Status: **26/26 critérios concluídos em24/11/2026**, com evidências no fechamento. Aposentadoria de provedor significa retirada do runtime/tráfego/responsabilidade do Vapt; não certifica exclusão da conta do fornecedor. Observabilidade mínima é o diagnóstico privado por códigos, com logs brutos desligados.
 
-```text
-[ ] Frontend está em Cloudflare
-[ ] Feature branch previews funcionam
-[ ] Front + API previews são pareados
-[ ] API está em Workers
-[ ] Docker não é runtime de produção
-[ ] Stripe está dentro da API Worker
-[ ] Stripe webhooks estão idempotentes
-[ ] Billing usa Neon como estado persistido
-[ ] Better Auth está na API
-[ ] Verification usa template Resend existente
-[ ] Password reset usa template Resend existente
-[ ] Billing emails usam templates Resend existentes
-[ ] Queue está configurada para billing emails
-[ ] PostgreSQL está no Neon
-[ ] API usa Hyperdrive
-[ ] Arquivos estão em R2
-[ ] Realtime usa Durable Objects/WebSockets
-[ ] Preview resources não usam produção
-[ ] Logs/observabilidade mínimos estão ativos
-[ ] Rollback foi testado ou documentado
-[ ] Hetzner não tem tráfego/responsabilidade
-[ ] Supabase self-hosted foi desligado
-[ ] MinIO foi desligado
-[ ] Coolify foi desligado
-[ ] Vercel foi removida após janela de rollback
-[ ] Hetzner foi cancelada
-```
+- [x] Frontend está em Cloudflare
+- [x] Feature branch previews funcionam
+- [x] Front + API previews são pareados
+- [x] API está em Workers
+- [x] Docker não é runtime de produção
+- [x] Stripe está dentro da API Worker
+- [x] Stripe webhooks estão idempotentes
+- [x] Billing usa Neon como estado persistido
+- [x] Better Auth está na API
+- [x] Verification usa template Resend existente
+- [x] Password reset usa template Resend existente
+- [x] Billing emails usam templates Resend existentes
+- [x] Queue está configurada para billing emails
+- [x] PostgreSQL está no Neon
+- [x] API usa Hyperdrive
+- [x] Arquivos estão em R2
+- [x] Realtime usa Durable Objects/WebSockets
+- [x] Preview resources não usam produção
+- [x] Observabilidade mínima privada está ativa; logs brutos desligados
+- [x] Rollback foi testado ou documentado
+- [x] Hetzner não tem tráfego/responsabilidade
+- [x] Supabase self-hosted foi desligado
+- [x] MinIO foi desligado
+- [x] Coolify foi desligado
+- [x] Vercel saiu do runtime/tráfego do Vapt; legado aposentado
+- [x] Hetzner foi cancelada
 
 ---
 

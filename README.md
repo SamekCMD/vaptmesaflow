@@ -1,5 +1,7 @@
 # Vapt Restaurant Suite
 
+**Infrastructure migration: COMPLETE (2026-11-24).** Frontend/API/billing run on Cloudflare, data on Neon/R2, realtime on Durable Objects; migration changes merged into main. Stripe Live payments and payouts enabled. [Final status and evidence](docs/infra-migration-closure-status-2026-11-24.md).
+
 Vapt is an operational system for restaurants.  
 It connects menu, tables, kitchen, cashier, and metrics in one flow.
 
@@ -27,7 +29,7 @@ Important:
 
 - `VITE_VAPT_API_BASE_URL` is a **frontend** variable, so yes, it must be in `.env.local` for local dev.
 - `VITE_PAYMENT_ENVIRONMENT` accepts `sandbox` for test deployments and defaults to `production` when omitted.
-- On Vercel, add the same variables in Project Settings -> Environment Variables.
+- Production hosting is Cloudflare Workers Static Assets; configure each environment through its versioned Cloudflare profile. Vercel is retired infrastructure.
 - Never hardcode keys/URLs in source files.
 
 ## Local run

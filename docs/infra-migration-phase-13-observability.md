@@ -1,5 +1,11 @@
 # Etapa 13 — observabilidade e proteção de custo
 
+## Encerramento — 24/11/2026
+
+FECHAMENTO CONCLUÍDO. Diagnóstico privado nativo publicado em API/billing e limites de excedente WorkersUS$1/DOUS$1 salvos. A reprovação do teste antigo de Workers Logs é preservada; logs brutos continuam desligados. [Status final e evidências](infra-migration-closure-status-2026-11-24.md).
+
+## Registro histórico
+
 ## Teste remoto de metadata — 15/10/2026
 
 **Policy candidata de persistência reprovada; coleta da API real segue desligada.** Sonda privada descartável/CPU25/sem secrets ou recursos de negócio confirmou logs persistidos/invocation_logsoff/queryredactiontrue/tracesIssuesoff/destinosvazios. Uma chamada conhecidaHTTP200 confirmou nove sentinelas fictícias e três códigos fixos emitidos; dashboard próprio retornou os três registros e o detalhe da requisição reteve o email fictício colocado no path. Isso basta para rejeitar a promessa de logs contendo somente códigos seguros; não houve leitura de tokens/PII reais nem certificação de ausência dos demais campos. Exceção intencional não foi testada, pois a primeira amostra válida já era insegura.

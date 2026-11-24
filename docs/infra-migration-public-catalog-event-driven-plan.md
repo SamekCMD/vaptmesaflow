@@ -1,5 +1,11 @@
 # Public Catalog by Event Implementation Plan
 
+## Encerramento — 24/11/2026
+
+IMPLEMENTAÇÃO E PROMOÇÃO DO CATÁLOGO ENCERRADAS no escopo da migração. Código integrado e reader/writer/realtime publicados. Checkboxes abaixo são o roteiro histórico; não marcar benchmarks ou ensaios não executados como aprovados. Evidências e limites da observação positiva constam em infra-migration-catalog-live-production-2026-11-10.md. [Status final e evidências](infra-migration-closure-status-2026-11-24.md).
+
+## Registro histórico
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Atualizar os cardápios local e delivery por evento, eliminando polling de catálogo e leituras Postgres nas visitas com projeção publicada.

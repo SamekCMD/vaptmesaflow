@@ -1,12 +1,14 @@
 # Fechamento da migração — 24/11/2026
 
+**STATUS: MIGRAÇÃO CONCLUÍDA em24/11/2026.** Infraestrutura publicada, etapas0–19/aceite26/26 encerrados e integração à main comprovada. Stripe Live com pagamentos e saques ativos.
+
 Este é o estado atual. Checklists de outubro e fotografias anteriores são histórico, não instruções para repetir gates concluídos.
 
 ## Infraestrutura e integração
 
 A migração principal foi integrada em10/11: [frontend#4](https://github.com/SamekCMD/vaptmesaflow/pull/4) e [API#1](https://github.com/SamekCMD/vapt-api/pull/1). O titular excluiu o servidor Hetzner e o projeto ficou vazio; site/API continuaram funcionando. Não há tarefa de resgatar Vercel, Easypanel, Coolify ou o antigo Supabase.
 
-O delta da nova conta Stripe foi integrado: [API#2](https://github.com/SamekCMD/vapt-api/pull/2), main`c15a07b532918696e76c86b89f895897249bee39`, e [frontend/docs#5](https://github.com/SamekCMD/vaptmesaflow/pull/5), main`8b597e8a12e47c3b817b7a8ef975033b6467a132`, com CI aprovado. Os diagnósticos da API foram integrados no [PR#3](https://github.com/SamekCMD/vapt-api/pull/3), main`d4660e27a606f0a4190445c0fc9e1368daa6c622`; push/PR do SHA`d1fa9ed` passaram nos runs45334187208/45334287270. Este último delta de billing e documentação corresponde ao [frontend#6](https://github.com/SamekCMD/vaptmesaflow/pull/6). Seu merge encerra a integração técnica; para continuidade, consultar o status desse PR, sem reabrir os merges anteriores.
+O delta da nova conta Stripe foi integrado: [API#2](https://github.com/SamekCMD/vapt-api/pull/2), main`c15a07b532918696e76c86b89f895897249bee39`, e [frontend/docs#5](https://github.com/SamekCMD/vaptmesaflow/pull/5), main`8b597e8a12e47c3b817b7a8ef975033b6467a132`, com CI aprovado. Os diagnósticos da API foram integrados no [PR#3](https://github.com/SamekCMD/vapt-api/pull/3), main`d4660e27a606f0a4190445c0fc9e1368daa6c622`; push/PR do SHA`d1fa9ed` passaram nos runs45334187208/45334287270. Este último delta de billing e documentação corresponde ao [frontend#6](https://github.com/SamekCMD/vaptmesaflow/pull/6). Merge confirmado: main frontend `7321290bc93c33a526fa7b5dbc11aa1f35d0c4ea`. Push e PR do SHA `a58bdf0` passaram nos runs45335585834/45335592471. Integração técnica concluída, sem reabrir merges anteriores.
 
 | Frente | Evidência |
 | --- | --- |
@@ -38,9 +40,16 @@ Neon Launch já contratado: quota216000segundos=60CUh, contador182284 no ciclo01
 
 Consultas privadas, interpretação dos códigos, backlog/DLQ, incidentes, quota e recuperação: [runbook operacional](infra-migration-operational-runbook-2026-11-24.md). Não habilitar logs brutos nem replay, purge ou restore automático. [Backup verificado](infra-migration-production-backup-2026-11-10.md).
 
-## Pendências externas para cobrança comercial
+## Stripe Live: liberação concluída
 
-1. **Análise cadastral Stripe.** Cadastro enviado; nenhum campo atualmente devido, seis verificações pendentes; `charges_enabled=false`, `payouts_enabled=false`. Liberação depende da Stripe. Evento Live real`evt_1UfBrhH4hY0s7wXrZWai0MGV` foi entregue e registrado como`ignored`, tentativa1, sem associação de negócio/outbox; comprova transporte/assinatura, não assinatura paga. Não criar cobrança real automaticamente.
-2. **Regularização fiscal.** Titular informou pessoa física no DF, sem ISS/CFDF nem orientação. Categoria técnica`txcd_10103001` aplicada nos seis produtos; todos os15preços Test/Live inclusivos. `automatic_tax` não habilitado; nenhum cadastro/alíquota/recolhimento inventado. [Roteiro fiscal com consulta pronta e fontes oficiais](infra-migration-fiscal-pessoa-fisica-df.md). Enquadramento PF/PJ, ISS, cadastro e emissão precisam ser definidos fora do código.
+- [x] Conta Vapt Live `acct_1UKK1yH4hY0s7wXr`: `charges_enabled=true` e `payouts_enabled=true`.
+- [x] `details_submitted=true`, zero `currently_due`, zero `pending_verification`, `disabled_reason=null` em nova consulta oficial em24/11/2026.
+- [x] Endpoint Live habilitado e entrega real comprovada: evento `evt_1UfBrhH4hY0s7wXrZWai0MGV`, registrado como `ignored`, tentativa1, sem associação de negócio/outbox. Ciclo de assinatura comprovado em Test.
 
-Essas pendências não reabrem a migração. Preços futuros trimestrais/semestrais/anuais continuam inativos em Test; oferecê-los na UI é expansão futura. Não declarar UI completa de convites de equipe restaurada sem comprovação.
+Isso corrige o snapshot anterior com flags false. Nenhuma cobrança real foi executada ou declarada validada.
+
+## Fora do escopo do encerramento
+
+Regularização fiscal não bloqueia o status de **migração técnica concluída**. Titular pessoa física no DF, sem inscrição/orientação informadas; categoria técnica `txcd_10103001` nos seis produtos e15preços Test/Live inclusivos. `automatic_tax` não habilitado e nenhum cadastro/alíquota/recolhimento presumido. O [roteiro fiscal](infra-migration-fiscal-pessoa-fisica-df.md) fica somente como referência administrativa, sem nova frente de execução.
+
+Preços trimestrais/semestrais/anuais continuam inativos em Test; oferecê-los na UI é expansão futura. Não declarar UI completa de convites de equipe ou economia monetária por fluxo comprovadas sem evidência. Benchmarks não executados e resultados formais reprovados permanecem registrados como tais; não foram convertidos em testes aprovados para encerrar a migração.
